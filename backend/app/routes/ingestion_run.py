@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, status
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -27,5 +29,34 @@ def create_run(payload: IngestionRunCreate, db: Session = Depends(get_db)):
     db.add(run)
     db.commit()
     db.refresh(run)
+
+    return run
+
+
+"""
+Return all ingestion runs ordered by most recent first
+"""
+@router.get(
+    "/",
+    response_model=list[IngestionRunRead],
+    status_code=status.HTTP_200_OK,
+)
+def list_runs(db: Session = Depends(get_db)):
+    return db.query(IngestionRun).order_by(IngestionRun.started_at.desc()).all()
+
+
+"""
+Return a single ingestion run by ID
+"""
+@router.get(
+    "/{run_id}",
+    response_model=IngestionRunRead,
+    status_code=status.HTTP_200_OK,
+)
+def get_run(run_id: uuid.UUID, db: Session = Depends(get_db)):
+    run = db.get(IngestionRun, run_id)
+
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
 
     return run
