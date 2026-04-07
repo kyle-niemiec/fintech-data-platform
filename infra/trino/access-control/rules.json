@@ -1,0 +1,75 @@
+{
+  "catalogs": [
+    {
+      "user": "trino_etl",
+      "catalog": ".*",
+      "allow": "all"
+    },
+    {
+      "user": "data_engineer",
+      "catalog": "lakehouse",
+      "allow": "all"
+    },
+    {
+      "user": "analyst",
+      "catalog": "lakehouse",
+      "allow": "read-only"
+    },
+    {
+      "user": "executive",
+      "catalog": "lakehouse",
+      "allow": "read-only"
+    }
+  ],
+  "schemas": [
+    {
+      "user": "data_engineer",
+      "schema": ".*",
+      "owner": true
+    },
+    {
+      "user": "analyst",
+      "schema": "silver",
+      "owner": false
+    },
+    {
+      "user": "executive",
+      "schema": "gold",
+      "owner": false
+    }
+  ],
+  "tables": [
+    {
+      "user": "data_engineer",
+      "schema": ".*",
+      "table": ".*",
+      "privileges": ["SELECT", "INSERT", "DELETE", "UPDATE", "OWNERSHIP"]
+    },
+    {
+      "user": "analyst",
+      "schema": "silver",
+      "table": ".*",
+      "privileges": ["SELECT"],
+      "columns": [
+        {
+          "name": "account_number",
+          "mask": "regexp_replace(account_number, '.(?=.{4})', 'X')"
+        },
+        {
+          "name": "ssn",
+          "mask": "'REDACTED'"
+        },
+        {
+          "name": "email",
+          "mask": "regexp_replace(email, '^[^@]+', 'MASKED')"
+        }
+      ]
+    },
+    {
+      "user": "executive",
+      "schema": "gold",
+      "table": ".*",
+      "privileges": ["SELECT"]
+    }
+  ]
+}

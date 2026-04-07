@@ -3,20 +3,36 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import settings
 
-engine = create_engine(settings.database_url, future=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+"Import connection strings from the settings"
+operator_engine = create_engine(settings.operator_db_url, future=True)
+observer_engine = create_engine(settings.observer_db_url, future=True)
+
+"Create DB sessions for observers and operators independently"
+OperatorSession = sessionmaker(bind=operator_engine, autoflush=False, autocommit=False, future=True)
+ObserverSession = sessionmaker(bind=observer_engine, autoflush=False, autocommit=False, future=True)
 
 """
-Create the base SQL Alchemy DB session
+Base is bound to the operator engine as the authoritative schema reflection source.
 """
 class Base(DeclarativeBase):
     pass
 
 """
-A function for the Fast API to generate DB session instances with.
+DB session for write operations (control_plane_writer / api_runtime login user).
 """
-def get_db():
-    db = SessionLocal()
+def get_operator_db():
+    db = OperatorSession()
+
+    try:
+        yield db
+    finally:
+        db.close()
+
+"""
+DB session for read operations (control_plane_reader / audit_runtime login user).
+"""
+def get_observer_db():
+    db = ObserverSession()
 
     try:
         yield db
