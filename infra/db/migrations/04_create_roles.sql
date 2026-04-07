@@ -61,23 +61,3 @@ GRANT USAGE ON TYPE ingestion_source TO control_plane_writer, ingestion_writer;
 GRANT USAGE ON TYPE ingestion_status TO control_plane_writer, ingestion_writer;
 GRANT USAGE ON TYPE artifact_stage TO ingestion_writer;
 GRANT USAGE ON TYPE artifact_format TO ingestion_writer;
-
--- Default privileges: FOR ROLE db_migrator ensures future tables created by migrations
--- automatically inherit these grants without requiring manual re-grants per migration.
-ALTER DEFAULT PRIVILEGES FOR ROLE db_migrator IN SCHEMA public
-    GRANT SELECT ON TABLES TO control_plane_reader;
-ALTER DEFAULT PRIVILEGES FOR ROLE db_migrator IN SCHEMA public
-    GRANT SELECT ON TABLES TO control_plane_writer;
-ALTER DEFAULT PRIVILEGES FOR ROLE db_migrator IN SCHEMA public
-    GRANT SELECT, INSERT ON TABLES TO ingestion_writer;
-
--- Login user bindings (run manually with secret-managed passwords per environment):
---
--- CREATE ROLE api_runtime LOGIN PASSWORD '<rotate_me>';
--- GRANT control_plane_writer TO api_runtime;
---
--- CREATE ROLE audit_runtime LOGIN PASSWORD '<rotate_me>';
--- GRANT control_plane_reader TO audit_runtime;
---
--- CREATE ROLE airflow_runtime LOGIN PASSWORD '<rotate_me>';
--- GRANT ingestion_writer TO airflow_runtime;
