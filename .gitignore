@@ -1,3 +1,9 @@
+# User files
 /**/.env
+
+# Python
 /**/.venv/
 /**/__pycache__/
+
+# AI
+.codex

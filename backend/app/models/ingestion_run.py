@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
-from app.schemas.ingestion_run import IngestionSource, IngestionStatus
+from app.domain.enums import IngestionSource, IngestionStatus
 
 """
 Define the model for the `ingestion_run` table.
@@ -45,5 +45,5 @@ class IngestionRun(Base):
     def __init__(self, source_type: IngestionSource, triggered_by: str):
         self.run_id = uuid.uuid4()
         self.source_type = source_type
-        self.status = IngestionStatus.PENDING
+        self.status = IngestionStatus.pending
         self.triggered_by = triggered_by
