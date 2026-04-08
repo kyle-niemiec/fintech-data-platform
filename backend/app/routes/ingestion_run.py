@@ -3,15 +3,16 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.auth import require_observer, require_operator
-from app.db import get_observer_db, get_operator_db
+from app.auth import require_observer
+from app.db import get_observer_db
+from app.dependencies import get_write_db
 from app.models.ingestion_run import IngestionRun
 from app.schemas.ingestion_run import IngestionRunCreate, IngestionRunRead
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
 """
-Create a new ingestion run. Requires operator role.
+Create a new ingestion run. Requires operator or pipeline role.
 """
 @router.post(
     "/",
@@ -20,8 +21,7 @@ Create a new ingestion run. Requires operator role.
 )
 def create_run(
     payload: IngestionRunCreate,
-    _: dict = Depends(require_operator),
-    db: Session = Depends(get_operator_db),
+    db: Session = Depends(get_write_db),
 ):
     run = IngestionRun(
         source_type=payload.source_type,

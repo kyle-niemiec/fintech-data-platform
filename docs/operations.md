@@ -16,7 +16,7 @@ cp infra/.env.example infra/.env
 cp backend/.env.example backend/.env
 ```
 
-**`infra/.env`** — Postgres superuser, runtime DB users, and MinIO credentials for Docker Compose:
+**`infra/.env`** — Postgres superuser, runtime DB users, seed passwords, and MinIO credentials:
 ```
 POSTGRES_DB=fintech_platform
 POSTGRES_HOST=localhost
@@ -31,22 +31,31 @@ OPERATOR_DB_PASSWORD=<choose a password>
 OBSERVER_DB_USER=audit_runtime
 OBSERVER_DB_PASSWORD=<choose a password>
 
+PIPELINE_DB_USER=api_pipeline
+PIPELINE_DB_PASSWORD=<choose a password>
+
+AUTH_DB_USER=api_auth
+AUTH_DB_PASSWORD=<choose a password>
+
+OPERATOR_PASSWORD=<API login password for operator>
+OBSERVER_PASSWORD=<API login password for observer>
+PIPELINE_PASSWORD=<API login password for pipeline>
+
 MINIO_ROOT_USER=minio_admin
 MINIO_ROOT_PASSWORD=<choose a password>
 ```
 
 `POSTGRES_ROOT_USER`/`POSTGRES_ROOT_PASSWORD` initialize the Docker Postgres superuser on first run and are used by `make db-psql`. These are separate from the NOLOGIN `db_migrator` role template in `04_create_roles.sql`.
 
-`OPERATOR_DB_USER`/`OPERATOR_DB_PASSWORD` and `OBSERVER_DB_USER`/`OBSERVER_DB_PASSWORD` are the runtime login roles used by the API. They are created automatically on first container initialization by `05_create_login_roles.sql` — no manual SQL required.
+DB login roles (`OPERATOR_DB_USER`, `OBSERVER_DB_USER`, `PIPELINE_DB_USER`, `AUTH_DB_USER`) are created automatically on first container initialization by `05_create_login_roles.sql` — no manual SQL required.
 
-`POSTGRES_DB`, `POSTGRES_HOST`, `POSTGRES_PORT`, `OPERATOR_DB_USER`, `OPERATOR_DB_PASSWORD`, `OBSERVER_DB_USER`, and `OBSERVER_DB_PASSWORD` are all exported by the Makefile from `infra/.env` to the backend process — do not define them in `backend/.env`.
+`OPERATOR_PASSWORD`, `OBSERVER_PASSWORD`, and `PIPELINE_PASSWORD` are seed passwords used only by `make seed-principals` to populate the `principal` table. They are not used by the running API.
 
-**`backend/.env`** — API-only secrets (JWT and credential config only):
+All DB connection variables and seed passwords are exported by the Makefile from `infra/.env` — do not define them in `backend/.env`.
+
+**`backend/.env`** — API-only secrets:
 ```
 SECRET_KEY=<32-char random string — generate with: python -c "import secrets; print(secrets.token_hex(32))">
-
-OPERATOR_PASSWORD=<API password for operator identity>
-OBSERVER_PASSWORD=<API password for observer identity>
 ```
 
 ### 2. Create the backend virtual environment (first time only)
@@ -70,7 +79,15 @@ Postgres runs on `localhost:5432`. MinIO runs on `localhost:9000` (API) and `loc
 make api-install
 ```
 
-### 5. Run the API
+### 5. Seed API principals
+
+```bash
+make seed-principals
+```
+
+This reads `OPERATOR_PASSWORD`, `OBSERVER_PASSWORD`, and `PIPELINE_PASSWORD` from `infra/.env` and inserts bcrypt-hashed credentials into the `principal` table. Safe to run multiple times (updates existing rows).
+
+### 6. Run the API
 
 ```bash
 make api-dev
@@ -88,6 +105,7 @@ The API runs at `http://127.0.0.1:8000`.
 | `make api-install` | Install backend Python dependencies into `backend/.venv` |
 | `make api-dev` | Run the FastAPI app with reload enabled |
 | `make db-psql` | Open a psql shell inside the Postgres container |
+| `make seed-principals` | Seed or update API principals in the `principal` table |
 
 ## Common Operations
 

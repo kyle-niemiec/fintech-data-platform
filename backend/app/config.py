@@ -15,9 +15,13 @@ class Settings(BaseSettings):
     observer_db_user: str
     observer_db_password: str
 
+    pipeline_db_user: str
+    pipeline_db_password: str
+
+    auth_db_user: str
+    auth_db_password: str
+
     secret_key: str
-    operator_password: str
-    observer_password: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -42,6 +46,28 @@ class Settings(BaseSettings):
             drivername="postgresql+psycopg",
             username=self.observer_db_user,
             password=self.observer_db_password,
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
+        )
+
+    @property
+    def pipeline_db_url(self) -> URL:
+        return URL.create(
+            drivername="postgresql+psycopg",
+            username=self.pipeline_db_user,
+            password=self.pipeline_db_password,
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
+        )
+
+    @property
+    def auth_db_url(self) -> URL:
+        return URL.create(
+            drivername="postgresql+psycopg",
+            username=self.auth_db_user,
+            password=self.auth_db_password,
             host=self.postgres_host,
             port=self.postgres_port,
             database=self.postgres_db,

@@ -3,11 +3,20 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from passlib.hash import bcrypt
 
 from app.config import settings
 
 _ALGORITHM = "HS256"
 _TOKEN_EXPIRY_HOURS = 8
+
+
+def hash_password(plain: str) -> str:
+    return bcrypt.hash(plain)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.verify(plain, hashed)
 
 """
 Set up the bearer token URL
@@ -66,6 +75,31 @@ def require_observer(user: dict = Depends(get_current_user)) -> dict:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Observer role or higher required",
+        )
+
+    return user
+
+"""
+Requires the caller to hold the pipeline role.
+"""
+def require_pipeline(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "pipeline":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pipeline role required",
+        )
+
+    return user
+
+"""
+Requires the caller to hold the operator or pipeline role.
+Used for write endpoints that both human operators and pipeline services may call.
+"""
+def require_writer(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") not in {"operator", "pipeline"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operator or pipeline role required",
         )
 
     return user

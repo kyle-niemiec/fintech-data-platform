@@ -23,11 +23,23 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ingestion_writer') THEN
         CREATE ROLE ingestion_writer NOLOGIN;
     END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'auth_reader') THEN
+        CREATE ROLE auth_reader NOLOGIN;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'data_analyst') THEN
+        CREATE ROLE data_analyst NOLOGIN;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'data_executive') THEN
+        CREATE ROLE data_executive NOLOGIN;
+    END IF;
 END;
 $$;
 
 -- Schema visibility
-GRANT USAGE ON SCHEMA public TO db_migrator, control_plane_writer, control_plane_reader, ingestion_writer;
+GRANT USAGE ON SCHEMA public TO db_migrator, control_plane_writer, control_plane_reader, ingestion_writer, auth_reader;
 
 -- Migration/admin role: DDL + full data access
 GRANT CREATE ON SCHEMA public TO db_migrator;
@@ -35,12 +47,13 @@ GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO db_migrator;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO db_migrator;
 
 -- Control-plane writer: FastAPI API runtime
--- Writes ingestion_run only. artifact and lineage_record are written exclusively
--- by pipeline services (ingestion_writer). Read access on all three for API responses.
+-- Full write path for all three control-plane tables.
+-- Artifact and lineage records can be registered directly via the API (Phase 3+)
+-- as well as by pipeline services using ingestion_writer.
 GRANT SELECT, INSERT ON TABLE public.ingestion_run TO control_plane_writer;
 GRANT UPDATE (status, completed_at) ON TABLE public.ingestion_run TO control_plane_writer;
-GRANT SELECT ON TABLE public.artifact TO control_plane_writer;
-GRANT SELECT ON TABLE public.lineage_record TO control_plane_writer;
+GRANT SELECT, INSERT ON TABLE public.artifact TO control_plane_writer;
+GRANT SELECT, INSERT ON TABLE public.lineage_record TO control_plane_writer;
 
 -- Control-plane reader: audit/ops role for platform health inspection
 -- Used by the ops UI and auditors to inspect run metadata, artifact records, and lineage.
@@ -59,5 +72,5 @@ GRANT SELECT, INSERT ON TABLE public.lineage_record TO ingestion_writer;
 -- Enum type usage (scoped to roles that actually write those types)
 GRANT USAGE ON TYPE ingestion_source TO control_plane_writer, ingestion_writer;
 GRANT USAGE ON TYPE ingestion_status TO control_plane_writer, ingestion_writer;
-GRANT USAGE ON TYPE artifact_stage TO ingestion_writer;
-GRANT USAGE ON TYPE artifact_format TO ingestion_writer;
+GRANT USAGE ON TYPE artifact_stage TO control_plane_writer, ingestion_writer;
+GRANT USAGE ON TYPE artifact_format TO control_plane_writer, ingestion_writer;

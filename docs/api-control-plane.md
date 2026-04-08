@@ -10,21 +10,27 @@ Interactive docs: `http://127.0.0.1:8000/docs` (Swagger UI with "Authorize" butt
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| `POST` | `/token` | None | Issue a JWT for operator or observer credentials |
-| `POST` | `/runs/` | operator | Create a new ingestion run |
+| `POST` | `/token` | None | Issue a JWT for a registered principal |
+| `POST` | `/runs/` | operator, pipeline | Create a new ingestion run |
 | `GET` | `/runs/` | observer+ | List all runs, newest first |
 | `GET` | `/runs/{run_id}` | observer+ | Fetch a single run by UUID |
+| `POST` | `/artifacts/` | operator, pipeline | Register an artifact for a run |
+| `GET` | `/artifacts/` | observer+ | List artifacts for a run |
+| `GET` | `/artifacts/{artifact_id}` | observer+ | Fetch a single artifact |
+| `POST` | `/lineage/` | operator, pipeline | Register a lineage relationship |
+| `GET` | `/lineage/` | observer+ | List lineage records for a run |
 
 ## Authentication
 
-The API uses OAuth2 Password Flow with HS256 JWTs. Credentials are configured in `backend/.env`.
+The API uses OAuth2 Password Flow with HS256 JWTs. Credentials are stored in the `principal` table (bcrypt-hashed) and seeded via `make seed-principals`.
 
 **Roles:**
 
-- `operator` — read + write. Can create runs. Uses the `api_runtime` DB connection (bound to `control_plane_writer`).
-- `observer` — read only. Uses the `audit_runtime` DB connection (bound to `control_plane_reader`).
+- `operator` — read + write. Can create runs, artifacts, and lineage records. Uses `control_plane_writer` DB session.
+- `observer` — read only. Uses `control_plane_reader` DB session.
+- `pipeline` — write only (service account). Can create runs, artifacts, and lineage records. Uses `ingestion_writer` DB session.
 
-Operators can call all endpoints. Observers can call GET endpoints only.
+Adding new roles requires only a row in the `principal` table and a corresponding entry in `ROLE_SESSION_MAP` — no code changes to the auth flow itself.
 
 ## Examples
 
