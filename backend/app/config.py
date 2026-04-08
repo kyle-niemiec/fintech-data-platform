@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import URL
 
 """
 The base settings class for the app to use, importing the .env contents
@@ -25,17 +26,25 @@ class Settings(BaseSettings):
     )
 
     @property
-    def operator_db_url(self) -> str:
-        return (
-            f"postgresql+psycopg://{self.operator_db_user}:{self.operator_db_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+    def operator_db_url(self) -> URL:
+        return URL.create(
+            drivername="postgresql+psycopg",
+            username=self.operator_db_user,
+            password=self.operator_db_password,
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
         )
 
     @property
-    def observer_db_url(self) -> str:
-        return (
-            f"postgresql+psycopg://{self.observer_db_user}:{self.observer_db_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+    def observer_db_url(self) -> URL:
+        return URL.create(
+            drivername="postgresql+psycopg",
+            username=self.observer_db_user,
+            password=self.observer_db_password,
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
         )
 
 

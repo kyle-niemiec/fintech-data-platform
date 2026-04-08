@@ -30,6 +30,10 @@ infra-down:
 infra-ps:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) ps
 
+infra-clean:
+	make infra-down;
+	docker volume rm infra_postgres_data && docker volume rm infra_minio_data;
+
 api-install:
 	cd $(API_DIR) && $(API_BIN_DIR)/pip install -r requirements.txt pytest
 
