@@ -6,7 +6,9 @@ API_DIR := backend
 API_BIN_DIR := .venv/bin
 
 -include $(INFRA_ENV_FILE)
-export POSTGRES_DB POSTGRES_HOST POSTGRES_PORT
+export POSTGRES_DB  POSTGRES_HOST  POSTGRES_PORT
+export OPERATOR_DB_USER  OPERATOR_DB_PASSWORD
+export OBSERVER_DB_USER  OBSERVER_DB_PASSWORD
 
 .PHONY: help infra-up infra-down infra-ps api-install api-dev db-psql
 

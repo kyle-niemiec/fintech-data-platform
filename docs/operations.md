@@ -16,34 +16,38 @@ cp infra/.env.example infra/.env
 cp backend/.env.example backend/.env
 ```
 
-**`infra/.env`** — Postgres and MinIO credentials for Docker Compose:
-```
-POSTGRES_DB=fintech_platform
-POSTGRES_USER=fintech_user
-POSTGRES_PASSWORD=<choose a password>
-MINIO_ROOT_USER=minio_admin
-MINIO_ROOT_PASSWORD=<choose a password>
-```
-
-**`backend/.env`** — API runtime credentials:
+**`infra/.env`** — Postgres superuser, runtime DB users, and MinIO credentials for Docker Compose:
 ```
 POSTGRES_DB=fintech_platform
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 
+POSTGRES_ROOT_USER=<choose a superuser name, e.g. fintech_admin>
+POSTGRES_ROOT_PASSWORD=<choose a password>
+
 OPERATOR_DB_USER=api_runtime
-OPERATOR_DB_PASSWORD=<password for api_runtime DB user>
+OPERATOR_DB_PASSWORD=<choose a password>
 
 OBSERVER_DB_USER=audit_runtime
-OBSERVER_DB_PASSWORD=<password for audit_runtime DB user>
+OBSERVER_DB_PASSWORD=<choose a password>
 
+MINIO_ROOT_USER=minio_admin
+MINIO_ROOT_PASSWORD=<choose a password>
+```
+
+`POSTGRES_ROOT_USER`/`POSTGRES_ROOT_PASSWORD` initialize the Docker Postgres superuser on first run and are used by `make db-psql`. These are separate from the NOLOGIN `db_migrator` role template in `04_create_roles.sql`.
+
+`OPERATOR_DB_USER`/`OPERATOR_DB_PASSWORD` and `OBSERVER_DB_USER`/`OBSERVER_DB_PASSWORD` are the runtime login roles used by the API. They are created automatically on first container initialization by `05_create_login_roles.sql` — no manual SQL required.
+
+`POSTGRES_DB`, `POSTGRES_HOST`, `POSTGRES_PORT`, `OPERATOR_DB_USER`, `OPERATOR_DB_PASSWORD`, `OBSERVER_DB_USER`, and `OBSERVER_DB_PASSWORD` are all exported by the Makefile from `infra/.env` to the backend process — do not define them in `backend/.env`.
+
+**`backend/.env`** — API-only secrets (JWT and credential config only):
+```
 SECRET_KEY=<32-char random string — generate with: python -c "import secrets; print(secrets.token_hex(32))">
 
 OPERATOR_PASSWORD=<API password for operator identity>
 OBSERVER_PASSWORD=<API password for observer identity>
 ```
-
-Note: `POSTGRES_DB`, `POSTGRES_HOST`, and `POSTGRES_PORT` in `backend/.env` refer to the Postgres instance started by Docker Compose. `OPERATOR_DB_USER`/`OBSERVER_DB_USER` are runtime login roles that must be created manually (see below).
 
 ### 2. Create the backend virtual environment (first time only)
 
@@ -66,35 +70,7 @@ Postgres runs on `localhost:5432`. MinIO runs on `localhost:9000` (API) and `loc
 make api-install
 ```
 
-### 5. Create DB runtime login users
-
-The DB migration (`04_create_roles.sql`) creates `NOLOGIN` role templates. You must create the login users manually and bind them to those roles:
-
-```bash
-make db-psql
-```
-
-Inside the psql shell:
-
-```sql
-CREATE ROLE api_runtime LOGIN PASSWORD '<OPERATOR_DB_PASSWORD from backend/.env>';
-GRANT control_plane_writer TO api_runtime;
-
-CREATE ROLE audit_runtime LOGIN PASSWORD '<OBSERVER_DB_PASSWORD from backend/.env>';
-GRANT control_plane_reader TO audit_runtime;
-```
-
-Verify with `\du`.
-
-### 6. Apply security role migration on existing DB volumes
-
-If your Postgres volume was initialized before `04_create_roles.sql` was added, it will not have run automatically. Apply it manually:
-
-```sql
-\i /docker-entrypoint-initdb.d/04_create_roles.sql
-```
-
-### 7. Run the API
+### 5. Run the API
 
 ```bash
 make api-dev
@@ -128,3 +104,4 @@ docker compose -f infra/docker-compose.yaml logs minio
 
 **Access MinIO console:**
 Open `http://127.0.0.1:9001` in a browser and log in with `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` from `infra/.env`.
+
