@@ -90,6 +90,7 @@ Phase 1 and Phase 2 are complete:
 | Document | Contents |
 | --- | --- |
 | [docs/architecture.md](docs/architecture.md) | Control/data plane, domain model, data flow, repo structure |
+| [docs/data-model.md](docs/data-model.md) | Source contracts, bronze/silver/gold schemas, 3NF design, SCD Type 2, PII inventory |
 | [docs/security-access.md](docs/security-access.md) | RBAC, auth, Trino access control, PII posture, encryption |
 | [docs/api-control-plane.md](docs/api-control-plane.md) | Endpoint reference, auth flow, curl examples |
 | [docs/operations.md](docs/operations.md) | Quickstart, Makefile targets, env setup, DB user creation |

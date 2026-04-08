@@ -49,21 +49,7 @@
       "user": "analyst",
       "schema": "silver",
       "table": ".*",
-      "privileges": ["SELECT"],
-      "columns": [
-        {
-          "name": "account_number",
-          "mask": "regexp_replace(account_number, '.(?=.{4})', 'X')"
-        },
-        {
-          "name": "ssn",
-          "mask": "'REDACTED'"
-        },
-        {
-          "name": "email",
-          "mask": "regexp_replace(email, '^[^@]+', 'MASKED')"
-        }
-      ]
+      "privileges": ["SELECT"]
     },
     {
       "user": "executive",
