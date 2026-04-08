@@ -7,3 +7,7 @@
 
 # AI
 .codex
+.claude
+
+# IDE files
+.vscode

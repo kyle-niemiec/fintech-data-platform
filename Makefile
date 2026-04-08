@@ -6,6 +6,7 @@ API_DIR := backend
 API_BIN_DIR := .venv/bin
 
 -include $(INFRA_ENV_FILE)
+export POSTGRES_DB POSTGRES_HOST POSTGRES_PORT
 
 .PHONY: help infra-up infra-down infra-ps api-install api-dev db-psql
 
@@ -34,4 +35,4 @@ api-dev:
 	cd $(API_DIR) && $(API_BIN_DIR)/uvicorn app.main:app --reload
 
 db-psql:
-	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) exec postgres psql -U "$(POSTGRES_USER)" -d "$(POSTGRES_DB)"
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) exec postgres psql -U "$(POSTGRES_ROOT_USER)" -d "$(POSTGRES_DB)"
