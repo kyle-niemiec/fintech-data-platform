@@ -79,7 +79,6 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
       "fullScopeAllowed": false,
-      "secret": "pipeline-dev-secret",
       "defaultClientScopes": [
         "profile",
         "email",

@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.domain.authz import ApiRole
 from app.domain.enums import ArtifactFormat, ArtifactStage
 
 """
@@ -14,6 +15,8 @@ class ArtifactCreate(BaseModel):
     format: ArtifactFormat
     storage_path: str
 
+    model_config = ConfigDict(extra="forbid")
+
 """
 Define the expected data schema for reading an artifact.
 """
@@ -23,6 +26,8 @@ class ArtifactRead(BaseModel):
     stage: ArtifactStage
     format: ArtifactFormat
     storage_path: str
+    actor_sub: str
+    actor_role: ApiRole
     created_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")

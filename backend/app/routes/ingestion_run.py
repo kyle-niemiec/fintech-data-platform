@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.auth import require_observer
+from app.auth import require_observer, require_writer
 from app.db import get_observer_db
 from app.dependencies import get_write_db
 from app.models.ingestion_run import IngestionRun
@@ -21,11 +21,13 @@ Create a new ingestion run. Requires operator or pipeline role.
 )
 def create_run(
     payload: IngestionRunCreate,
+    user: dict = Depends(require_writer),
     db: Session = Depends(get_write_db),
 ):
     run = IngestionRun(
         source_type=payload.source_type,
-        triggered_by=payload.triggered_by,
+        actor_sub=user["sub"],
+        actor_role=user["role"],
     )
 
     db.add(run)

@@ -46,7 +46,8 @@ Every action in the system traces back to a `run_id`.
 | `run_id` | UUID | Primary key, generated in application |
 | `source_type` | enum | `excel_upload`, `salesforce_crm`, `transaction_cdc` |
 | `status` | enum | `pending`, `running`, `completed`, `failed`, `cancelled` |
-| `triggered_by` | text | Caller identity (e.g. `manual_ui`, `airflow_dag`) |
+| `actor_sub` | text | Token subject (`sub`) for the caller that created the row |
+| `actor_role` | text | Effective API role used for DB session routing (`operator`, `observer`, `pipeline`) |
 | `started_at` | timestamptz | Set at creation |
 | `completed_at` | timestamptz | Nullable; set on terminal state |
 
@@ -59,6 +60,8 @@ Every action in the system traces back to a `run_id`.
 | `stage` | enum | `landing`, `raw`, `bronze`, `silver`, `gold`, `quarantine` |
 | `format` | enum | `csv`, `json`, `parquet`, `xlsx` |
 | `storage_path` | text | MinIO object path |
+| `actor_sub` | text | Token subject (`sub`) for the caller that created the row |
+| `actor_role` | text | Effective API role used for DB session routing |
 | `created_at` | timestamptz | |
 
 **lineage_record**
@@ -70,6 +73,8 @@ Every action in the system traces back to a `run_id`.
 | `input_artifact_id` | UUID | FK → artifact |
 | `output_artifact_id` | UUID | FK → artifact |
 | `transformation` | text | Description of the operation |
+| `actor_sub` | text | Token subject (`sub`) for the caller that created the row |
+| `actor_role` | text | Effective API role used for DB session routing |
 | `created_at` | timestamptz | |
 
 A check constraint enforces `input_artifact_id != output_artifact_id`.
@@ -106,6 +111,7 @@ backend/
     config.py           — pydantic-settings, split DB URL + Keycloak settings
     db.py               — operator/observer/pipeline engines, session factories
     domain/
+      authz.py          — API role enum + authorization role groups
       enums.py          — Python enums mirroring DB enum types
     models/
       ingestion_run.py  — SQLAlchemy ORM model

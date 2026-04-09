@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.auth import require_observer
+from app.auth import require_observer, require_writer
 from app.db import get_observer_db
 from app.dependencies import get_write_db
 from app.models.artifact import Artifact
@@ -15,9 +15,6 @@ router = APIRouter(prefix="/lineage", tags=["lineage"])
 
 """
 Register a lineage relationship between two artifacts within a run. Requires operator or pipeline role.
-
-Validates that the run and both artifacts exist, that both artifacts belong to the stated
-run, and that the input and output artifacts are distinct.
 """
 @router.post(
     "/",
@@ -26,6 +23,7 @@ run, and that the input and output artifacts are distinct.
 )
 def create_lineage_record(
     payload: LineageRecordCreate,
+    user: dict = Depends(require_writer),
     db: Session = Depends(get_write_db),
 ):
     if db.get(IngestionRun, payload.run_id) is None:
@@ -56,6 +54,8 @@ def create_lineage_record(
         input_artifact_id=payload.input_artifact_id,
         output_artifact_id=payload.output_artifact_id,
         transformation=payload.transformation,
+        actor_sub=user["sub"],
+        actor_role=user["role"],
     )
     db.add(record)
     db.commit()

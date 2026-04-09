@@ -28,8 +28,8 @@ class IngestionRun(Base):
         nullable=False,
     )
 
-    "Store up basic run info for user and time"
-    triggered_by: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_sub: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_role: Mapped[str] = mapped_column(Text, nullable=False)
 
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -42,8 +42,9 @@ class IngestionRun(Base):
         nullable=True,
     )
 
-    def __init__(self, source_type: IngestionSource, triggered_by: str):
+    def __init__(self, source_type: IngestionSource, actor_sub: str, actor_role: str):
         self.run_id = uuid.uuid4()
         self.source_type = source_type
         self.status = IngestionStatus.pending
-        self.triggered_by = triggered_by
+        self.actor_sub = actor_sub
+        self.actor_role = actor_role

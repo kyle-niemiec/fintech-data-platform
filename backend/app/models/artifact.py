@@ -21,12 +21,15 @@ class Artifact(Base):
         Enum(ArtifactStage, name="artifact_stage", create_type=False),
         nullable=False,
     )
+
     format: Mapped[ArtifactFormat] = mapped_column(
         Enum(ArtifactFormat, name="artifact_format", create_type=False),
         nullable=False,
     )
 
     storage_path: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_sub: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_role: Mapped[str] = mapped_column(Text, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -34,9 +37,19 @@ class Artifact(Base):
         server_default=func.now(),
     )
 
-    def __init__(self, run_id: uuid.UUID, stage: ArtifactStage, format: ArtifactFormat, storage_path: str):
+    def __init__(
+        self,
+        run_id: uuid.UUID,
+        stage: ArtifactStage,
+        format: ArtifactFormat,
+        storage_path: str,
+        actor_sub: str,
+        actor_role: str,
+    ):
         self.artifact_id = uuid.uuid4()
         self.run_id = run_id
         self.stage = stage
         self.format = format
         self.storage_path = storage_path
+        self.actor_sub = actor_sub
+        self.actor_role = actor_role

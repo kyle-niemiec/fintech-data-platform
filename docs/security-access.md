@@ -37,8 +37,10 @@ Authentication is delegated to Keycloak (OIDC), not issued by the API.
   - signature + expiry
 - Role authorization is still API-local and role-based:
   - `operator`/`observer`/`pipeline` are read from Keycloak client roles under `resource_access.meridian-api.roles`.
+  - API role definitions and role groups are centralized in `backend/app/domain/authz.py` (`ApiRole`, observer/writer role sets).
   - Tokens with no recognized API role or multiple API roles are rejected.
 - Operator routes use DB session `api_runtime` (`control_plane_writer`), observer routes use `audit_runtime` (`control_plane_reader`), and pipeline routes use `api_pipeline` (`ingestion_writer`).
+- Trade-off and auditability: DB sessions are still reduced to role-level service users, but every write persists token actor attribution (`actor_sub` + `actor_role`) on `ingestion_run`, `artifact`, and `lineage_record` so actions remain traceable to the calling identity.
 
 ## Postgres RBAC
 
@@ -95,4 +97,4 @@ Column masks are stubbed in `rules.json` now and populated when the silver schem
 
 - **In transit:** TLS for FastAPI, Postgres, and MinIO in deployment environments. Not enforced locally.
 - **At rest:** Postgres on encrypted volumes; MinIO SSE-S3 or SSE-KMS preferred in production-like setups.
-- **Secrets:** Runtime credentials supplied via environment variables or a secret manager. Rotate Keycloak admin and client secrets on a schedule in long-lived deployments.
+- **Secrets:** Runtime credentials supplied via environment variables or a secret manager. `meridian-pipeline` client secret is set post-startup from `KC_PIPELINE_CLIENT_SECRET` via bootstrap script and is not committed in realm JSON. Rotate Keycloak admin and client secrets on a schedule in long-lived deployments.

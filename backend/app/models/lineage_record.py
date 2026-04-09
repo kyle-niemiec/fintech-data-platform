@@ -18,6 +18,8 @@ class LineageRecord(Base):
     input_artifact_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     output_artifact_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     transformation: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_sub: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_role: Mapped[str] = mapped_column(Text, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -31,9 +33,13 @@ class LineageRecord(Base):
         input_artifact_id: uuid.UUID,
         output_artifact_id: uuid.UUID,
         transformation: str,
+        actor_sub: str,
+        actor_role: str,
     ):
         self.lineage_id = uuid.uuid4()
         self.run_id = run_id
         self.input_artifact_id = input_artifact_id
         self.output_artifact_id = output_artifact_id
         self.transformation = transformation
+        self.actor_sub = actor_sub
+        self.actor_role = actor_role

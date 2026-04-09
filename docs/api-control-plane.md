@@ -34,6 +34,7 @@ Authentication is delegated to Keycloak (`meridian` realm).
 - `pipeline` — write-only service identity. Uses `ingestion_writer` DB session.
 
 Tokens with zero recognized API roles are rejected. Tokens containing multiple API roles are also rejected.
+Write operations also persist actor attribution (`actor_sub`, `actor_role`) from the validated token.
 
 ## Examples
 
@@ -43,7 +44,7 @@ Tokens with zero recognized API roles are rejected. Tokens containing multiple A
 TOKEN=$(curl -s -X POST http://localhost:8180/realms/meridian/protocol/openid-connect/token \
   -d "grant_type=client_credentials" \
   -d "client_id=meridian-pipeline" \
-  -d "client_secret=pipeline-dev-secret" | jq -r .access_token)
+  -d "client_secret=$KC_PIPELINE_CLIENT_SECRET" | jq -r .access_token)
 ```
 
 ### Create a run as pipeline
@@ -52,8 +53,12 @@ TOKEN=$(curl -s -X POST http://localhost:8180/realms/meridian/protocol/openid-co
 curl -s -X POST http://127.0.0.1:8000/runs/ \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"source_type": "excel_upload", "triggered_by": "airflow_dag"}' | jq
+  -d '{"source_type": "excel_upload"}' | jq
 ```
+
+Expected response fields include:
+- `actor_sub` (token `sub`)
+- `actor_role` (`operator` or `pipeline` for writes)
 
 ### Human user auth in Swagger UI
 

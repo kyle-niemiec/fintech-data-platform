@@ -12,8 +12,9 @@ export OBSERVER_DB_USER  OBSERVER_DB_PASSWORD
 export PIPELINE_DB_USER  PIPELINE_DB_PASSWORD
 export KC_DB_USER  KC_DB_PASSWORD
 export KC_ADMIN_USER  KC_ADMIN_PASSWORD
+export KC_PIPELINE_CLIENT_SECRET
 
-.PHONY: help infra-up infra-down infra-ps infra-clean api-install api-dev db-psql
+.PHONY: help infra-up infra-down infra-ps infra-clean keycloak-bootstrap api-install api-dev db-psql
 
 help:
 	@printf "Available targets:\n"
@@ -21,6 +22,7 @@ help:
 	@printf "  infra-down   Stop infrastructure containers\n"
 	@printf "  infra-ps     Show infrastructure container status\n"
 	@printf "  infra-clean  Stop containers and remove local Postgres/MinIO volumes\n"
+	@printf "  keycloak-bootstrap  Set the meridian-pipeline client secret from infra/.env\n"
 	@printf "  api-install  Install backend Python dependencies into backend/.venv\n"
 	@printf "  api-dev      Run the FastAPI app with reload enabled\n"
 	@printf "  db-psql      Open a psql shell inside the Postgres container\n"
@@ -37,6 +39,9 @@ infra-ps:
 infra-clean:
 	make infra-down;
 	docker volume rm infra_postgres_data && docker volume rm infra_minio_data;
+
+keycloak-bootstrap:
+	./infra/keycloak/bootstrap_pipeline_client_secret.sh
 
 api-install:
 	cd $(API_DIR) && $(API_BIN_DIR)/pip install -r requirements.txt pytest

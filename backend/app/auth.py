@@ -12,9 +12,9 @@ from jwt.exceptions import (
 )
 
 from app.config import settings
+from app.domain.authz import API_ROLES, ApiRole, OBSERVER_OR_HIGHER_ROLES, WRITER_ROLES
 
 _ALGORITHM = "RS256"
-_VALID_ROLES = {"operator", "observer", "pipeline"}
 
 oauth2_scheme = OAuth2AuthorizationCodeBearer(
     authorizationUrl=f"{settings.keycloak_realm_url}/protocol/openid-connect/auth",
@@ -46,7 +46,7 @@ def _extract_single_api_role(payload: dict) -> str:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    matched_roles = sorted({role for role in client_roles if role in _VALID_ROLES})
+    matched_roles = sorted({role for role in client_roles if role in API_ROLES})
 
     if not matched_roles:
         raise HTTPException(
@@ -98,7 +98,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    subject = payload.get("preferred_username") or payload.get("sub")
+    subject = payload.get("sub")
 
     if not subject:
         raise HTTPException(
@@ -116,7 +116,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
 Require that the user has an operator role.
 """
 def require_operator(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") != "operator":
+    if user.get("role") != ApiRole.operator.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operator role required",
@@ -128,7 +128,7 @@ def require_operator(user: dict = Depends(get_current_user)) -> dict:
 Require that the user has an observer or operator role.
 """
 def require_observer(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in {"operator", "observer"}:
+    if user.get("role") not in OBSERVER_OR_HIGHER_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Observer role or higher required",
@@ -140,7 +140,7 @@ def require_observer(user: dict = Depends(get_current_user)) -> dict:
 Require that the user has a pipeline role.
 """
 def require_pipeline(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") != "pipeline":
+    if user.get("role") != ApiRole.pipeline.value:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Pipeline role required",
@@ -152,7 +152,7 @@ def require_pipeline(user: dict = Depends(get_current_user)) -> dict:
 Require that the user has an operator or pipeline role.
 """
 def require_writer(user: dict = Depends(get_current_user)) -> dict:
-    if user.get("role") not in {"operator", "pipeline"}:
+    if user.get("role") not in WRITER_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operator or pipeline role required",

@@ -39,6 +39,7 @@ KC_DB_USER=keycloak_runtime
 KC_DB_PASSWORD=<choose a password>
 KC_ADMIN_USER=admin
 KC_ADMIN_PASSWORD=<choose a password>
+KC_PIPELINE_CLIENT_SECRET=<choose a strong client secret>
 
 MINIO_ROOT_USER=minio_admin
 MINIO_ROOT_PASSWORD=<choose a password>
@@ -47,6 +48,7 @@ MINIO_ROOT_PASSWORD=<choose a password>
 `POSTGRES_ROOT_USER`/`POSTGRES_ROOT_PASSWORD` initialize the Docker Postgres superuser on first run and are used by `make db-psql`.
 
 DB login roles (`OPERATOR_DB_USER`, `OBSERVER_DB_USER`, `PIPELINE_DB_USER`) and the Keycloak schema owner (`KC_DB_USER`) are created automatically on first container initialization by `05_create_login_roles.sql`.
+`make keycloak-bootstrap` reads `KC_PIPELINE_CLIENT_SECRET` from `infra/.env` and fails fast if it is missing.
 
 All DB connection variables are exported by the Makefile from `infra/.env` when you run `make api-dev`.
 
@@ -71,6 +73,7 @@ python3 -m venv backend/.venv
 ```bash
 make infra-up
 make infra-ps
+make keycloak-bootstrap
 ```
 
 Infrastructure services:
@@ -102,7 +105,7 @@ The API runs at `http://127.0.0.1:8000`.
 TOKEN=$(curl -s -X POST http://localhost:8180/realms/meridian/protocol/openid-connect/token \
   -d "grant_type=client_credentials" \
   -d "client_id=meridian-pipeline" \
-  -d "client_secret=pipeline-dev-secret" | jq -r .access_token)
+  -d "client_secret=$KC_PIPELINE_CLIENT_SECRET" | jq -r .access_token)
 ```
 
 ### Protected endpoint call
@@ -125,6 +128,7 @@ curl -s http://127.0.0.1:8000/runs/ -H "Authorization: Bearer $TOKEN" | jq
 | `make infra-down` | Stop infrastructure containers |
 | `make infra-ps` | Show infrastructure container status |
 | `make infra-clean` | Stop containers and remove local Postgres/MinIO volumes |
+| `make keycloak-bootstrap` | Set `meridian-pipeline` client secret from `infra/.env` |
 | `make api-install` | Install backend Python dependencies into `backend/.venv` |
 | `make api-dev` | Run the FastAPI app with reload enabled |
 | `make db-psql` | Open a psql shell inside the Postgres container |
@@ -142,6 +146,7 @@ make infra-down && make infra-up
 ```bash
 make infra-clean
 make infra-up
+make keycloak-bootstrap
 ```
 
 **Check container logs:**
