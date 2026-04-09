@@ -136,21 +136,26 @@ docs/
 
 infra/
   docker-compose.yaml
+  .env.example
   db/
     migrations/
       01_create_enums.sql
       02_create_tables.sql
       03_custom_constraints.sql
       04_create_roles.sql
-      05_create_login_roles.sql
-  keycloak/
-    meridian-realm.json
-  minio/
-    policies/
-      minio_ingest_policy.json
-      minio_transform_policy.json
-      minio_trino_write_policy.json
-      minio_trino_read_policy.json
+  terraform/
+    bootstrap/
+      providers.tf      — Terraform provider config (Postgres, MinIO)
+      postgres.tf       — Runtime DB login users + Keycloak schema ownership
+      minio.tf          — Bucket, IAM users, IAM policies, attachments
+      variables.tf      — Bootstrap Terraform input contract
+      outputs.tf        — Bootstrap Terraform outputs
+    identity/
+      providers.tf      — Terraform provider config (Keycloak)
+      keycloak.tf       — Realm, clients, roles, users, role bindings
+      variables.tf      — Identity Terraform input contract
+      outputs.tf        — Identity Terraform outputs
+    README.md           — Provisioning workflow notes
   trino/
     access-control/
       rules.json

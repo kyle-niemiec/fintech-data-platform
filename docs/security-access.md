@@ -31,6 +31,7 @@ Authentication is delegated to Keycloak (OIDC), not issued by the API.
 
 - Human users (`operator`, `observer`) authenticate through Authorization Code + PKCE.
 - Pipeline services authenticate through Client Credentials using the `meridian-pipeline` client.
+- Realm/clients/roles/users are provisioned declaratively via Terraform (`infra/terraform/identity/keycloak.tf`).
 - API access tokens are RS256-signed by Keycloak and validated by the API against:
   - issuer (`iss`) = configured realm URL
   - audience (`aud`) = `meridian-api`
@@ -44,40 +45,27 @@ Authentication is delegated to Keycloak (OIDC), not issued by the API.
 
 ## Postgres RBAC
 
-Roles are defined as `NOLOGIN` templates in `infra/db/migrations/04_create_roles.sql`. Login users are bound to roles per environment — never committed to source control.
+Roles are defined as `NOLOGIN` templates in `infra/db/migrations/04_create_roles.sql`. Login users are provisioned and bound to those templates by Terraform in `infra/terraform/bootstrap/postgres.tf`.
 
 **Role responsibilities:**
 
 - `db_migrator` — DDL ownership, full data access. Used only for running migrations.
-- `control_plane_writer` — `SELECT, INSERT` on `ingestion_run`; `UPDATE (status, completed_at)` on `ingestion_run`; `SELECT` on `artifact` and `lineage_record`. Bound to `api_runtime`.
+- `control_plane_writer` — `SELECT, INSERT` on `ingestion_run`; `UPDATE (status, completed_at)` on `ingestion_run`; `SELECT, INSERT` on `artifact` and `lineage_record`. Bound to `api_runtime`.
 - `control_plane_reader` — `SELECT` on all three control-plane tables. Bound to `audit_runtime`.
 - `ingestion_writer` — `SELECT, INSERT` on all three tables; `UPDATE (status, completed_at)` on `ingestion_run`. Bound to `airflow_runtime` or equivalent pipeline service user.
 
 `ALTER DEFAULT PRIVILEGES FOR ROLE db_migrator` ensures future tables created by migrations automatically inherit grants without manual re-grants per migration file.
 
-**Binding login users (run manually per environment):**
-
-```sql
-CREATE ROLE api_runtime LOGIN PASSWORD '<secret>';
-GRANT control_plane_writer TO api_runtime;
-
-CREATE ROLE audit_runtime LOGIN PASSWORD '<secret>';
-GRANT control_plane_reader TO audit_runtime;
-
-CREATE ROLE airflow_runtime LOGIN PASSWORD '<secret>';
-GRANT ingestion_writer TO airflow_runtime;
-```
-
 ## MinIO Policies
 
-All MinIO policies are in `infra/minio/policies/`. Bucket ARN is `fintech-lakehouse` — adjust if your bucket name differs.
+MinIO bucket, IAM users, and IAM policies are provisioned by Terraform in `infra/terraform/bootstrap/minio.tf`. Bucket ARN defaults to `fintech-lakehouse` and is configurable via `MINIO_BUCKET_NAME`.
 
-| Policy file | Principal | Access |
+| Policy resource | Principal | Access |
 | --- | --- | --- |
-| `minio_ingest_policy.json` | Ingest service | List + read/write `landing/`, `raw/` |
-| `minio_transform_policy.json` | Transform service | Read `raw/`; write `bronze/`, `silver/`, `gold/`, `quarantine/` |
-| `minio_trino_write_policy.json` | Trino Iceberg connector | Read all curated layers; write Iceberg metadata files to `bronze/`, `silver/`, `gold/` |
-| `minio_trino_read_policy.json` | Trino BI path | Read-only `silver/`, `gold/` only |
+| `minio_iam_policy.ingest` | Ingest service | List + read/write `landing/`, `raw/` |
+| `minio_iam_policy.transform` | Transform service | Read `raw/`; write `bronze/`, `silver/`, `gold/`, `quarantine/` |
+| `minio_iam_policy.trino_write` | Trino Iceberg connector | Read all curated layers; write Iceberg metadata files to `bronze/`, `silver/`, `gold/` |
+| `minio_iam_policy.trino_read` | Trino BI path | Read-only `silver/`, `gold/` only |
 
 No consumer identity has direct MinIO access. The `minio_trino_read` policy exists for a BI-only Trino cluster or secondary query path with no catalog maintenance responsibilities.
 
@@ -97,4 +85,4 @@ Column masks are stubbed in `rules.json` now and populated when the silver schem
 
 - **In transit:** TLS for FastAPI, Postgres, and MinIO in deployment environments. Not enforced locally.
 - **At rest:** Postgres on encrypted volumes; MinIO SSE-S3 or SSE-KMS preferred in production-like setups.
-- **Secrets:** Runtime credentials supplied via environment variables or a secret manager. `meridian-pipeline` client secret is set post-startup from `KC_PIPELINE_CLIENT_SECRET` via bootstrap script and is not committed in realm JSON. Rotate Keycloak admin and client secrets on a schedule in long-lived deployments.
+- **Secrets:** Runtime credentials supplied via environment variables or a secret manager. For local provisioning, Docker Compose and Terraform both read from `infra/.env` (Terraform via Make-exported `TF_VAR_*`), including `KC_PIPELINE_CLIENT_SECRET` and MinIO IAM user secrets. Rotate Keycloak admin/client secrets and MinIO access secrets on a schedule in long-lived deployments.

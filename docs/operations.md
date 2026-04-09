@@ -3,6 +3,7 @@
 ## Prerequisites
 
 - Docker + Docker Compose
+- Terraform 1.6+
 - Python 3.12+
 - GNU Make
 - `jq` (optional, for formatted API output)
@@ -16,51 +17,13 @@ cp infra/.env.example infra/.env
 cp backend/.env.example backend/.env
 ```
 
-**`infra/.env`** — Postgres superuser, runtime DB users, Keycloak DB/admin users, and MinIO credentials:
+`infra/.env` is the single local source of truth for Compose + Terraform + backend runtime exports:
 
-```env
-POSTGRES_DB=fintech_platform
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
+- Postgres superuser and runtime users
+- Keycloak DB/admin credentials, realm/client settings, seeded local users
+- MinIO root credentials, bucket name, IAM user secrets
 
-POSTGRES_ROOT_USER=<choose a superuser name>
-POSTGRES_ROOT_PASSWORD=<choose a password>
-
-OPERATOR_DB_USER=api_runtime
-OPERATOR_DB_PASSWORD=<choose a password>
-
-OBSERVER_DB_USER=audit_runtime
-OBSERVER_DB_PASSWORD=<choose a password>
-
-PIPELINE_DB_USER=api_pipeline
-PIPELINE_DB_PASSWORD=<choose a password>
-
-KC_DB_USER=keycloak_runtime
-KC_DB_PASSWORD=<choose a password>
-KC_ADMIN_USER=admin
-KC_ADMIN_PASSWORD=<choose a password>
-KC_PIPELINE_CLIENT_SECRET=<choose a strong client secret>
-
-MINIO_ROOT_USER=minio_admin
-MINIO_ROOT_PASSWORD=<choose a password>
-```
-
-`POSTGRES_ROOT_USER`/`POSTGRES_ROOT_PASSWORD` initialize the Docker Postgres superuser on first run and are used by `make db-psql`.
-
-DB login roles (`OPERATOR_DB_USER`, `OBSERVER_DB_USER`, `PIPELINE_DB_USER`) and the Keycloak schema owner (`KC_DB_USER`) are created automatically on first container initialization by `05_create_login_roles.sql`.
-`make keycloak-bootstrap` reads `KC_PIPELINE_CLIENT_SECRET` from `infra/.env` and fails fast if it is missing.
-
-All DB connection variables are exported by the Makefile from `infra/.env` when you run `make api-dev`.
-
-**`backend/.env`** — API Keycloak settings:
-
-```env
-KEYCLOAK_URL=http://localhost:8180
-KEYCLOAK_REALM=meridian
-KEYCLOAK_API_CLIENT_ID=meridian-api
-KEYCLOAK_API_AUDIENCE=meridian-api
-KEYCLOAK_SWAGGER_CLIENT_ID=meridian-api
-```
+Terraform receives values through Make-exported `TF_VAR_*` variables sourced from `infra/.env`.
 
 ### 2. Create the backend virtual environment (first time only)
 
@@ -68,13 +31,24 @@ KEYCLOAK_SWAGGER_CLIENT_ID=meridian-api
 python3 -m venv backend/.venv
 ```
 
-### 3. Start infrastructure
+### 3. Start and provision infrastructure
 
 ```bash
-make infra-up
+make infra-tf-init
+make infra-pg-up
+make infra-tf-bootstrap
+make infra-kc-up
+make infra-tf-apply
 make infra-ps
-make keycloak-bootstrap
 ```
+
+Infrastructure startup is manual and staged:
+
+1. `make infra-tf-init` initializes Terraform providers
+2. `make infra-pg-up` starts Postgres + MinIO
+3. `make infra-tf-bootstrap` applies bootstrap Terraform (Postgres + MinIO resources, including Keycloak DB prerequisites)
+4. `make infra-kc-up` starts Keycloak
+5. `make infra-tf-apply` applies identity Terraform (Keycloak realm/clients/roles/users)
 
 Infrastructure services:
 
@@ -118,17 +92,22 @@ curl -s http://127.0.0.1:8000/runs/ -H "Authorization: Bearer $TOKEN" | jq
 
 1. Open `http://127.0.0.1:8000/docs`
 2. Click **Authorize**
-3. Log in via Keycloak (`operator` / `observer`)
+3. Log in via Keycloak (`KEYCLOAK_OPERATOR_USER` / `KEYCLOAK_OBSERVER_USER`)
 
 ## Makefile Targets
 
 | Target | Description |
 | --- | --- |
-| `make infra-up` | Start Postgres, MinIO, and Keycloak in the background |
+| `make infra-up` | Print the manual staged startup sequence |
+| `make infra-tf-init` | Initialize Terraform providers for bootstrap + identity |
+| `make infra-pg-up` | Start Postgres + MinIO containers |
+| `make infra-tf-bootstrap` | Apply Terraform bootstrap phase (Postgres + MinIO) |
+| `make infra-kc-up` | Start Keycloak container |
+| `make infra-tf-apply` | Apply Terraform identity phase (Keycloak) |
 | `make infra-down` | Stop infrastructure containers |
 | `make infra-ps` | Show infrastructure container status |
-| `make infra-clean` | Stop containers and remove local Postgres/MinIO volumes |
-| `make keycloak-bootstrap` | Set `meridian-pipeline` client secret from `infra/.env` |
+| `make infra-clean` | Stop containers, remove local volumes, and remove Terraform local state |
+| `make terraform-plan` | Show Terraform plan for bootstrap + identity |
 | `make api-install` | Install backend Python dependencies into `backend/.venv` |
 | `make api-dev` | Run the FastAPI app with reload enabled |
 | `make db-psql` | Open a psql shell inside the Postgres container |
@@ -138,15 +117,23 @@ curl -s http://127.0.0.1:8000/runs/ -H "Authorization: Bearer $TOKEN" | jq
 **Restart infrastructure:**
 
 ```bash
-make infra-down && make infra-up
+make infra-down
+make infra-tf-init
+make infra-pg-up
+make infra-tf-bootstrap
+make infra-kc-up
+make infra-tf-apply
 ```
 
-**Reset local infra state:**
+**Reset local infra state (clean slate):**
 
 ```bash
 make infra-clean
-make infra-up
-make keycloak-bootstrap
+make infra-tf-init
+make infra-pg-up
+make infra-tf-bootstrap
+make infra-kc-up
+make infra-tf-apply
 ```
 
 **Check container logs:**
@@ -161,3 +148,8 @@ docker compose -f infra/docker-compose.yaml logs keycloak
 
 - Keycloak Admin: `http://localhost:8180`
 - MinIO Console: `http://127.0.0.1:9001`
+
+## Notes
+
+- Docker Compose treats `$` as interpolation. If a secret in `infra/.env` contains `$`, escape it as `$$` (for example, `abc$$u`).
+- Terraform is now split across `infra/terraform/bootstrap` and `infra/terraform/identity` with separate state files. Run `make infra-clean` once after pulling this refactor so state paths are recreated cleanly.

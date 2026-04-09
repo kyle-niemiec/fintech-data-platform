@@ -1,0 +1,292 @@
+variable "postgres_host" {
+  description = "Postgres host reachable from Terraform"
+  type        = string
+  default     = "localhost"
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.postgres_host) != ""
+    error_message = "postgres_host must be set."
+  }
+}
+
+variable "postgres_port" {
+  description = "Postgres port"
+  type        = number
+  default     = 5432
+  nullable    = false
+
+  validation {
+    condition     = var.postgres_port == floor(var.postgres_port) && var.postgres_port >= 1 && var.postgres_port <= 65535
+    error_message = "postgres_port must be an integer between 1 and 65535."
+  }
+}
+
+variable "postgres_db" {
+  description = "Postgres database name"
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.postgres_db) != ""
+    error_message = "postgres_db must be set."
+  }
+}
+
+variable "postgres_root_user" {
+  description = "Postgres superuser used for provisioning"
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.postgres_root_user) != ""
+    error_message = "postgres_root_user must be set."
+  }
+}
+
+variable "postgres_root_password" {
+  description = "Postgres superuser password"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.postgres_root_password)) >= 12
+    error_message = "postgres_root_password must be at least 12 characters."
+  }
+}
+
+variable "operator_db_user" {
+  description = "DB login for operator API runtime"
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.operator_db_user) != ""
+    error_message = "operator_db_user must be set."
+  }
+}
+
+variable "operator_db_password" {
+  description = "DB password for operator API runtime"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.operator_db_password)) >= 12
+    error_message = "operator_db_password must be at least 12 characters."
+  }
+}
+
+variable "observer_db_user" {
+  description = "DB login for observer API runtime"
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.observer_db_user) != ""
+    error_message = "observer_db_user must be set."
+  }
+}
+
+variable "observer_db_password" {
+  description = "DB password for observer API runtime"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.observer_db_password)) >= 12
+    error_message = "observer_db_password must be at least 12 characters."
+  }
+}
+
+variable "pipeline_db_user" {
+  description = "DB login for pipeline API runtime"
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.pipeline_db_user) != ""
+    error_message = "pipeline_db_user must be set."
+  }
+}
+
+variable "pipeline_db_password" {
+  description = "DB password for pipeline API runtime"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.pipeline_db_password)) >= 12
+    error_message = "pipeline_db_password must be at least 12 characters."
+  }
+}
+
+variable "kc_db_user" {
+  description = "DB login for Keycloak runtime"
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.kc_db_user) != ""
+    error_message = "kc_db_user must be set."
+  }
+}
+
+variable "kc_db_password" {
+  description = "DB password for Keycloak runtime"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.kc_db_password)) >= 12
+    error_message = "kc_db_password must be at least 12 characters."
+  }
+}
+
+variable "minio_server" {
+  description = "MinIO endpoint in host:port format"
+  type        = string
+  default     = "localhost:9000"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9.-]+:[0-9]{1,5}$", var.minio_server))
+    error_message = "minio_server must be in host:port format."
+  }
+}
+
+variable "minio_root_user" {
+  description = "MinIO root user for provisioning"
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.minio_root_user) != ""
+    error_message = "minio_root_user must be set."
+  }
+}
+
+variable "minio_root_password" {
+  description = "MinIO root password for provisioning"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.minio_root_password)) >= 12
+    error_message = "minio_root_password must be at least 12 characters."
+  }
+}
+
+variable "minio_bucket_name" {
+  description = "Lakehouse bucket name"
+  type        = string
+  default     = "fintech-lakehouse"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.minio_bucket_name))
+    error_message = "minio_bucket_name must follow S3-style naming (3-63 chars, lowercase, numbers, '.' or '-')."
+  }
+}
+
+variable "minio_ingest_user" {
+  description = "MinIO user for ingest services"
+  type        = string
+  default     = "minio_ingest"
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.minio_ingest_user) != ""
+    error_message = "minio_ingest_user must be set."
+  }
+}
+
+variable "minio_ingest_secret" {
+  description = "MinIO secret for ingest user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.minio_ingest_secret)) >= 12
+    error_message = "minio_ingest_secret must be at least 12 characters."
+  }
+}
+
+variable "minio_transform_user" {
+  description = "MinIO user for transform services"
+  type        = string
+  default     = "minio_transform"
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.minio_transform_user) != ""
+    error_message = "minio_transform_user must be set."
+  }
+}
+
+variable "minio_transform_secret" {
+  description = "MinIO secret for transform user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.minio_transform_secret)) >= 12
+    error_message = "minio_transform_secret must be at least 12 characters."
+  }
+}
+
+variable "minio_trino_write_user" {
+  description = "MinIO user for Trino write connector"
+  type        = string
+  default     = "minio_trino_write"
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.minio_trino_write_user) != ""
+    error_message = "minio_trino_write_user must be set."
+  }
+}
+
+variable "minio_trino_write_secret" {
+  description = "MinIO secret for Trino write user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.minio_trino_write_secret)) >= 12
+    error_message = "minio_trino_write_secret must be at least 12 characters."
+  }
+}
+
+variable "minio_trino_read_user" {
+  description = "MinIO user for Trino read path"
+  type        = string
+  default     = "minio_trino_read"
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.minio_trino_read_user) != ""
+    error_message = "minio_trino_read_user must be set."
+  }
+}
+
+variable "minio_trino_read_secret" {
+  description = "MinIO secret for Trino read user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.minio_trino_read_secret)) >= 12
+    error_message = "minio_trino_read_secret must be at least 12 characters."
+  }
+}

@@ -48,9 +48,11 @@ See [docs/architecture.md](docs/architecture.md) for the full control/data plane
 
 Phase 1 and Phase 2 are complete:
 
-- Infrastructure via Docker Compose:
+- Infrastructure via Docker Compose + Terraform:
   - PostgreSQL (`fintech_postgres`)
   - MinIO (`fintech_minio`)
+  - Keycloak (`fintech_keycloak`)
+  - Declarative provisioning for Keycloak/Postgres runtime identities/MinIO IAM
 - Database migrations:
   - `ingestion_run`, `artifact`, `lineage_record` tables
   - Regulated-style enum domains (`ingestion_source`, `ingestion_status`, `artifact_stage`, `artifact_format`)
@@ -63,7 +65,7 @@ Phase 1 and Phase 2 are complete:
   - Keycloak OIDC for auth (Authorization Code + PKCE for users, Client Credentials for services)
   - Strict JWT validation in API (`iss`, `aud`, RS256 signature, expiry)
   - Split DB connections enforcing Postgres RBAC at the connection level
-  - MinIO policy set for ingest, transform, and Trino service accounts
+  - Terraform-managed MinIO IAM policies for ingest, transform, and Trino service accounts
   - Trino file-based access control rules stub
 
 ## Why This Design Is Strong (Employer View)
@@ -93,7 +95,7 @@ Phase 1 and Phase 2 are complete:
 | [docs/data-model.md](docs/data-model.md) | Source contracts, bronze/silver/gold schemas, 3NF design, SCD Type 2, PII inventory |
 | [docs/security-access.md](docs/security-access.md) | RBAC, auth, Trino access control, PII posture, encryption |
 | [docs/api-control-plane.md](docs/api-control-plane.md) | Endpoint reference, auth flow, curl examples |
-| [docs/operations.md](docs/operations.md) | Quickstart, Makefile targets, env setup, DB user creation |
+| [docs/operations.md](docs/operations.md) | Quickstart, Makefile targets, env setup, Terraform provisioning flow |
 | [docs/roadmap.md](docs/roadmap.md) | All 11 phases with status and deliverables |
 
 ## Note
