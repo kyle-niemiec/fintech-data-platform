@@ -18,10 +18,11 @@ class Settings(BaseSettings):
     pipeline_db_user: str
     pipeline_db_password: str
 
-    auth_db_user: str
-    auth_db_password: str
-
-    secret_key: str
+    keycloak_url: str = "http://localhost:8180"
+    keycloak_realm: str = "meridian"
+    keycloak_api_client_id: str = "meridian-api"
+    keycloak_api_audience: str = "meridian-api"
+    keycloak_swagger_client_id: str = "meridian-api"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -63,15 +64,8 @@ class Settings(BaseSettings):
         )
 
     @property
-    def auth_db_url(self) -> URL:
-        return URL.create(
-            drivername="postgresql+psycopg",
-            username=self.auth_db_user,
-            password=self.auth_db_password,
-            host=self.postgres_host,
-            port=self.postgres_port,
-            database=self.postgres_db,
-        )
+    def keycloak_realm_url(self) -> str:
+        return f"{self.keycloak_url}/realms/{self.keycloak_realm}"
 
 
 """

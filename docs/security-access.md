@@ -27,13 +27,18 @@ Security for this project is designed around strict identity boundaries between 
 
 ## API Authentication
 
-The API uses OAuth2 Password Flow with locally signed HS256 JWTs.
+Authentication is delegated to Keycloak (OIDC), not issued by the API.
 
-- `POST /token` issues a token for `operator` or `observer` credentials (configured in `.env`).
-- Each token carries a `role` claim that gates route access.
-- Operator routes use a DB session bound to `api_runtime` (mapped to `control_plane_writer`).
-- Observer routes use a DB session bound to `audit_runtime` (mapped to `control_plane_reader`).
-- Swagger UI exposes an "Authorize" button for interactive token entry.
+- Human users (`operator`, `observer`) authenticate through Authorization Code + PKCE.
+- Pipeline services authenticate through Client Credentials using the `meridian-pipeline` client.
+- API access tokens are RS256-signed by Keycloak and validated by the API against:
+  - issuer (`iss`) = configured realm URL
+  - audience (`aud`) = `meridian-api`
+  - signature + expiry
+- Role authorization is still API-local and role-based:
+  - `operator`/`observer`/`pipeline` are read from Keycloak client roles under `resource_access.meridian-api.roles`.
+  - Tokens with no recognized API role or multiple API roles are rejected.
+- Operator routes use DB session `api_runtime` (`control_plane_writer`), observer routes use `audit_runtime` (`control_plane_reader`), and pipeline routes use `api_pipeline` (`ingestion_writer`).
 
 ## Postgres RBAC
 
@@ -90,4 +95,4 @@ Column masks are stubbed in `rules.json` now and populated when the silver schem
 
 - **In transit:** TLS for FastAPI, Postgres, and MinIO in deployment environments. Not enforced locally.
 - **At rest:** Postgres on encrypted volumes; MinIO SSE-S3 or SSE-KMS preferred in production-like setups.
-- **Secrets:** No credentials in source control. Runtime credentials supplied via environment variables or a secret manager. `SECRET_KEY` for JWT signing should be rotated on a schedule in long-lived deployments.
+- **Secrets:** Runtime credentials supplied via environment variables or a secret manager. Rotate Keycloak admin and client secrets on a schedule in long-lived deployments.

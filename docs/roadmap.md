@@ -12,8 +12,11 @@
 - Postgres RBAC overhaul (`04_create_roles.sql`): differentiated writer roles, `REVOKE PUBLIC`, owner-aware `DEFAULT PRIVILEGES`
 - MinIO policy set finalized: `minio_ingest`, `minio_transform`, `minio_trino_write`, `minio_trino_read`
 - Trino access control rules stub (`infra/trino/access-control/rules.json`)
-- API JWT authentication: OAuth2 Password Flow, `operator` / `observer` roles, Swagger "Authorize" button
-- Split DB sessions: operator routes use `api_runtime`; observer routes use `audit_runtime`
+- API authentication delegated to Keycloak OIDC:
+  - humans via Authorization Code + PKCE
+  - service identities via Client Credentials
+  - strict JWT validation (`iss`, `aud`, RS256 signature, expiry)
+- Split DB sessions: operator routes use `api_runtime`, observer routes use `audit_runtime`, pipeline routes use `api_pipeline`
 
 ## Phase 3 — Artifact Tracking APIs
 

@@ -102,19 +102,21 @@ Each arrow produces a `lineage_record` linking the input and output artifacts un
 ```
 backend/
   app/
-    auth.py             — JWT logic, role guards
-    config.py           — pydantic-settings, split DB URL properties
-    db.py               — operator + observer engines, session factories
+    auth.py             — Keycloak JWT validation, role guards
+    config.py           — pydantic-settings, split DB URL + Keycloak settings
+    db.py               — operator/observer/pipeline engines, session factories
     domain/
       enums.py          — Python enums mirroring DB enum types
     models/
       ingestion_run.py  — SQLAlchemy ORM model
     routes/
-      auth.py           — POST /token
       ingestion_run.py  — POST /runs, GET /runs, GET /runs/{id}
+      artifact.py       — POST /artifacts, GET /artifacts
+      lineage_record.py — POST /lineage, GET /lineage
     schemas/
-      auth.py           — TokenResponse
       ingestion_run.py  — IngestionRunCreate, IngestionRunRead
+      artifact.py       — ArtifactCreate, ArtifactRead
+      lineage_record.py — LineageRecordCreate, LineageRecordRead
     main.py             — FastAPI app, router registration
   requirements.txt
   .env.example
@@ -134,6 +136,9 @@ infra/
       02_create_tables.sql
       03_custom_constraints.sql
       04_create_roles.sql
+      05_create_login_roles.sql
+  keycloak/
+    meridian-realm.json
   minio/
     policies/
       minio_ingest_policy.json

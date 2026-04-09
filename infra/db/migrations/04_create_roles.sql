@@ -24,10 +24,6 @@ BEGIN
         CREATE ROLE ingestion_writer NOLOGIN;
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'auth_reader') THEN
-        CREATE ROLE auth_reader NOLOGIN;
-    END IF;
-
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'data_analyst') THEN
         CREATE ROLE data_analyst NOLOGIN;
     END IF;
@@ -39,7 +35,7 @@ END;
 $$;
 
 -- Schema visibility
-GRANT USAGE ON SCHEMA public TO db_migrator, control_plane_writer, control_plane_reader, ingestion_writer, auth_reader;
+GRANT USAGE ON SCHEMA public TO db_migrator, control_plane_writer, control_plane_reader, ingestion_writer;
 
 -- Migration/admin role: DDL + full data access
 GRANT CREATE ON SCHEMA public TO db_migrator;

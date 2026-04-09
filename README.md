@@ -56,12 +56,12 @@ Phase 1 and Phase 2 are complete:
   - Regulated-style enum domains (`ingestion_source`, `ingestion_status`, `artifact_stage`, `artifact_format`)
   - Least-privilege role templates (`db_migrator`, `control_plane_writer`, `control_plane_reader`, `ingestion_writer`)
 - Backend control plane API:
-  - `POST /token` — issue JWT for operator or observer credentials
-  - `POST /runs/` — create ingestion run (operator only)
+  - `POST /runs/` — create ingestion run (operator and pipeline)
   - `GET /runs/` — list all runs, newest first (observer+)
   - `GET /runs/{run_id}` — fetch one run (observer+)
 - Security:
-  - OAuth2 Password Flow with HS256 JWTs
+  - Keycloak OIDC for auth (Authorization Code + PKCE for users, Client Credentials for services)
+  - Strict JWT validation in API (`iss`, `aud`, RS256 signature, expiry)
   - Split DB connections enforcing Postgres RBAC at the connection level
   - MinIO policy set for ingest, transform, and Trino service accounts
   - Trino file-based access control rules stub

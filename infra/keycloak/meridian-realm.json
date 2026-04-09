@@ -1,0 +1,152 @@
+{
+  "realm": "meridian",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "roles": {
+    "client": {
+      "meridian-api": [
+        {
+          "name": "operator",
+          "description": "Read + write access to control plane"
+        },
+        {
+          "name": "observer",
+          "description": "Read-only access to control plane"
+        },
+        {
+          "name": "pipeline",
+          "description": "Pipeline service write access"
+        }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "meridian-api",
+      "name": "Meridian API Swagger",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://127.0.0.1:8000/docs/oauth2-redirect",
+        "http://localhost:8000/docs/oauth2-redirect"
+      ],
+      "webOrigins": [
+        "http://127.0.0.1:8000",
+        "http://localhost:8000"
+      ],
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles"
+      ],
+      "protocolMappers": [
+        {
+          "name": "aud-meridian-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "meridian-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      }
+    },
+    {
+      "clientId": "meridian-pipeline",
+      "name": "Meridian Pipeline Service",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "secret": "pipeline-dev-secret",
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles"
+      ],
+      "protocolMappers": [
+        {
+          "name": "aud-meridian-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "meridian-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "pipeline-role",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "resource_access.meridian-api.roles",
+            "claim.value": "pipeline",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "operator",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "operator-dev-pass",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "meridian-api": [
+          "operator"
+        ]
+      }
+    },
+    {
+      "username": "observer",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "observer-dev-pass",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "meridian-api": [
+          "observer"
+        ]
+      }
+    }
+  ]
+}

@@ -5,4 +5,4 @@ psycopg[binary]
 pydantic-settings
 PyJWT
 python-multipart
-passlib[bcrypt]
+cryptography

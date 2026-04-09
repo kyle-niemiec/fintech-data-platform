@@ -1,16 +1,15 @@
 # Control Plane API
 
-The control plane API is the metadata interface for the data platform. It tracks pipeline runs, artifacts, and lineage — but never holds data payloads directly.
+The control plane API is the metadata interface for the data platform. It tracks pipeline runs, artifacts, and lineage and does not store payload data.
 
 Base URL: `http://127.0.0.1:8000`
 
-Interactive docs: `http://127.0.0.1:8000/docs` (Swagger UI with "Authorize" button)
+Interactive docs: `http://127.0.0.1:8000/docs` (Swagger UI + Keycloak login)
 
 ## Endpoints
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| `POST` | `/token` | None | Issue a JWT for a registered principal |
 | `POST` | `/runs/` | operator, pipeline | Create a new ingestion run |
 | `GET` | `/runs/` | observer+ | List all runs, newest first |
 | `GET` | `/runs/{run_id}` | observer+ | Fetch a single run by UUID |
@@ -22,83 +21,54 @@ Interactive docs: `http://127.0.0.1:8000/docs` (Swagger UI with "Authorize" butt
 
 ## Authentication
 
-The API uses OAuth2 Password Flow with HS256 JWTs. Credentials are stored in the `principal` table (bcrypt-hashed) and seeded via `make seed-principals`.
+Authentication is delegated to Keycloak (`meridian` realm).
 
-**Roles:**
+- Human users (`operator`, `observer`) authenticate through Keycloak Authorization Code + PKCE.
+- Pipeline services authenticate through Keycloak Client Credentials (`meridian-pipeline` client).
+- API verifies RS256 signatures through Keycloak JWKS and enforces `iss` + `aud` claims.
 
-- `operator` — read + write. Can create runs, artifacts, and lineage records. Uses `control_plane_writer` DB session.
-- `observer` — read only. Uses `control_plane_reader` DB session.
-- `pipeline` — write only (service account). Can create runs, artifacts, and lineage records. Uses `ingestion_writer` DB session.
+**API roles**
 
-Adding new roles requires only a row in the `principal` table and a corresponding entry in `ROLE_SESSION_MAP` — no code changes to the auth flow itself.
+- `operator` — read + write. Uses `control_plane_writer` DB session.
+- `observer` — read-only. Uses `control_plane_reader` DB session.
+- `pipeline` — write-only service identity. Uses `ingestion_writer` DB session.
+
+Tokens with zero recognized API roles are rejected. Tokens containing multiple API roles are also rejected.
 
 ## Examples
 
-### Get a token
+### Get a pipeline token (client credentials)
 
 ```bash
-curl -s -X POST http://127.0.0.1:8000/token \
-  -d "username=operator&password=<OPERATOR_PASSWORD>"
+TOKEN=$(curl -s -X POST http://localhost:8180/realms/meridian/protocol/openid-connect/token \
+  -d "grant_type=client_credentials" \
+  -d "client_id=meridian-pipeline" \
+  -d "client_secret=pipeline-dev-secret" | jq -r .access_token)
 ```
 
-Response:
-```json
-{
-  "access_token": "<jwt>",
-  "token_type": "bearer"
-}
-```
-
-Store the token for subsequent requests:
-```bash
-TOKEN=$(curl -s -X POST http://127.0.0.1:8000/token \
-  -d "username=operator&password=<OPERATOR_PASSWORD>" | jq -r .access_token)
-```
-
-### Create a run
+### Create a run as pipeline
 
 ```bash
 curl -s -X POST http://127.0.0.1:8000/runs/ \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"source_type": "excel_upload", "triggered_by": "manual_ui"}' | jq
+  -d '{"source_type": "excel_upload", "triggered_by": "airflow_dag"}' | jq
 ```
 
-Response (201):
-```json
-{
-  "run_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "source_type": "excel_upload",
-  "status": "pending",
-  "triggered_by": "manual_ui",
-  "started_at": "2026-04-07T12:00:00Z",
-  "completed_at": null
-}
-```
+### Human user auth in Swagger UI
 
-### List all runs
-
-```bash
-curl -s http://127.0.0.1:8000/runs/ \
-  -H "Authorization: Bearer $TOKEN" | jq
-```
-
-### Get a single run
-
-```bash
-curl -s http://127.0.0.1:8000/runs/<run_id> \
-  -H "Authorization: Bearer $TOKEN" | jq
-```
-
-Returns 404 if the run does not exist.
+1. Open `http://127.0.0.1:8000/docs`
+2. Click **Authorize**
+3. Sign in through Keycloak with `operator` or `observer`
+4. Invoke endpoints from Swagger
 
 ### Error responses
 
 | Status | Condition |
 | --- | --- |
-| 401 | No token provided, token expired, or token invalid |
-| 403 | Token valid but role insufficient (e.g. observer calling POST /runs/) |
-| 404 | Run ID not found |
+| 401 | No token, expired token, invalid signature, wrong issuer, or wrong audience |
+| 403 | Token valid but role insufficient or ambiguous API role mapping |
+| 404 | Resource ID not found |
 | 422 | Request body validation failure |
 
 ## UI Access
@@ -107,6 +77,5 @@ Returns 404 if the run does not exist.
 | --- | --- |
 | Swagger UI | `http://127.0.0.1:8000/docs` |
 | ReDoc | `http://127.0.0.1:8000/redoc` |
+| Keycloak Admin | `http://localhost:8180` |
 | MinIO Console | `http://127.0.0.1:9001` |
-
-The Swagger UI "Authorize" button accepts operator or observer credentials and handles token attachment automatically for in-browser testing.
