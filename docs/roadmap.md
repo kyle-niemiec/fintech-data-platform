@@ -18,14 +18,14 @@
   - strict JWT validation (`iss`, `aud`, RS256 signature, expiry)
 - Split DB sessions: operator routes use `api_runtime`, observer routes use `audit_runtime`, pipeline routes use `api_pipeline`
 
-## Phase 3 — Artifact Tracking APIs
+## Phase 3 — Artifact Tracking APIs ✅
 
-- `POST /artifacts` (operator only)
+- `POST /artifacts` (operator, pipeline)
 - `GET /artifacts?run_id=` (observer+)
 - `GET /artifacts/{id}` (observer+)
-- `POST /lineage` (operator only)
+- `POST /lineage` (operator, pipeline)
 - `GET /lineage?run_id=` (observer+)
-- Link artifacts and lineage records to runs; persist MinIO storage paths
+- Artifacts and lineage records linked to runs with referential integrity; MinIO storage paths persisted on `artifact.storage_path`
 
 ## Phase 4 — Excel Pipeline (First Vertical Slice)
 
@@ -33,7 +33,7 @@
 - Create ingestion run via control plane
 - Schema validation → Parquet conversion → `raw/`
 - Bronze promotion
-- Artifact + lineage records written by pipeline service (`ingestion_writer` / `airflow_runtime`)
+- Artifact + lineage records written by pipeline service (`ingestion_writer` → `api_pipeline`)
 
 ## Phase 5 — CDC Pipeline
 

@@ -12,18 +12,25 @@ Security for this project is designed around strict identity boundaries between 
 
 ## Principal and Access Layer Map
 
+### Implemented today (Postgres + MinIO)
+
 | Principal | Layer | Role / Policy | What they touch |
 | --- | --- | --- | --- |
-| FastAPI operator runtime | Postgres | `control_plane_writer` → `api_runtime` login | Write `ingestion_run`; read all three control-plane tables |
+| FastAPI operator runtime | Postgres | `control_plane_writer` → `api_runtime` login | Write `ingestion_run`, `artifact`, `lineage_record`; read all three |
 | FastAPI observer runtime | Postgres | `control_plane_reader` → `audit_runtime` login | Read-only `ingestion_run`, `artifact`, `lineage_record` |
-| Airflow / pipeline services | Postgres + MinIO | `ingestion_writer` + `minio_ingest` / `minio_transform` | Full pipeline write path |
-| Trino ETL / maintenance | MinIO | `minio_trino_write` | Read all curated layers + Iceberg metadata writes |
-| Trino BI / analytics | MinIO | `minio_trino_read` | Read-only `silver/`, `gold/` only |
+| Pipeline service runtime | Postgres + MinIO | `ingestion_writer` → `api_pipeline` login (+ `minio_ingest` / `minio_transform`) | Today: service-account-authenticated API calls write control-plane metadata in Postgres. MinIO identities/policies are provisioned now and are exercised directly by pipeline workers in Phase 4+. |
+| Trino ETL / maintenance | MinIO | `minio_trino_write` policy | Policy provisioned now; used by Trino Iceberg connector once Phase 7 is enabled. |
+| Trino BI / analytics | MinIO | `minio_trino_read` policy | Policy provisioned now; read-only `silver/`, `gold/` path is used once Phase 7+ BI access is enabled. |
+
+### Planned (Trino, Phase 7+)
+
+| Principal | Layer | Role / Policy | What they touch |
+| --- | --- | --- | --- |
 | Data scientist | Trino | `analyst` role | `silver.*` de-identified views; PII masked as secondary control |
 | Executive / BI tool | Trino | `executive` role | `gold.*` only |
 | Data engineer | Trino | `data_engineer` role | All schemas, full privileges |
 
-`control_plane_reader` is an **audit/ops role** — it provides platform health inspection for operators and the ops UI. It is not a data consumer role. Data scientists and executives query curated Iceberg tables through Trino.
+`control_plane_reader` is an **audit/ops role** — it provides platform health inspection for operators and the ops UI. It is not a data consumer role. Data scientists and executives will query curated Iceberg tables through Trino once Phase 7 lands.
 
 ## API Authentication
 
@@ -45,14 +52,18 @@ Authentication is delegated to Keycloak (OIDC), not issued by the API.
 
 ## Postgres RBAC
 
-Roles are defined as `NOLOGIN` templates in `infra/db/migrations/04_create_roles.sql`. Login users are provisioned and bound to those templates by Terraform in `infra/terraform/bootstrap/postgres.tf`.
+Roles are defined as `NOLOGIN` templates in [infra/db/migrations/04_create_roles.sql](../infra/db/migrations/04_create_roles.sql). Login users are provisioned and bound to those templates by Terraform in [infra/terraform/bootstrap/postgres.tf](../infra/terraform/bootstrap/postgres.tf).
 
 **Role responsibilities:**
 
 - `db_migrator` — DDL ownership, full data access. Used only for running migrations.
 - `control_plane_writer` — `SELECT, INSERT` on `ingestion_run`; `UPDATE (status, completed_at)` on `ingestion_run`; `SELECT, INSERT` on `artifact` and `lineage_record`. Bound to `api_runtime`.
 - `control_plane_reader` — `SELECT` on all three control-plane tables. Bound to `audit_runtime`.
-- `ingestion_writer` — `SELECT, INSERT` on all three tables; `UPDATE (status, completed_at)` on `ingestion_run`. Bound to `airflow_runtime` or equivalent pipeline service user.
+- `ingestion_writer` — `SELECT, INSERT` on all three tables; `UPDATE (status, completed_at)` on `ingestion_run`. Bound to `api_pipeline`.
+
+`data_analyst` and `data_executive` are stub `NOLOGIN` roles created in the same migration with no grants today. They exist as named placeholders for the Phase 7+ Trino access model and have no current effect on the database.
+
+The same Terraform module also provisions a `keycloak_runtime` login user that owns the `keycloak` schema. It is **not** bound to any of the role templates above — it exists only so that the Keycloak server can manage its own schema, and it has no access to the control plane tables.
 
 `ALTER DEFAULT PRIVILEGES FOR ROLE db_migrator` ensures future tables created by migrations automatically inherit grants without manual re-grants per migration file.
 

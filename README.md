@@ -44,29 +44,58 @@ Run --> Artifacts --> Lineage
 
 See [docs/architecture.md](docs/architecture.md) for the full control/data plane breakdown, domain model schema, and data flow diagram.
 
+## Quick Start
+
+```bash
+cp infra/.env.example infra/.env
+cp backend/.env.example backend/.env
+# Fill in secrets in both .env files (the backend values must match the
+# Keycloak realm/client/audience that the identity Terraform provisions).
+
+python3 -m venv backend/.venv
+
+make infra-tf-init
+make infra-pg-up
+make infra-tf-bootstrap
+make infra-kc-up
+# Wait for Keycloak readiness before identity apply (container "Up" and startup
+# log line like "Listening on: http://0.0.0.0:8080").
+make infra-tf-apply
+
+make api-install
+make api-dev
+```
+
+The API then runs at `http://127.0.0.1:8000` with Swagger at `/docs`. See [docs/operations.md](docs/operations.md) for the full operational guide, including the staged startup rationale and Makefile target reference.
+
 ## What Is Implemented Right Now
 
-Phase 1 and Phase 2 are complete:
+Phases 1, 2, and 3 are complete:
 
 - Infrastructure via Docker Compose + Terraform:
   - PostgreSQL (`fintech_postgres`)
   - MinIO (`fintech_minio`)
   - Keycloak (`fintech_keycloak`)
-  - Declarative provisioning for Keycloak/Postgres runtime identities/MinIO IAM
+  - Terraform is split into a `bootstrap/` phase (Postgres roles, Keycloak DB schema ownership, MinIO bucket/users/policies) and an `identity/` phase (Keycloak realm, clients, roles, users). The split exists because Keycloak needs DB credentials before it can start, while the identity Terraform needs a running Keycloak API to talk to. See [docs/operations.md](docs/operations.md) for the staged startup sequence.
 - Database migrations:
   - `ingestion_run`, `artifact`, `lineage_record` tables
   - Regulated-style enum domains (`ingestion_source`, `ingestion_status`, `artifact_stage`, `artifact_format`)
   - Least-privilege role templates (`db_migrator`, `control_plane_writer`, `control_plane_reader`, `ingestion_writer`)
 - Backend control plane API:
-  - `POST /runs/` — create ingestion run (operator and pipeline)
+  - `POST /runs/` — create ingestion run (operator, pipeline)
   - `GET /runs/` — list all runs, newest first (observer+)
   - `GET /runs/{run_id}` — fetch one run (observer+)
+  - `POST /artifacts/` — register an artifact for a run (operator, pipeline)
+  - `GET /artifacts/` — list artifacts for a run (observer+)
+  - `GET /artifacts/{artifact_id}` — fetch one artifact (observer+)
+  - `POST /lineage/` — register a lineage relationship (operator, pipeline)
+  - `GET /lineage/` — list lineage records for a run (observer+)
 - Security:
-  - Keycloak OIDC for auth (Authorization Code + PKCE for users, Client Credentials for services)
+  - Keycloak OIDC for auth (Authorization Code + PKCE for users via the `meridian-api` client, Client Credentials for services via the `meridian-pipeline` client)
   - Strict JWT validation in API (`iss`, `aud`, RS256 signature, expiry)
   - Split DB connections enforcing Postgres RBAC at the connection level
   - Terraform-managed MinIO IAM policies for ingest, transform, and Trino service accounts
-  - Trino file-based access control rules stub
+  - Trino file-based access control rules stub at [infra/trino/access-control/rules.json](infra/trino/access-control/rules.json) (populated in Phase 7+)
 
 ## Why This Design Is Strong (Employer View)
 

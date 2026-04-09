@@ -1,5 +1,7 @@
 # Data Model
 
+> **Status:** This document describes the target state for Phases 7–9 (Trino + Iceberg lakehouse). No bronze, silver, or gold tables exist in the current build — only the control plane metadata tables (`ingestion_run`, `artifact`, `lineage_record`) described in [architecture.md](architecture.md) are implemented today. The Trino role names referenced below (`data_engineer`, `analyst`, `executive`, `trino_etl`) are Trino-side roles to be defined when Phase 7 lands; they are not the Postgres `data_analyst` / `data_executive` stub roles in [infra/db/migrations/04_create_roles.sql](../infra/db/migrations/04_create_roles.sql). See [roadmap.md](roadmap.md) for sequencing.
+
 Meridian Capital is a B2B fintech lender that provides working capital loans (term loans, lines of credit, equipment finance) to small and mid-market businesses. The data platform ingests from three source systems, normalizes through a bronze → silver → gold lakehouse, and surfaces business metrics to internal consumers via Trino.
 
 ---

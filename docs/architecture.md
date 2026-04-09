@@ -110,14 +110,17 @@ backend/
     auth.py             — Keycloak JWT validation, role guards
     config.py           — pydantic-settings, split DB URL + Keycloak settings
     db.py               — operator/observer/pipeline engines, session factories
+    dependencies.py     — request-scoped DB session selection by API role
     domain/
       authz.py          — API role enum + authorization role groups
       enums.py          — Python enums mirroring DB enum types
     models/
       ingestion_run.py  — SQLAlchemy ORM model
+      artifact.py
+      lineage_record.py
     routes/
       ingestion_run.py  — POST /runs, GET /runs, GET /runs/{id}
-      artifact.py       — POST /artifacts, GET /artifacts
+      artifact.py       — POST /artifacts, GET /artifacts, GET /artifacts/{id}
       lineage_record.py — POST /lineage, GET /lineage
     schemas/
       ingestion_run.py  — IngestionRunCreate, IngestionRunRead
@@ -129,6 +132,7 @@ backend/
 
 docs/
   architecture.md
+  data-model.md
   security-access.md
   api-control-plane.md
   operations.md
@@ -143,22 +147,41 @@ infra/
       02_create_tables.sql
       03_custom_constraints.sql
       04_create_roles.sql
+  make/
+    terraform-env.mk    — exports infra/.env values as TF_VAR_* for Terraform
   terraform/
+    README.md           — provisioning workflow notes
     bootstrap/
       providers.tf      — Terraform provider config (Postgres, MinIO)
+      versions.tf       — required provider versions
       postgres.tf       — Runtime DB login users + Keycloak schema ownership
       minio.tf          — Bucket, IAM users, IAM policies, attachments
       variables.tf      — Bootstrap Terraform input contract
       outputs.tf        — Bootstrap Terraform outputs
     identity/
       providers.tf      — Terraform provider config (Keycloak)
+      versions.tf       — required provider versions
       keycloak.tf       — Realm, clients, roles, users, role bindings
       variables.tf      — Identity Terraform input contract
       outputs.tf        — Identity Terraform outputs
-    README.md           — Provisioning workflow notes
   trino/
     access-control/
-      rules.json
+      rules.json        — file-based system access control stub (Phase 7+)
 
 ui/
 ```
+
+### Why Terraform Is Split Into Two Phases
+
+The `bootstrap/` and `identity/` configurations have separate state files and are applied at different points in the staged startup. The split exists to break a chicken-and-egg dependency: Keycloak needs Postgres credentials and a `keycloak` schema before it can boot, but the Keycloak Terraform provider needs a running Keycloak API to talk to. The bootstrap phase runs against Postgres + MinIO before Keycloak starts; the identity phase runs once Keycloak is up. The service lifecycle (container start/stop) stays in Docker Compose. See [docs/operations.md](operations.md) for the staged sequence and [infra/terraform/README.md](../infra/terraform/README.md) for the workflow reference.
+
+### Identity Model
+
+Keycloak is the source of truth for human and service identities. The realm, clients, roles, users, and role bindings are all provisioned by the identity Terraform phase ([infra/terraform/identity/keycloak.tf](../infra/terraform/identity/keycloak.tf)). There is no `user_principal` table in the application database — API role authorization reads from the validated JWT (`resource_access.meridian-api.roles`) and routes to a role-specific DB session.
+
+Two Keycloak clients exist:
+
+- `meridian-api` — public client used by Swagger UI and human users via Authorization Code + PKCE.
+- `meridian-pipeline` — confidential client used by service accounts via Client Credentials.
+
+Both issue tokens with `aud=meridian-api` so the API audience check is unified.

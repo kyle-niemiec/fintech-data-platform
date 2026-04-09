@@ -19,22 +19,17 @@ Interactive docs: `http://127.0.0.1:8000/docs` (Swagger UI + Keycloak login)
 | `POST` | `/lineage/` | operator, pipeline | Register a lineage relationship |
 | `GET` | `/lineage/` | observer+ | List lineage records for a run |
 
+Lineage records are intentionally only listable by `run_id` — there is no `GET /lineage/{lineage_id}` endpoint, because individual lineage rows are only meaningful in the context of the run that produced them.
+
 ## Authentication
 
-Authentication is delegated to Keycloak (`meridian` realm).
+Authentication is delegated to Keycloak — see [security-access.md](security-access.md#api-authentication) for the full description of the realm, clients, JWT validation, and role mapping. The short version:
 
-- Human users (`operator`, `observer`) authenticate through Keycloak Authorization Code + PKCE.
-- Pipeline services authenticate through Keycloak Client Credentials (`meridian-pipeline` client).
-- API verifies RS256 signatures through Keycloak JWKS and enforces `iss` + `aud` claims.
-
-**API roles**
-
-- `operator` — read + write. Uses `control_plane_writer` DB session.
-- `observer` — read-only. Uses `control_plane_reader` DB session.
-- `pipeline` — write-only service identity. Uses `ingestion_writer` DB session.
-
-Tokens with zero recognized API roles are rejected. Tokens containing multiple API roles are also rejected.
-Write operations also persist actor attribution (`actor_sub`, `actor_role`) from the validated token.
+- Human users sign in via the `meridian-api` public client (Authorization Code + PKCE).
+- Pipeline services obtain tokens via the `meridian-pipeline` confidential client (Client Credentials).
+- The API validates RS256 signatures, `iss`, `aud` (`meridian-api`), and expiry.
+- The API role (`operator`, `observer`, or `pipeline`) is read from `resource_access.meridian-api.roles`. Tokens with zero or multiple recognized API roles are rejected.
+- Write operations persist actor attribution (`actor_sub`, `actor_role`) from the validated token onto every row they create.
 
 ## Examples
 
