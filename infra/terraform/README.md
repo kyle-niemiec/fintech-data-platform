@@ -1,49 +1,51 @@
 # Terraform Provisioning
 
-Terraform is split into two root configurations with separate state:
+Terraform is the security and identity control surface for the event-driven platform.
 
-- `bootstrap/`: Postgres runtime roles, Keycloak DB schema ownership, MinIO bucket/users/policies
-- `identity/`: Keycloak realm, clients, roles, users, and role bindings
+## IaC Responsibility
 
-This split prevents a startup loop where Keycloak needs DB credentials/schema before it can start, while Terraform Keycloak resources require a running Keycloak API.
+Terraform owns:
+- Object storage policies and service identities.
+- Event backbone ACLs and service principals.
+- Encryption policy posture (including SSE-KMS requirements).
+- Database role grants for append-only event persistence and read-only query access.
+- OIDC identity and role bindings.
 
-The service lifecycle (container start/stop) remains managed by Docker Compose.
+Docker Compose owns runtime lifecycle (container start/stop).
 
-## Workflow
+## Root Configuration Intent
 
-Use Make targets from repository root:
+The platform uses phased Terraform roots to avoid dependency loops and keep concerns isolated.
+
+- `bootstrap/`: foundational storage, DB users/roles, service policies.
+- `identity/`: OIDC realm/clients/roles/users.
+- `eventing/` (target): broker ACLs, topic bootstrap, service credentials.
+- `security/` (target): encryption policy enforcement, KMS/KES policy bindings.
+
+## Provisioning Sequence
+
+1. Start foundational runtime dependencies (Postgres/Event DB/MinIO/Redpanda).
+2. Apply bootstrap Terraform for base security primitives.
+3. Start Keycloak and apply identity Terraform.
+4. Apply eventing/security Terraform roots.
+5. Start orchestration and workers (Airflow, scanner, Debezium, fraud, writers).
+
+## Workflow Commands
+
+Use repository Make targets for initialization and apply where available:
 
 ```bash
 make infra-tf-init
-make infra-pg-up
 make infra-tf-bootstrap
-make infra-kc-up
 make infra-tf-apply
-```
-
-Staged provisioning flow:
-
-1. `make infra-tf-init`
-2. `make infra-pg-up`
-3. `make infra-tf-bootstrap`
-4. `make infra-kc-up`
-5. `make infra-tf-apply`
-
-## Planning and Apply Targets
-
-```bash
 make terraform-plan
-make terraform-plan-bootstrap
-make terraform-plan-identity
-make infra-tf-bootstrap
-make infra-tf-apply
 ```
 
-## Notes
+If additional Terraform roots are introduced, extend Make targets and `infra/make/terraform-env.mk` accordingly so all required `TF_VAR_*` inputs are exported consistently.
 
-- Terraform must be installed locally.
-- Terraform values are injected via Make-exported `TF_VAR_*` from `infra/.env`.
-- Run Terraform through Make targets so the expected `TF_VAR_*` environment is set.
-- State is now stored separately under `infra/terraform/bootstrap` and `infra/terraform/identity`.
-- Run `make infra-clean` once after pulling this split so state paths are recreated cleanly.
-- Keep real secrets out of git.
+## Operating Rules
+
+- Keep secrets out of version control.
+- Use least-privilege defaults for every new principal.
+- Treat policy changes as first-class code review items.
+- Require explicit migration notes for any privilege expansion.

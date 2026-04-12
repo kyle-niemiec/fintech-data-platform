@@ -1,84 +1,66 @@
 # Development Roadmap
 
-## Phase 1 — Control Plane Foundation ✅
+This roadmap is ordered around event-driven delivery, not API-first delivery.
 
-- DB schema: enums, tables (`ingestion_run`, `artifact`, `lineage_record`), indexes, constraints
-- Docker Compose: Postgres, MinIO
-- FastAPI backend skeleton with SQLAlchemy + psycopg
-- `POST /runs`, `GET /runs`, `GET /runs/{run_id}`
+## Phase 1 - Event-Driven Foundation
 
-## Phase 2 — Security & Auth ✅
+- Add Redpanda as canonical broker.
+- Add dedicated event-store database.
+- Wire MinIO bucket notifications to Redpanda.
+- Define topic ACLs and service identities in Terraform.
+- Establish internal Docker network boundaries for processing services.
+- Lock partitioning standards for topics, event-store tables, and object paths.
 
-- Postgres RBAC overhaul (`04_create_roles.sql`): differentiated writer roles, `REVOKE PUBLIC`, owner-aware `DEFAULT PRIVILEGES`
-- MinIO policy set finalized: `minio_ingest`, `minio_transform`, `minio_trino_write`, `minio_trino_read`
-- Trino access control rules stub (`infra/trino/access-control/rules.json`)
-- API authentication delegated to Keycloak OIDC:
-  - humans via Authorization Code + PKCE
-  - service identities via Client Credentials
-  - strict JWT validation (`iss`, `aud`, RS256 signature, expiry)
-- Split DB sessions: operator routes use `api_runtime`, observer routes use `audit_runtime`, pipeline routes use `api_pipeline`
+## Phase 2 - Security Baseline and Encryption
 
-## Phase 3 — Artifact Tracking APIs ✅
+- Enforce MinIO SSE-KMS via KES/Vault.
+- Add bucket-policy enforcement for encrypted writes.
+- Define append-only database role permissions for event storage.
+- Add key rotation and credential rotation runbook guidance.
 
-- `POST /artifacts` (operator, pipeline)
-- `GET /artifacts?run_id=` (observer+)
-- `GET /artifacts/{id}` (observer+)
-- `POST /lineage` (operator, pipeline)
-- `GET /lineage?run_id=` (observer+)
-- Artifacts and lineage records linked to runs with referential integrity; MinIO storage paths persisted on `artifact.storage_path`
+## Phase 3 - Excel Pipeline
 
-## Phase 4 — Excel Pipeline (First Vertical Slice)
+- Implement ClamAV scanning workflow.
+- Implement file size/type gating.
+- Implement Airflow validation DAG with raw/quarantine branching.
+- Persist structured validation events and artifact lineage.
+- Emit bronze-ready events.
 
-- File upload endpoint → store to MinIO `landing/`
-- Create ingestion run via control plane
-- Schema validation → Parquet conversion → `raw/`
-- Bronze promotion
-- Artifact + lineage records written by pipeline service (`ingestion_writer` → `api_pipeline`)
+## Phase 4 - CDC and Fraud Pipeline
 
-## Phase 5 — CDC Pipeline
+- Add OLTP simulation and Debezium CDC connector.
+- Implement fraud worker (single container runtime).
+- Emit assessed CDC events.
+- Persist source-faithful CDC bronze data including offsets and LSN.
 
-- Postgres OLTP simulation source DB
-- Debezium + Kafka setup
-- Bronze storage of CDC events
-- Fraud detection service hook
+## Phase 5 - Salesforce Pipeline
 
-## Phase 6 — CRM Pipeline
+- Add mock Salesforce service and incremental pull logic.
+- Implement scheduled and manual pull DAG triggers.
+- Persist pull cursor history and raw response artifacts.
+- Emit bronze-ready events for CRM objects.
 
-- Mock Salesforce API
-- Airflow batch extraction
-- Incremental pulls, bronze storage
+## Phase 6 - Curated Layer Orchestration
 
-## Phase 7 — Lakehouse Foundation (Trino + Iceberg)
+- Implement bronze-to-silver DAG with dedupe, masking, and SCD2 controls.
+- Implement silver-to-gold DAG with KPI aggregation.
+- Emit stage completion/failure events for all curated transitions.
 
-- Add Trino + Iceberg (+ Nessie or Hive Metastore) to Docker Compose
-- Wire `minio_trino_write` credentials into Trino Iceberg connector config
-- Enable file-based system access control (`infra/trino/access-control/rules.json`)
-- `data_engineer` Trino role functional end-to-end
-- Makefile target for Trino shell
+## Phase 7 - Query Plane and UI
 
-## Phase 8 — Silver Layer
+- Implement read-model builders from event-store and stage events.
+- Reframe FastAPI as read-only UI query API.
+- Implement UI run explorer, lineage trace, artifact explorer, and alert feed.
+- Add UI-triggered demo-data generation via source-adapter services.
 
-- Data cleaning, deduplication, SCD Type 2
-- PII schema separation: `silver_pii.*` (raw, `data_engineer` only) + `silver.*` (de-identified views, `analyst` accessible)
-- Column masking rules populated in `infra/trino/access-control/rules.json` as secondary control
-- `analyst` Trino role functional: `silver.*` queryable with PII masked
+## Phase 8 - Replay and Observability Hardening
 
-## Phase 9 — Gold Layer
+- Add replay tooling for topic offset and run-scoped backfills.
+- Add DAG/event lag dashboards and failure analytics.
+- Add deterministic recovery playbooks for each source pipeline.
 
-- KPI tables, aggregations, business metrics
-- `executive` Trino role functional: `gold.*` only — no raw fields in schema
+## Phase 9 - Portfolio Hardening
 
-## Phase 10 — UI Layer
-
-- Run Explorer — backed by `control_plane_reader` / `audit_runtime` (audit view of pipeline health)
-- Artifact Viewer
-- Failure Viewer
-- Demo data generator
-- Business data in UI flows through Trino query API — not the control plane Postgres
-
-## Phase 11 — Observability & Ops
-
-- Notification system
-- Event logging
-- Pipeline replay
-- Pipeline metrics
+- Add end-to-end scenario fixtures (success, schema fail, fraud fail, replay).
+- Add architecture diagrams and evidence pack for interview walkthroughs.
+- Add local-to-cloud portability notes while preserving local-first stack.

@@ -1,187 +1,155 @@
 # Architecture
 
-## Control Plane vs Data Plane
+## Intent
 
-The platform is split into two distinct layers with no shared runtime dependencies.
+This platform is designed as an event-driven data system where pipeline execution is independent from the backend API.
 
-**Control Plane** handles metadata, orchestration visibility, and audit tracking. It knows _that_ data moved, _when_, and _what_ the outcome was — but never holds the data itself.
+- Source systems and storage events drive ETL.
+- Redpanda (Kafka API-compatible) is the backbone for orchestration and replay.
+- Airflow executes DAGs based on events and schedules.
+- FastAPI is a read-only query boundary for the UI.
 
-```
-FastAPI + SQLAlchemy + Postgres
-  ├── ingestion_run   — pipeline execution records
-  ├── artifact        — dataset snapshots at each stage
-  └── lineage_record  — transformation relationships between artifacts
-```
+## System Topology
 
-**Data Plane** handles ingestion, transformation, and storage of actual payloads.
+```text
++----------------+      +-------------------------------+
+| Source Systems | ---> | Ingress + Validation Services |
++----------------+      +-------------------------------+
+     | Excel upload           | ClamAV + file gate checks
+     | OLTP CDC               | MinIO event notifier
+     | Salesforce pull        | Debezium connectors
+     v                        v
+                +---------------------------+
+                | Redpanda Event Backbone   |
+                | (durable topic contracts) |
+                +---------------------------+
+                              |
+                              v
+                +---------------------------+
+                | Airflow DAG Orchestration |
+                | raw/quarantine -> bronze  |
+                | bronze -> silver -> gold  |
+                +---------------------------+
+                              |
+                              v
+                +---------------------------+
+                | MinIO Lakehouse Storage   |
+                | landing/raw/quarantine    |
+                | bronze/silver/gold        |
+                +---------------------------+
+                              |
+                              v
+                +---------------------------+
+                | Trino + Iceberg           |
+                +---------------------------+
 
-```
-MinIO (object storage)
-  ├── landing/      — raw file drop, pre-validation
-  ├── raw/          — validated, schema-checked
-  ├── bronze/       — Parquet, schema-enforced, append-only
-  ├── silver/       — cleaned, deduped, PII-masked (Trino: analyst)
-  ├── gold/         — aggregated KPIs (Trino: executive)
-  └── quarantine/   — failed records at any stage
-
-Trino + Iceberg (Phase 7+)
-  — query engine and access enforcement layer for silver/gold
-  — data consumers never access MinIO directly
-```
-
-This separation means the control plane can be queried for operational audit without touching the data itself, and the data plane can evolve (new layers, new formats) without changing the metadata model.
-
-## Core Domain Model
-
-```
-Run --> Artifacts --> Lineage
-```
-
-Every action in the system traces back to a `run_id`.
-
-**ingestion_run**
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `run_id` | UUID | Primary key, generated in application |
-| `source_type` | enum | `excel_upload`, `salesforce_crm`, `transaction_cdc` |
-| `status` | enum | `pending`, `running`, `completed`, `failed`, `cancelled` |
-| `actor_sub` | text | Token subject (`sub`) for the caller that created the row |
-| `actor_role` | text | Effective API role used for DB session routing (`operator`, `observer`, `pipeline`) |
-| `started_at` | timestamptz | Set at creation |
-| `completed_at` | timestamptz | Nullable; set on terminal state |
-
-**artifact**
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `artifact_id` | UUID | Primary key |
-| `run_id` | UUID | FK → ingestion_run |
-| `stage` | enum | `landing`, `raw`, `bronze`, `silver`, `gold`, `quarantine` |
-| `format` | enum | `csv`, `json`, `parquet`, `xlsx` |
-| `storage_path` | text | MinIO object path |
-| `actor_sub` | text | Token subject (`sub`) for the caller that created the row |
-| `actor_role` | text | Effective API role used for DB session routing |
-| `created_at` | timestamptz | |
-
-**lineage_record**
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `lineage_id` | UUID | Primary key |
-| `run_id` | UUID | FK → ingestion_run |
-| `input_artifact_id` | UUID | FK → artifact |
-| `output_artifact_id` | UUID | FK → artifact |
-| `transformation` | text | Description of the operation |
-| `actor_sub` | text | Token subject (`sub`) for the caller that created the row |
-| `actor_role` | text | Effective API role used for DB session routing |
-| `created_at` | timestamptz | |
-
-A check constraint enforces `input_artifact_id != output_artifact_id`.
-
-## Data Flow (Excel Vertical Slice)
-
-```
-Upload .xlsx
-    │
-    ▼
-[landing/run_id/file.xlsx]         artifact: stage=landing, format=xlsx
-    │  schema validation
-    ▼
-[raw/run_id/file.csv]              artifact: stage=raw, format=csv
-    │  Parquet conversion
-    ▼
-[bronze/run_id/file.parquet]       artifact: stage=bronze, format=parquet
-    │                              lineage: landing → bronze
-    ▼
-[silver/run_id/table/]             artifact: stage=silver (Phase 8)
-    │  PII masking, dedup
-    ▼
-[gold/run_id/kpi_summary/]         artifact: stage=gold (Phase 9)
++----------------------+        +--------------------------+
+| Event Store Database | <----> | FastAPI UI Query API     |
+| (append-only audit)  |        | (read-only endpoints)    |
++----------------------+        +--------------------------+
+                                      |
+                                      v
+                                  UI Dashboard
 ```
 
-Each arrow produces a `lineage_record` linking the input and output artifacts under the same `run_id`.
+## Control Boundaries
 
-## Repository Structure
+### Data Plane
 
-```
-backend/
-  app/
-    auth.py             — Keycloak JWT validation, role guards
-    config.py           — pydantic-settings, split DB URL + Keycloak settings
-    db.py               — operator/observer/pipeline engines, session factories
-    dependencies.py     — request-scoped DB session selection by API role
-    domain/
-      authz.py          — API role enum + authorization role groups
-      enums.py          — Python enums mirroring DB enum types
-    models/
-      ingestion_run.py  — SQLAlchemy ORM model
-      artifact.py
-      lineage_record.py
-    routes/
-      ingestion_run.py  — POST /runs, GET /runs, GET /runs/{id}
-      artifact.py       — POST /artifacts, GET /artifacts, GET /artifacts/{id}
-      lineage_record.py — POST /lineage, GET /lineage
-    schemas/
-      ingestion_run.py  — IngestionRunCreate, IngestionRunRead
-      artifact.py       — ArtifactCreate, ArtifactRead
-      lineage_record.py — LineageRecordCreate, LineageRecordRead
-    main.py             — FastAPI app, router registration
-  requirements.txt
-  .env.example
+The data plane owns:
+- Source ingestion.
+- Validation, quarantine, transformation.
+- Bronze/silver/gold movement.
+- Event publication and replay.
+- Audit event persistence.
 
-docs/
-  architecture.md
-  data-model.md
-  security-access.md
-  api-control-plane.md
-  operations.md
-  roadmap.md
+Primary runtime components:
+- MinIO
+- Redpanda
+- Airflow
+- Debezium
+- Fraud worker
+- ClamAV scanner
+- Salesforce extractor
+- Parquet writers
 
-infra/
-  docker-compose.yaml
-  .env.example
-  db/
-    migrations/
-      01_create_enums.sql
-      02_create_tables.sql
-      03_custom_constraints.sql
-      04_create_roles.sql
-  make/
-    terraform-env.mk    — exports infra/.env values as TF_VAR_* for Terraform
-  terraform/
-    README.md           — provisioning workflow notes
-    bootstrap/
-      providers.tf      — Terraform provider config (Postgres, MinIO)
-      versions.tf       — required provider versions
-      postgres.tf       — Runtime DB login users + Keycloak schema ownership
-      minio.tf          — Bucket, IAM users, IAM policies, attachments
-      variables.tf      — Bootstrap Terraform input contract
-      outputs.tf        — Bootstrap Terraform outputs
-    identity/
-      providers.tf      — Terraform provider config (Keycloak)
-      versions.tf       — required provider versions
-      keycloak.tf       — Realm, clients, roles, users, role bindings
-      variables.tf      — Identity Terraform input contract
-      outputs.tf        — Identity Terraform outputs
-  trino/
-    access-control/
-      rules.json        — file-based system access control stub (Phase 7+)
+### Query Plane
 
-ui/
-```
+The query plane owns:
+- UI-oriented read models.
+- Aggregated run status views.
+- Artifact and lineage trace views.
+- Alert feed retrieval.
 
-### Why Terraform Is Split Into Two Phases
+FastAPI in this repo belongs to the query plane only.
 
-The `bootstrap/` and `identity/` configurations have separate state files and are applied at different points in the staged startup. The split exists to break a chicken-and-egg dependency: Keycloak needs Postgres credentials and a `keycloak` schema before it can boot, but the Keycloak Terraform provider needs a running Keycloak API to talk to. The bootstrap phase runs against Postgres + MinIO before Keycloak starts; the identity phase runs once Keycloak is up. The service lifecycle (container start/stop) stays in Docker Compose. See [docs/operations.md](operations.md) for the staged sequence and [infra/terraform/README.md](../infra/terraform/README.md) for the workflow reference.
+## Event-Driven Orchestration Pattern
 
-### Identity Model
+### EventBridge Equivalent (Local)
 
-Keycloak is the source of truth for human and service identities. The realm, clients, roles, users, and role bindings are all provisioned by the identity Terraform phase ([infra/terraform/identity/keycloak.tf](../infra/terraform/identity/keycloak.tf)). There is no `user_principal` table in the application database — API role authorization reads from the validated JWT (`resource_access.meridian-api.roles`) and routes to a role-specific DB session.
+Local event routing standard:
+- MinIO notifications publish to Redpanda topics.
+- Debezium publishes CDC envelopes to Redpanda topics.
+- Airflow consumes trigger topics and publishes stage-completion events.
 
-Two Keycloak clients exist:
+This pattern gives:
+- Decoupled producers and consumers.
+- Durable replay for recovery/backfill.
+- Auditable orchestration history.
 
-- `meridian-api` — public client used by Swagger UI and human users via Authorization Code + PKCE.
-- `meridian-pipeline` — confidential client used by service accounts via Client Credentials.
+### Partitioning Across Storage Layers
 
-Both issue tokens with `aud=meridian-api` so the API audience check is unified.
+Partitioning is required in three places:
+- Redpanda topics: keyed for per-run ordering and CDC entity ordering.
+- Event-store database: monthly range partitions on event time.
+- MinIO lakehouse paths: source/date/run_id partitioned prefixes.
+
+See [partitioning-strategy.md](partitioning-strategy.md) for the canonical plan and defaults.
+
+## Pipeline Flow Summary
+
+### Excel
+1. Finance uploads to `landing/` using constrained write identity.
+2. MinIO emits object-created event to Redpanda.
+3. Scan worker runs ClamAV + type/size checks and emits verdict events.
+4. Airflow validates schema/content and writes either `raw/` or `quarantine/`.
+5. Airflow converts valid payloads to Parquet and writes `bronze/`.
+6. Airflow emits bronze-ready event for curated DAG chain.
+
+### CDC
+1. OLTP changes are captured by Debezium.
+2. Raw CDC envelopes are written to Kafka topics.
+3. Fraud worker consumes CDC events, scores risk, flags OLTP records, emits assessed events.
+4. Bronze writer persists assessed payloads with Kafka metadata + LSN, with no business transformation.
+
+### Salesforce
+1. Airflow runs scheduled/manual incremental pulls using last cursor.
+2. Raw API envelopes are persisted and linked to pull events.
+3. Airflow writes Parquet outputs to bronze and emits completion events.
+
+### Curated Layers
+1. Bronze-ready event triggers normalization DAG.
+2. Silver transformations apply dedupe, masking, SCD2 rules.
+3. Gold DAG produces KPI aggregates with no direct PII.
+4. Stage events are published for UI observability and replay.
+
+## Network Model
+
+- Processing components run on internal Docker networks.
+- Only explicit ingress surfaces are exposed publicly (UI/API/admin consoles when needed).
+- ETL workers do not require public inbound access.
+
+## Immutability and Replay
+
+- Event contracts are append-only and versioned.
+- Bronze is source-faithful and replayable.
+- Corrections append new events rather than mutating history.
+- Backfills run via replay from event topics and event-store checkpoints.
+
+## IaC Ownership Model
+
+- Docker Compose: runtime service topology and network isolation.
+- Terraform: identities, ACLs, bucket policies, encryption policy, service credentials.
+- SQL migrations: event store schema and append-only constraints.
+- Airflow DAG definitions: orchestrated transformation contract.
+- Topic schema definitions: event interface contract.

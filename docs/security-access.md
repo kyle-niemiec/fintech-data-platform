@@ -1,99 +1,88 @@
 # Security and Access Control
 
-Security for this project is designed around strict identity boundaries between infrastructure, API runtime, data pipeline services, and data consumers. Every principal has a named identity and accesses exactly the layer it needs — no more.
+This architecture enforces least privilege and immutable audit trails across event ingestion and lakehouse processing.
 
 ## Security Principles
 
-- Deny by default, grant only the minimum privileges needed per service.
-- Separate schema/migration power from application runtime power.
-- Separate write-capable and read-only DB identities — enforced at the connection level, not just application logic.
-- Data consumers never touch the control plane Postgres or MinIO directly — their access boundary is the Trino query engine.
-- Record actor + action metadata for auditability.
+- Deny by default, grant explicit minimum privileges.
+- Separate source ingress, transformation, and query identities.
+- Keep event history append-only.
+- Enforce encryption and network isolation through IaC.
+- Preserve replayability for legal defensibility.
 
-## Principal and Access Layer Map
+## Identity and Access Map
 
-### Implemented today (Postgres + MinIO)
-
-| Principal | Layer | Role / Policy | What they touch |
-| --- | --- | --- | --- |
-| FastAPI operator runtime | Postgres | `control_plane_writer` → `api_runtime` login | Write `ingestion_run`, `artifact`, `lineage_record`; read all three |
-| FastAPI observer runtime | Postgres | `control_plane_reader` → `audit_runtime` login | Read-only `ingestion_run`, `artifact`, `lineage_record` |
-| Pipeline service runtime | Postgres + MinIO | `ingestion_writer` → `api_pipeline` login (+ `minio_ingest` / `minio_transform`) | Today: service-account-authenticated API calls write control-plane metadata in Postgres. MinIO identities/policies are provisioned now and are exercised directly by pipeline workers in Phase 4+. |
-| Trino ETL / maintenance | MinIO | `minio_trino_write` policy | Policy provisioned now; used by Trino Iceberg connector once Phase 7 is enabled. |
-| Trino BI / analytics | MinIO | `minio_trino_read` policy | Policy provisioned now; read-only `silver/`, `gold/` path is used once Phase 7+ BI access is enabled. |
-
-### Planned (Trino, Phase 7+)
-
-| Principal | Layer | Role / Policy | What they touch |
-| --- | --- | --- | --- |
-| Data scientist | Trino | `analyst` role | `silver.*` de-identified views; PII masked as secondary control |
-| Executive / BI tool | Trino | `executive` role | `gold.*` only |
-| Data engineer | Trino | `data_engineer` role | All schemas, full privileges |
-
-`control_plane_reader` is an **audit/ops role** — it provides platform health inspection for operators and the ops UI. It is not a data consumer role. Data scientists and executives will query curated Iceberg tables through Trino once Phase 7 lands.
-
-## API Authentication
-
-Authentication is delegated to Keycloak (OIDC), not issued by the API.
-
-- Human users (`operator`, `observer`) authenticate through Authorization Code + PKCE.
-- Pipeline services authenticate through Client Credentials using the `meridian-pipeline` client.
-- Realm/clients/roles/users are provisioned declaratively via Terraform (`infra/terraform/identity/keycloak.tf`).
-- API access tokens are RS256-signed by Keycloak and validated by the API against:
-  - issuer (`iss`) = configured realm URL
-  - audience (`aud`) = `meridian-api`
-  - signature + expiry
-- Role authorization is still API-local and role-based:
-  - `operator`/`observer`/`pipeline` are read from Keycloak client roles under `resource_access.meridian-api.roles`.
-  - API role definitions and role groups are centralized in `backend/app/domain/authz.py` (`ApiRole`, observer/writer role sets).
-  - Tokens with no recognized API role or multiple API roles are rejected.
-- Operator routes use DB session `api_runtime` (`control_plane_writer`), observer routes use `audit_runtime` (`control_plane_reader`), and pipeline routes use `api_pipeline` (`ingestion_writer`).
-- Trade-off and auditability: DB sessions are still reduced to role-level service users, but every write persists token actor attribution (`actor_sub` + `actor_role`) on `ingestion_run`, `artifact`, and `lineage_record` so actions remain traceable to the calling identity.
-
-## Postgres RBAC
-
-Roles are defined as `NOLOGIN` templates in [infra/db/migrations/04_create_roles.sql](../infra/db/migrations/04_create_roles.sql). Login users are provisioned and bound to those templates by Terraform in [infra/terraform/bootstrap/postgres.tf](../infra/terraform/bootstrap/postgres.tf).
-
-**Role responsibilities:**
-
-- `db_migrator` — DDL ownership, full data access. Used only for running migrations.
-- `control_plane_writer` — `SELECT, INSERT` on `ingestion_run`; `UPDATE (status, completed_at)` on `ingestion_run`; `SELECT, INSERT` on `artifact` and `lineage_record`. Bound to `api_runtime`.
-- `control_plane_reader` — `SELECT` on all three control-plane tables. Bound to `audit_runtime`.
-- `ingestion_writer` — `SELECT, INSERT` on all three tables; `UPDATE (status, completed_at)` on `ingestion_run`. Bound to `api_pipeline`.
-
-`data_analyst` and `data_executive` are stub `NOLOGIN` roles created in the same migration with no grants today. They exist as named placeholders for the Phase 7+ Trino access model and have no current effect on the database.
-
-The same Terraform module also provisions a `keycloak_runtime` login user that owns the `keycloak` schema. It is **not** bound to any of the role templates above — it exists only so that the Keycloak server can manage its own schema, and it has no access to the control plane tables.
-
-`ALTER DEFAULT PRIVILEGES FOR ROLE db_migrator` ensures future tables created by migrations automatically inherit grants without manual re-grants per migration file.
-
-## MinIO Policies
-
-MinIO bucket, IAM users, and IAM policies are provisioned by Terraform in `infra/terraform/bootstrap/minio.tf`. Bucket ARN defaults to `fintech-lakehouse` and is configurable via `MINIO_BUCKET_NAME`.
-
-| Policy resource | Principal | Access |
+| Principal | Layer | Access |
 | --- | --- | --- |
-| `minio_iam_policy.ingest` | Ingest service | List + read/write `landing/`, `raw/` |
-| `minio_iam_policy.transform` | Transform service | Read `raw/`; write `bronze/`, `silver/`, `gold/`, `quarantine/` |
-| `minio_iam_policy.trino_write` | Trino Iceberg connector | Read all curated layers; write Iceberg metadata files to `bronze/`, `silver/`, `gold/` |
-| `minio_iam_policy.trino_read` | Trino BI path | Read-only `silver/`, `gold/` only |
+| Finance uploader | MinIO | Put-only to `landing/finance/*` |
+| Scan worker | MinIO + Redpanda | Read `landing/*`, write scan verdict topics |
+| Airflow worker | MinIO + Redpanda + Event DB | Read/write stage prefixes, consume/produce orchestration topics, append event-store records |
+| Debezium connector | OLTP + Redpanda | Read WAL/CDC, publish `cdc.oltp.raw.v1` |
+| Fraud worker | Redpanda + OLTP + MinIO | Consume CDC raw, write risk flags, publish assessed events, write bronze outputs |
+| Salesforce extractor | Salesforce API + MinIO + Event DB | Pull raw responses, persist raw artifacts, append pull events |
+| UI query API | Event DB read models | Read-only run/lineage/artifact/alert views |
+| Trino analyst path | Iceberg/MinIO | Read `silver/*` only |
+| Trino executive path | Iceberg/MinIO | Read `gold/*` only |
 
-No consumer identity has direct MinIO access. The `minio_trino_read` policy exists for a BI-only Trino cluster or secondary query path with no catalog maintenance responsibilities.
+## Network Isolation
 
-## Trino Access Control (Phase 7+)
+- Processing services run on internal Docker networks with no host-published ports.
+- Public ingress is limited to explicit surfaces:
+  - UI application.
+  - Read-only query API.
+  - Required admin consoles in local development.
+- Ingress services do not require direct internet inbound paths.
 
-Data consumers access curated Iceberg data through Trino using file-based system access control (`infra/trino/access-control/rules.json`).
+## Encryption Model
 
-**Role scopes:**
+### At Rest
 
-- `data_engineer` — all schemas, full privileges. Used for debugging, replay, and pipeline development.
-- `analyst` — `silver.*` only. PII schema separation is the **primary control**: `silver_pii.*` tables are `data_engineer`-only; `silver.*` exposes de-identified views. Column masking in `rules.json` is a secondary belt-and-suspenders control on top of the de-identified views.
-- `executive` — `gold.*` only. No raw or PII-adjacent fields in the gold schema by design.
+- MinIO uses SSE-KMS with KES/Vault-managed keys.
+- Bucket policies require encryption headers for writes to:
+  - `bronze/*`
+  - `silver/*`
+  - `gold/*`
+- Optional enforcement for `raw/*` and `quarantine/*` per environment policy.
 
-Column masks are stubbed in `rules.json` now and populated when the silver schema is defined in Phase 8.
+### In Transit
 
-## Encryption Posture
+- TLS is required for external interfaces in deployment environments.
+- Local development may use non-TLS for convenience, but architecture assumes TLS-capable endpoints.
 
-- **In transit:** TLS for FastAPI, Postgres, and MinIO in deployment environments. Not enforced locally.
-- **At rest:** Postgres on encrypted volumes; MinIO SSE-S3 or SSE-KMS preferred in production-like setups.
-- **Secrets:** Runtime credentials supplied via environment variables or a secret manager. For local provisioning, Docker Compose and Terraform both read from `infra/.env` (Terraform via Make-exported `TF_VAR_*`), including `KC_PIPELINE_CLIENT_SECRET` and MinIO IAM user secrets. Rotate Keycloak admin/client secrets and MinIO access secrets on a schedule in long-lived deployments.
+## Kafka/Redpanda Controls
+
+- Topic ACLs enforce producer/consumer separation per service identity.
+- Consumers use dedicated groups for deterministic replay control.
+- Retention and compaction policies must preserve forensic replay requirements.
+
+## Database Controls
+
+### Event Store Database
+
+- Pipeline services have append-only rights on event tables.
+- No `UPDATE`/`DELETE` privileges for ingestion and transform identities.
+- Read-model builders can write materialized read tables in isolated schemas.
+- UI query API has `SELECT` on read-model schema only.
+
+### OLTP Source Database
+
+- Debezium has read-only CDC privileges.
+- Fraud worker has minimal write rights only for fraud-flag columns/tables.
+
+## Data-Layer Security Intent
+
+- Bronze: source-faithful, restricted access, PII allowed for forensic and compliance use.
+- Silver: deduplicated and masked/de-identified for analyst workflows.
+- Gold: KPI-only business summaries without direct PII.
+
+## Immutability and Legal Defensibility
+
+- No history rewriting in event topics or event-store records.
+- Corrections are represented as new events.
+- Bronze keeps ordering and provenance metadata (offsets, LSN, checksums).
+- Replay procedures are part of standard operations.
+
+## UI Alerting Policy
+
+- Alerts are published as events and surfaced in UI feed read models.
+- Slack integration is out of scope for this local reference architecture.
