@@ -8,6 +8,7 @@ This platform is designed as an event-driven data system where pipeline executio
 - Redpanda (Kafka API-compatible) is the backbone for orchestration and replay.
 - Airflow executes DAGs based on events and schedules.
 - FastAPI is a read-only query boundary for the UI.
+- UI access is anonymous in demo mode; no human login is required.
 
 ## System Topology
 
@@ -62,6 +63,14 @@ The data plane owns:
 - Bronze/silver/gold movement.
 - Event publication and replay.
 - Audit event persistence.
+
+Pipeline domains in the data plane:
+- Ingestion domain (independent runs): Excel, CDC, Salesforce.
+- Curated domain (independent runs): bronze -> silver -> gold promotion.
+
+Boundary rule:
+- Ingestion pipelines end at bronze readiness.
+- Curated pipeline begins at bronze-ready events and follows its own orchestration behavior.
 
 Primary runtime components:
 - MinIO
@@ -123,7 +132,7 @@ See [partitioning-strategy.md](partitioning-strategy.md) for the canonical plan 
 4. Bronze writer persists assessed payloads with Kafka metadata + LSN, with no business transformation.
 
 ### Salesforce
-1. Airflow runs scheduled/manual incremental pulls using last cursor.
+1. Airflow runs scheduled incremental pulls using last cursor.
 2. Raw API envelopes are persisted and linked to pull events.
 3. Airflow writes Parquet outputs to bronze and emits completion events.
 

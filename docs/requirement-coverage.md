@@ -13,16 +13,19 @@ This matrix maps `project-planning.md` requirements to local event-driven compon
 | OLTP CDC via Debezium/DMS equivalent | Debezium captures WAL changes and publishes raw CDC topics | Compose connectors + Terraform topic ACLs |
 | CDC fraud detection subscriber | Fraud worker consumes CDC raw topics, scores risk, emits assessed events, flags OLTP records | Compose runtime + Terraform identities |
 | CDC bronze persistence with metadata | Bronze writer persists assessed payload with topic metadata and LSN fields | Airflow/worker code + data model contract |
-| Salesforce batch pull (scheduled/manual) | Airflow incremental pulls with cursor tracking and auditable pull events | Airflow DAG + Compose + Terraform secrets |
+| Salesforce batch pull (scheduled) | Airflow incremental pulls with cursor tracking and auditable pull events; no API/UI initiation path | Airflow DAG + Compose + Terraform secrets |
 | Failure retry and auditable logging | Airflow retry policy emits attempt/failure events into event store | Airflow DAG + event-store schema |
 | Event storage exclusive DB | Dedicated event-store database isolated from API query persistence | Compose DB service + Terraform roles + migrations |
 | Bronze->silver->gold sequential orchestration | Event-driven Airflow DAG chain triggered from bronze-ready events | Airflow DAG + Redpanda topics |
 | EventBridge-like trigger chaining | MinIO notifications and stage-completion events route through Redpanda topics | Terraform notification and ACL config |
+| Event-first run initiation | Trigger events are emitted first, then `pipeline_run` records are created from those trigger events | Event contracts + event-store schema + pipeline writers |
+| Independent source pipelines | Excel, CDC, and Salesforce ingestion runs are tracked independently by `pipeline_name` and trigger criteria | Event-store schema + orchestration contracts |
+| Curated boundary after bronze | Curated promotion starts only from bronze-ready events and runs as a separate pipeline domain | Airflow DAG chain + event contracts + event-store lineage fields |
 | Partitioning across event storage layers | Redpanda partitions by run/entity key, monthly DB partitions for event log, source/date/run_id object prefixes in MinIO | Topic contracts, SQL migrations, writer path conventions in IaC-managed services |
 | Encryption with KMS-like controls | MinIO SSE-KMS through KES/Vault with encrypted-write policy enforcement | Terraform bucket policies + KES/Vault config |
 | Append-only and replay-first processing | Immutable event log, offset checkpoints, replay-driven backfills | Event-store schema + topic retention policy IaC |
 | No destructive data correction | Corrections append new events rather than update/delete history | SQL role constraints + pipeline contract |
 | UI shows pipeline status and traceability | Read-only FastAPI query API serving run timeline, lineage, artifacts, alerts | Backend query API + read-model builders |
-| UI can generate success/failure demo data | UI triggers source-adapter generators that publish into source ingress paths | Compose source-adapter services + topic contracts |
-| Notifications visible to observers | UI alert feed populated from `ui.alert.raised.v1` and event-store read models | Event contracts + query API |
+| UI can generate success/failure demo data | UI triggers source-adapter generators that publish into source ingress paths; Excel generator picks a random actor from Keycloak `finance` role users | Compose source-adapter services + topic contracts + Keycloak IaC |
+| Notifications visible to any viewer | UI alert feed populated from `ui.alert.raised.v1` and event-store read models | Event contracts + query API |
 | API not required for ETL execution | All ingestion and transformation flows run through source triggers, broker, workers, and Airflow | Architecture boundary + runtime topology |

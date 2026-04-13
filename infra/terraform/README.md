@@ -9,7 +9,7 @@ Terraform owns:
 - Event backbone ACLs and service principals.
 - Encryption policy posture (including SSE-KMS requirements).
 - Database role grants for append-only event persistence and read-only query access.
-- OIDC identity and role bindings.
+- Keycloak realm/client/persona seeding for internal demo actor identity.
 
 Docker Compose owns runtime lifecycle (container start/stop).
 
@@ -18,7 +18,7 @@ Docker Compose owns runtime lifecycle (container start/stop).
 The platform uses phased Terraform roots to avoid dependency loops and keep concerns isolated.
 
 - `bootstrap/`: foundational storage, DB users/roles, service policies.
-- `identity/`: OIDC realm/clients/roles/users.
+- `identity/`: Keycloak realm/client/role/demo-user provisioning.
 - `eventing/` (target): broker ACLs, topic bootstrap, service credentials.
 - `security/` (target): encryption policy enforcement, KMS/KES policy bindings.
 

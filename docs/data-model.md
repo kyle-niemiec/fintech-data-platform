@@ -17,13 +17,27 @@ All source and transformation records must carry:
 | Field | Type | Purpose |
 | --- | --- | --- |
 | `run_id` | UUID | Correlates all events/artifacts in one execution chain |
+| `pipeline_class` | TEXT | `ingestion` or `curated` |
+| `pipeline_name` | TEXT | `excel_ingestion`, `cdc_ingestion`, `salesforce_ingestion`, `curated_promotion` |
 | `event_id` | UUID | Dedupe and immutable event identity |
 | `trace_id` | UUID | Cross-service trace correlation |
-| `source_system` | TEXT | `excel`, `oltp_cdc`, `salesforce` |
+| `source_system` | TEXT | `excel`, `cdc`, `salesforce`, `curated` |
 | `occurred_at` | TIMESTAMPTZ | Source/system event time |
 | `ingested_at` | TIMESTAMPTZ | Processing ingestion time |
 | `schema_version` | TEXT | Event/payload contract version |
 | `payload_hash` | TEXT | Integrity check for payload immutability |
+
+## Artifact Payload Contract
+
+For artifact-bearing events in `event_store.event_log.payload`:
+
+- `message` is required for all events.
+- `stage` identifies the pipeline stage (`raw`, `quarantine`, `bronze`, `silver`, `gold`).
+- `input_uris[]` identifies upstream artifact dependencies.
+- `output_uris[]` identifies artifacts written by the stage.
+- `format` is required when output artifact format is known.
+- `transform_id` and `transform_version` are required together for business-transformation events.
+- The same URI-array schema is used across ingestion and curated pipelines.
 
 ## Event Store Database (Exclusive Audit Store)
 
@@ -45,12 +59,30 @@ The event store is separate from UI query-service persistence and source OLTP sy
 | Column | Type | Notes |
 | --- | --- | --- |
 | `run_id` | UUID PK | Pipeline run identity |
-| `source_type` | TEXT | `excel`, `cdc`, `salesforce` |
-| `trigger_type` | TEXT | `bucket_event`, `schedule`, `manual`, `replay` |
+| `pipeline_class` | TEXT | `ingestion` or `curated` |
+| `pipeline_name` | TEXT | `excel_ingestion`, `cdc_ingestion`, `salesforce_ingestion`, `curated_promotion` |
+| `source_system` | TEXT | `excel`, `cdc`, `salesforce`, `curated` |
+| `trigger_type` | TEXT | `bucket_event`, `cdc_event`, `schedule`, `bronze_ready_event`, `replay` |
+| `trigger_event_ref` | TEXT | External event reference that initiated the run |
 | `status` | TEXT | `pending`, `running`, `completed`, `failed`, `quarantined` |
 | `started_at` | TIMESTAMPTZ | Run start |
 | `completed_at` | TIMESTAMPTZ | Run end |
 | `initiator` | TEXT | Service or user identity |
+| `parent_run_id` | UUID FK | Upstream run (used by curated promotion runs) |
+
+Required invariants:
+- A triggering event must exist before a `pipeline_run` is inserted.
+- `pipeline_run` and first `event_log` entry are written in one transaction.
+- Ingestion runs (`pipeline_class='ingestion'`) are independent across Excel/CDC/Salesforce.
+- Curated runs (`pipeline_class='curated'`) are triggered only by bronze-ready events and may reference the upstream ingestion run in `parent_run_id`.
+- Domain mapping is strict:
+  - `excel_ingestion` -> `source_system='excel'` and `parent_run_id IS NULL`
+  - `cdc_ingestion` -> `source_system='cdc'` and `parent_run_id IS NULL`
+  - `salesforce_ingestion` -> `source_system='salesforce'` and `parent_run_id IS NULL`
+  - `curated_promotion` -> `source_system='curated'` and `parent_run_id IS NOT NULL`
+- `trigger_event_ref` must be non-empty.
+- `parent_run_id` cannot equal `run_id`.
+- A deferred database trigger rejects commits where a newly inserted `pipeline_run` has no `event_log` rows.
 
 ### `event_store.event_log`
 
@@ -69,15 +101,16 @@ The event store is separate from UI query-service persistence and source OLTP sy
 
 ### `event_store.file_ingress`
 
+This optional read model denormalizes stage-specific URIs for file-ingress observability.
+Canonical event payloads still use `input_uris[]` / `output_uris[]`.
+
 | Column | Type | Notes |
 | --- | --- | --- |
 | `file_ingress_id` | UUID PK | File ingress record |
 | `run_id` | UUID FK | Correlated run |
 | `source_file_name` | TEXT | Original file name |
 | `landing_uri` | TEXT | Landing object path |
-| `raw_uri` | TEXT | Raw output path |
-| `quarantine_uri` | TEXT | Quarantine path if failed |
-| `bronze_uri` | TEXT | Bronze parquet path |
+| `artifact_uris` | JSONB | Stage-to-URI map (`raw`, `quarantine`, `bronze`) |
 | `scan_status` | TEXT | `pass` or `fail` |
 | `validation_status` | TEXT | `pass` or `fail` |
 | `errors` | JSONB | Structured validation failures |
@@ -98,6 +131,9 @@ The event store is separate from UI query-service persistence and source OLTP sy
 
 ### `event_store.sf_pull`
 
+This optional read model denormalizes Salesforce pull artifacts for query convenience.
+Canonical event payloads still use `input_uris[]` / `output_uris[]`.
+
 | Column | Type | Notes |
 | --- | --- | --- |
 | `pull_id` | UUID PK | Pull attempt identity |
@@ -106,7 +142,7 @@ The event store is separate from UI query-service persistence and source OLTP sy
 | `cursor_from` | TIMESTAMPTZ | Incremental lower bound |
 | `cursor_to` | TIMESTAMPTZ | Incremental upper bound |
 | `request_uri` | TEXT | API request metadata location |
-| `response_uri` | TEXT | Raw response artifact |
+| `uri` | TEXT | Primary response artifact URI |
 | `response_checksum` | TEXT | Integrity checksum |
 | `status` | TEXT | `succeeded` or `failed` |
 | `retry_attempt` | INT | Retry index |

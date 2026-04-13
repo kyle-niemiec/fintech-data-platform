@@ -22,7 +22,7 @@ cp infra/.env.example infra/.env
    - Postgres and event-store DB users
    - MinIO root and service users
    - Redpanda client credentials
-   - Keycloak clients/users
+   - Keycloak demo-service client and demo persona seed password
    - KES/Vault key provider settings
    - Airflow and connector service credentials
 
@@ -82,24 +82,28 @@ make api-dev
    - `ingest.excel.raw.ready.v1` or `ingest.excel.quarantined.v1`
    - `ingest.excel.bronze.ready.v1`
 3. Confirm event-store run timeline includes every stage.
+4. Confirm run metadata indicates `pipeline_class=ingestion` and `pipeline_name=excel_ingestion`.
 
 ### CDC validation path
 
-1. Insert/update OLTP transaction rows.
+1. Wait for internal CDC data generator cycle (5-10 minutes) or insert/update OLTP transaction rows for an immediate check.
 2. Confirm CDC events and fraud-assessed events are emitted.
 3. Verify bronze records include Kafka metadata and LSN.
+4. Confirm run metadata indicates `pipeline_class=ingestion` and `pipeline_name=cdc_ingestion`.
 
 ### Salesforce validation path
 
-1. Trigger scheduled or manual pull.
+1. Wait for scheduled incremental pull trigger.
 2. Confirm pull started/succeeded or failed events.
 3. Verify raw response persistence and bronze output event.
+4. Confirm run metadata indicates `pipeline_class=ingestion` and `pipeline_name=salesforce_ingestion`.
 
 ### Curated validation path
 
 1. Confirm bronze-ready events trigger silver DAG.
 2. Confirm silver-completed events trigger gold DAG.
 3. Verify UI run trace shows full lineage through gold.
+4. Confirm curated promotion runs are tracked separately with `pipeline_class=curated` and linked to ingestion runs via `parent_run_id`.
 
 ## Replay and Backfill
 
@@ -127,6 +131,8 @@ make api-dev
 - Processing services remain on internal networks only.
 - No in-place mutation of event history for corrections.
 - Encrypted object-write policy is required for curated layers.
+- Runs are event-initiated only; a `pipeline_run` must not exist before its trigger event.
+- `pipeline_run` domain mapping is enforced (`pipeline_class`, `pipeline_name`, `source_system`, `parent_run_id` must match the fixed pipeline contract).
 
 ## Observability Essentials
 

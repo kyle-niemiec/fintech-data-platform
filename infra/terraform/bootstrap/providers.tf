@@ -9,6 +9,18 @@ provider "postgresql" {
   superuser       = true
 }
 
+provider "postgresql" {
+  alias           = "event_store"
+  host            = var.event_store_db_host
+  port            = var.event_store_db_port
+  database        = var.event_store_db
+  username        = var.event_store_db_root_user
+  password        = var.event_store_db_root_password
+  sslmode         = "disable"
+  connect_timeout = 15
+  superuser       = true
+}
+
 provider "minio" {
   minio_server   = var.minio_server
   minio_user     = var.minio_root_user

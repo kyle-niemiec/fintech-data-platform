@@ -3,12 +3,12 @@ output "keycloak_realm_name" {
   value       = keycloak_realm.meridian.realm
 }
 
-output "keycloak_api_client_id" {
-  description = "OIDC client id used by API and Swagger"
-  value       = keycloak_openid_client.meridian_api.client_id
+output "keycloak_demo_service_client_id" {
+  description = "Internal client id used for demo actor selection"
+  value       = keycloak_openid_client.demo_service.client_id
 }
 
-output "keycloak_pipeline_client_id" {
-  description = "OIDC client id used by pipelines"
-  value       = keycloak_openid_client.meridian_pipeline.client_id
+output "keycloak_finance_role_name" {
+  description = "Role name assigned to demo finance personas"
+  value       = keycloak_role.finance.name
 }

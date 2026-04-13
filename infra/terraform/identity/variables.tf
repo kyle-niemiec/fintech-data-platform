@@ -45,110 +45,38 @@ variable "keycloak_admin_password" {
   }
 }
 
-variable "keycloak_api_client_id" {
-  description = "OIDC client for API and Swagger login"
+variable "keycloak_demo_service_client_id" {
+  description = "Internal client id used by demo actor selector services"
   type        = string
-  default     = "meridian-api"
+  default     = "meridian-demo-service"
   nullable    = false
 
   validation {
-    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9._-]{1,127}$", var.keycloak_api_client_id))
-    error_message = "keycloak_api_client_id must be 2-128 chars using letters, numbers, '.', '_' or '-'."
+    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9._-]{1,127}$", var.keycloak_demo_service_client_id))
+    error_message = "keycloak_demo_service_client_id must be 2-128 chars using letters, numbers, '.', '_' or '-'."
   }
 }
 
-variable "keycloak_api_audience" {
-  description = "Audience expected by the API"
-  type        = string
-  default     = "meridian-api"
-  nullable    = false
-
-  validation {
-    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9._-]{1,127}$", var.keycloak_api_audience))
-    error_message = "keycloak_api_audience must be 2-128 chars using letters, numbers, '.', '_' or '-'."
-  }
-}
-
-variable "keycloak_swagger_client_id" {
-  description = "Swagger UI OIDC client id"
-  type        = string
-  default     = "meridian-api"
-  nullable    = false
-
-  validation {
-    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9._-]{1,127}$", var.keycloak_swagger_client_id))
-    error_message = "keycloak_swagger_client_id must be 2-128 chars using letters, numbers, '.', '_' or '-'."
-  }
-}
-
-variable "keycloak_pipeline_client_id" {
-  description = "OIDC client id used by pipelines"
-  type        = string
-  default     = "meridian-pipeline"
-  nullable    = false
-
-  validation {
-    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9._-]{1,127}$", var.keycloak_pipeline_client_id))
-    error_message = "keycloak_pipeline_client_id must be 2-128 chars using letters, numbers, '.', '_' or '-'."
-  }
-}
-
-variable "keycloak_pipeline_client_secret" {
-  description = "OIDC client secret for pipeline client"
+variable "keycloak_demo_service_client_secret" {
+  description = "Internal client secret used by demo actor selector services"
   type        = string
   sensitive   = true
   nullable    = false
 
   validation {
-    condition     = length(trimspace(var.keycloak_pipeline_client_secret)) >= 12
-    error_message = "keycloak_pipeline_client_secret must be at least 12 characters."
+    condition     = length(trimspace(var.keycloak_demo_service_client_secret)) >= 12
+    error_message = "keycloak_demo_service_client_secret must be at least 12 characters."
   }
 }
 
-variable "keycloak_operator_username" {
-  description = "Seed operator username for local dev"
-  type        = string
-  default     = "operator"
-  nullable    = false
-
-  validation {
-    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$", var.keycloak_operator_username))
-    error_message = "keycloak_operator_username must be 2-64 chars using letters, numbers, '.', '_' or '-'."
-  }
-}
-
-variable "keycloak_operator_password" {
-  description = "Seed operator password for local dev"
+variable "keycloak_demo_user_password" {
+  description = "Password used for seeded demo personas in local development"
   type        = string
   sensitive   = true
   nullable    = false
 
   validation {
-    condition     = length(trimspace(var.keycloak_operator_password)) >= 12
-    error_message = "keycloak_operator_password must be at least 12 characters."
-  }
-}
-
-variable "keycloak_observer_username" {
-  description = "Seed observer username for local dev"
-  type        = string
-  default     = "observer"
-  nullable    = false
-
-  validation {
-    condition     = can(regex("^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$", var.keycloak_observer_username))
-    error_message = "keycloak_observer_username must be 2-64 chars using letters, numbers, '.', '_' or '-'."
-  }
-}
-
-variable "keycloak_observer_password" {
-  description = "Seed observer password for local dev"
-  type        = string
-  sensitive   = true
-  nullable    = false
-
-  validation {
-    condition     = length(trimspace(var.keycloak_observer_password)) >= 12
-    error_message = "keycloak_observer_password must be at least 12 characters."
+    condition     = length(trimspace(var.keycloak_demo_user_password)) >= 12
+    error_message = "keycloak_demo_user_password must be at least 12 characters."
   }
 }

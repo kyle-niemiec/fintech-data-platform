@@ -5,6 +5,7 @@ Event-driven, compliance-aligned data engineering platform for local-first demos
 This repository follows the architecture in [project-planning.md](project-planning.md):
 - ETL is source-triggered and event-driven.
 - FastAPI serves the UI with read-only query endpoints.
+- UI access is anonymous for demo use (no human login dependency).
 - Pipeline execution remains independent if the API is offline.
 
 ## Core Goals
@@ -45,7 +46,10 @@ Presentation
 ## Non-Negotiable Boundaries
 
 - API is query-only for UI workflows. It does not orchestrate ETL.
+- API endpoints are public in demo mode; user identity is not required for read access.
 - Pipeline metadata writes do not pass through API endpoints.
+- Trigger events create runs (event-first); runs are not pre-created.
+- Excel/CDC/Salesforce ingestion runs are independent from curated promotion runs.
 - Every cross-service transition is represented by an event on Redpanda.
 - Bronze keeps source-faithful payloads for forensics/replay.
 - Security controls are encoded in IaC (roles, ACLs, bucket policies, network boundaries, encryption posture).

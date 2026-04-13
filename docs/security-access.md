@@ -9,12 +9,14 @@ This architecture enforces least privilege and immutable audit trails across eve
 - Keep event history append-only.
 - Enforce encryption and network isolation through IaC.
 - Preserve replayability for legal defensibility.
+- Keep UI authentication disabled in local demo mode and rely on rate/network controls for public access.
 
 ## Identity and Access Map
 
 | Principal | Layer | Access |
 | --- | --- | --- |
 | Finance uploader | MinIO | Put-only to `landing/finance/*` |
+| Demo Excel generator | Keycloak + MinIO + Redpanda | Select random `finance` actor identity, upload sample files, emit ingress events |
 | Scan worker | MinIO + Redpanda | Read `landing/*`, write scan verdict topics |
 | Airflow worker | MinIO + Redpanda + Event DB | Read/write stage prefixes, consume/produce orchestration topics, append event-store records |
 | Debezium connector | OLTP + Redpanda | Read WAL/CDC, publish `cdc.oltp.raw.v1` |
@@ -32,6 +34,7 @@ This architecture enforces least privilege and immutable audit trails across eve
   - Read-only query API.
   - Required admin consoles in local development.
 - Ingress services do not require direct internet inbound paths.
+- Public UI mode means no user login dependency in the request path.
 
 ## Encryption Model
 

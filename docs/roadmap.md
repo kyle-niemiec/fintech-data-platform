@@ -10,6 +10,7 @@ This roadmap is ordered around event-driven delivery, not API-first delivery.
 - Define topic ACLs and service identities in Terraform.
 - Establish internal Docker network boundaries for processing services.
 - Lock partitioning standards for topics, event-store tables, and object paths.
+- Encode run-domain metadata (`pipeline_class`, `pipeline_name`) and event-first run initiation invariants.
 
 ## Phase 2 - Security Baseline and Encryption
 
@@ -36,7 +37,7 @@ This roadmap is ordered around event-driven delivery, not API-first delivery.
 ## Phase 5 - Salesforce Pipeline
 
 - Add mock Salesforce service and incremental pull logic.
-- Implement scheduled and manual pull DAG triggers.
+- Implement scheduled incremental pull DAG trigger.
 - Persist pull cursor history and raw response artifacts.
 - Emit bronze-ready events for CRM objects.
 

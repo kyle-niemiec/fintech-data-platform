@@ -56,72 +56,84 @@ variable "postgres_root_password" {
   }
 }
 
-variable "operator_db_user" {
-  description = "DB login for operator API runtime"
+variable "event_store_db_host" {
+  description = "Event-store Postgres host reachable from Terraform"
+  type        = string
+  default     = "localhost"
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.event_store_db_host) != ""
+    error_message = "event_store_db_host must be set."
+  }
+}
+
+variable "event_store_db_port" {
+  description = "Event-store Postgres port"
+  type        = number
+  default     = 5433
+  nullable    = false
+
+  validation {
+    condition     = var.event_store_db_port == floor(var.event_store_db_port) && var.event_store_db_port >= 1 && var.event_store_db_port <= 65535
+    error_message = "event_store_db_port must be an integer between 1 and 65535."
+  }
+}
+
+variable "event_store_db" {
+  description = "Event-store database name"
   type        = string
   nullable    = false
 
   validation {
-    condition     = trimspace(var.operator_db_user) != ""
-    error_message = "operator_db_user must be set."
+    condition     = trimspace(var.event_store_db) != ""
+    error_message = "event_store_db must be set."
   }
 }
 
-variable "operator_db_password" {
-  description = "DB password for operator API runtime"
+variable "event_store_db_root_user" {
+  description = "Event-store Postgres superuser used for provisioning"
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.event_store_db_root_user) != ""
+    error_message = "event_store_db_root_user must be set."
+  }
+}
+
+variable "event_store_db_root_password" {
+  description = "Event-store Postgres superuser password"
   type        = string
   sensitive   = true
   nullable    = false
 
   validation {
-    condition     = length(trimspace(var.operator_db_password)) >= 12
-    error_message = "operator_db_password must be at least 12 characters."
+    condition     = length(trimspace(var.event_store_db_root_password)) >= 12
+    error_message = "event_store_db_root_password must be at least 12 characters."
   }
 }
 
-variable "observer_db_user" {
-  description = "DB login for observer API runtime"
+variable "event_query_db_user" {
+  description = "DB login for UI query API runtime"
   type        = string
   nullable    = false
 
   validation {
-    condition     = trimspace(var.observer_db_user) != ""
-    error_message = "observer_db_user must be set."
+    condition     = trimspace(var.event_query_db_user) != ""
+    error_message = "event_query_db_user must be set."
   }
 }
 
-variable "observer_db_password" {
-  description = "DB password for observer API runtime"
-  type        = string
-  sensitive   = true
-  nullable    = false
-
-  validation {
-    condition     = length(trimspace(var.observer_db_password)) >= 12
-    error_message = "observer_db_password must be at least 12 characters."
-  }
-}
-
-variable "pipeline_db_user" {
-  description = "DB login for pipeline API runtime"
-  type        = string
-  nullable    = false
-
-  validation {
-    condition     = trimspace(var.pipeline_db_user) != ""
-    error_message = "pipeline_db_user must be set."
-  }
-}
-
-variable "pipeline_db_password" {
-  description = "DB password for pipeline API runtime"
+variable "event_query_db_password" {
+  description = "DB password for UI query API runtime"
   type        = string
   sensitive   = true
   nullable    = false
 
   validation {
-    condition     = length(trimspace(var.pipeline_db_password)) >= 12
-    error_message = "pipeline_db_password must be at least 12 characters."
+    condition     = length(trimspace(var.event_query_db_password)) >= 12
+    error_message = "event_query_db_password must be at least 12 characters."
   }
 }
 
