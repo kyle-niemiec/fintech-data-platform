@@ -4,21 +4,14 @@ COMPOSE_FILE := infra/docker-compose.yaml
 INFRA_ENV_FILE := infra/.env
 TERRAFORM_BOOTSTRAP_DIR := infra/terraform/bootstrap
 TERRAFORM_IDENTITY_DIR := infra/terraform/identity
+TF_RUNNER_SERVICE := terraform_runner
 API_DIR := backend
 API_BIN_DIR := .venv/bin
 
 include $(INFRA_ENV_FILE)
 
 INFRA_UP_STEPS := 1 2 3 4 5 6
-INFRA_UP_STEP := $(strip $(or $(STEP),$(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS)))))
-
-export POSTGRES_DB POSTGRES_HOST POSTGRES_PORT
-export EVENT_STORE_DB EVENT_STORE_DB_HOST EVENT_STORE_DB_PORT
-export EVENT_STORE_DB_ROOT_USER EVENT_STORE_DB_ROOT_PASSWORD
-export EVENT_QUERY_DB_USER EVENT_QUERY_DB_PASSWORD
-export KEYCLOAK_URL KEYCLOAK_REALM KEYCLOAK_DEMO_SERVICE_CLIENT_ID
-
-include infra/make/terraform-env.mk
+INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))))
 
 .PHONY: help infra-up infra-down infra-ps infra-clean \
 	infra-tf-init infra-pg-up infra-kc-up infra-tf-bootstrap infra-tf-apply \
@@ -30,12 +23,11 @@ help:
 	@printf "Available targets:\n"
 	@printf "  infra-up                 Show the staged infra startup sequence\n"
 	@printf "  infra-up <1-6>           Run one startup step (e.g. make infra-up 3)\n"
-	@printf "  infra-up STEP=<1-6>      Run one startup step (e.g. make infra-up STEP=3)\n"
-	@printf "  infra-tf-init            Initialize Terraform providers (bootstrap + identity)\n"
+	@printf "  infra-tf-init            Initialize Terraform providers in Docker (bootstrap + identity)\n"
 	@printf "  infra-pg-up              Start Postgres + event-store DB + MinIO + Redpanda containers\n"
-	@printf "  infra-tf-bootstrap       Apply Terraform bootstrap phase (Postgres + MinIO)\n"
+	@printf "  infra-tf-bootstrap       Apply Terraform bootstrap phase in Docker (Postgres + MinIO)\n"
 	@printf "  infra-kc-up              Start Keycloak container\n"
-	@printf "  infra-tf-apply           Apply Terraform identity phase (Keycloak)\n"
+	@printf "  infra-tf-apply           Apply Terraform identity phase in Docker (Keycloak)\n"
 	@printf "  infra-down               Stop infrastructure containers\n"
 	@printf "  infra-ps                 Show infrastructure container status\n"
 	@printf "  infra-clean              Stop containers and remove local Postgres/Event Store/MinIO/Redpanda volumes and Terraform state\n"
@@ -58,7 +50,6 @@ infra-up:
 		printf "  6) make infra-ps\n"; \
 		printf "\nRun a single step:\n"; \
 		printf "  make infra-up <1-6>\n"; \
-		printf "  make infra-up STEP=<1-6>\n"; \
 	elif [ "$(INFRA_UP_STEP)" = "1" ]; then \
 		$(MAKE) infra-tf-init; \
 	elif [ "$(INFRA_UP_STEP)" = "2" ]; then \
@@ -80,20 +71,20 @@ infra-up:
 	@:
 
 infra-tf-init:
-	cd $(TERRAFORM_BOOTSTRAP_DIR) && KEYCLOAK_REALM=master terraform init
-	cd $(TERRAFORM_IDENTITY_DIR) && KEYCLOAK_REALM=master terraform init
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) bootstrap init
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) identity init
 
 infra-pg-up:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) up -d postgres event_store_db minio redpanda
 
 infra-tf-bootstrap:
-	cd $(TERRAFORM_BOOTSTRAP_DIR) && KEYCLOAK_REALM=master terraform apply -auto-approve
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) bootstrap apply -auto-approve
 
 infra-kc-up:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) up -d keycloak
 
 infra-tf-apply:
-	cd $(TERRAFORM_IDENTITY_DIR) && KEYCLOAK_REALM=master terraform apply -auto-approve
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) identity apply -auto-approve
 
 infra-down:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) down
@@ -117,10 +108,10 @@ infra-clean:
 terraform-plan: terraform-plan-bootstrap terraform-plan-identity
 
 terraform-plan-bootstrap:
-	cd $(TERRAFORM_BOOTSTRAP_DIR) && KEYCLOAK_REALM=master terraform plan
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) bootstrap plan
 
 terraform-plan-identity:
-	cd $(TERRAFORM_IDENTITY_DIR) && KEYCLOAK_REALM=master terraform plan
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) identity plan
 
 api-install:
 	cd $(API_DIR) && $(API_BIN_DIR)/pip install -r requirements.txt pytest

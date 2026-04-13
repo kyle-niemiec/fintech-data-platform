@@ -1,7 +1,7 @@
 variable "keycloak_url" {
   description = "Base URL for Keycloak admin API"
   type        = string
-  default     = "http://localhost:8180"
+  default     = "http://keycloak:8080"
   nullable    = false
 
   validation {

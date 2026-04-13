@@ -5,10 +5,11 @@ This runbook defines the local event-driven operating sequence.
 ## Prerequisites
 
 - Docker + Docker Compose
-- Terraform 1.6+
 - Python 3.12+
 - GNU Make
 - `jq` (optional)
+
+Terraform CLI is run inside a Docker image via Make targets; no host Terraform installation is required.
 
 ## Environment Configuration
 
@@ -25,6 +26,8 @@ cp infra/.env.example infra/.env
    - Keycloak demo-service client and demo persona seed password
    - KES/Vault key provider settings
    - Airflow and connector service credentials
+
+Host loopback endpoints are not required for Terraform. Terraform uses Docker-internal service DNS (`postgres`, `event_store_db`, `minio`, `keycloak`).
 
 ## Startup Sequence (Target Local Stack)
 
@@ -69,6 +72,18 @@ make infra-tf-apply
 ```bash
 make api-install
 make api-dev
+```
+
+## Internal Service Access (No Data-Plane Host Ports)
+
+- Postgres/event-store/MinIO/Redpanda are intentionally not published to host ports.
+- Use container-exec paths for local diagnostics:
+
+```bash
+make db-psql-core
+make db-psql-event-store
+docker compose -f infra/docker-compose.yaml --env-file infra/.env exec minio sh
+docker compose -f infra/docker-compose.yaml --env-file infra/.env exec redpanda rpk cluster info
 ```
 
 ## Source-to-Gold Validation Sequence

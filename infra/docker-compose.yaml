@@ -7,8 +7,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_ROOT_USER}
       POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
-    ports:
-      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,7 +16,6 @@ services:
       retries: 5
     networks:
       - platform_internal
-      - platform_public
 
   event_store_db:
     image: postgres:16
@@ -28,8 +25,6 @@ services:
       POSTGRES_DB: ${EVENT_STORE_DB}
       POSTGRES_USER: ${EVENT_STORE_DB_ROOT_USER}
       POSTGRES_PASSWORD: ${EVENT_STORE_DB_ROOT_PASSWORD}
-    ports:
-      - "${EVENT_STORE_DB_PORT}:${EVENT_STORE_DB_PORT}"
     command: ["postgres", "-p", "${EVENT_STORE_DB_PORT}"]
     volumes:
       - event_store_data:/var/lib/postgresql/data
@@ -41,7 +36,6 @@ services:
       retries: 5
     networks:
       - platform_internal
-      - platform_public
 
   minio:
     image: minio/minio:latest
@@ -50,15 +44,11 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
     networks:
       - platform_internal
-      - platform_public
 
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:v24.2.18
@@ -90,6 +80,23 @@ services:
       - redpanda_data:/var/lib/redpanda/data
     networks:
       - platform_internal
+
+  terraform_runner:
+    build:
+      context: ..
+      dockerfile: infra/terraform-runner/Dockerfile
+    user: "1000:1000"
+    working_dir: /workspace
+    volumes:
+      - ../:/workspace
+    entrypoint: ["/workspace/infra/terraform-runner/run-terraform.sh"]
+    env_file:
+      - ./.env
+    environment:
+      TF_IN_AUTOMATION: "1"
+    networks:
+      - platform_internal
+      - platform_public
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.0

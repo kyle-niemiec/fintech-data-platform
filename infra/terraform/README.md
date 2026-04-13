@@ -1,6 +1,7 @@
 # Terraform Provisioning
 
 Terraform is the security and identity control surface for the event-driven platform.
+Terraform runs in Docker (`terraform_runner`) and is not executed from the host OS.
 
 ## IaC Responsibility
 
@@ -41,7 +42,13 @@ make infra-tf-apply
 make terraform-plan
 ```
 
-If additional Terraform roots are introduced, extend Make targets and `infra/make/terraform-env.mk` accordingly so all required `TF_VAR_*` inputs are exported consistently.
+These targets invoke `docker compose run --rm terraform_runner ...` and map `.env` values to `TF_VAR_*` inside the runner.
+
+## Connectivity Model
+
+- Terraform provider endpoints use Docker service DNS (`postgres`, `event_store_db`, `minio`, `keycloak`).
+- Postgres, event-store Postgres, MinIO, and Redpanda remain internal-only and are not host-port accessible.
+- Host loopback endpoints (`localhost:*`) are not part of the Terraform contract.
 
 ## Operating Rules
 

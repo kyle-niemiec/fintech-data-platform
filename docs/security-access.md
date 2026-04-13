@@ -10,6 +10,7 @@ This architecture enforces least privilege and immutable audit trails across eve
 - Enforce encryption and network isolation through IaC.
 - Preserve replayability for legal defensibility.
 - Keep UI authentication disabled in local demo mode and rely on rate/network controls for public access.
+- Project operations are not intended to run as OS root; run Docker/Make commands as a regular user.
 
 ## Identity and Access Map
 

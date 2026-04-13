@@ -1,7 +1,7 @@
 variable "postgres_host" {
-  description = "Postgres host reachable from Terraform"
+  description = "Postgres service host reachable from Terraform runner"
   type        = string
-  default     = "localhost"
+  default     = "postgres"
   nullable    = false
 
   validation {
@@ -57,9 +57,9 @@ variable "postgres_root_password" {
 }
 
 variable "event_store_db_host" {
-  description = "Event-store Postgres host reachable from Terraform"
+  description = "Event-store Postgres service host reachable from Terraform runner"
   type        = string
-  default     = "localhost"
+  default     = "event_store_db"
   nullable    = false
 
   validation {
@@ -161,9 +161,9 @@ variable "kc_db_password" {
 }
 
 variable "minio_server" {
-  description = "MinIO endpoint in host:port format"
+  description = "MinIO endpoint in host:port format reachable from Terraform runner"
   type        = string
-  default     = "localhost:9000"
+  default     = "minio:9000"
   nullable    = false
 
   validation {
