@@ -6,7 +6,7 @@ The settings class that contains the environtment variables.
 """
 class Settings(BaseSettings):
     event_store_db: str
-    event_store_db_host: str = "localhost"
+    event_store_db_host: str = "event_store_db"
     event_store_db_port: int = 5433
     event_query_db_user: str
     event_query_db_password: str

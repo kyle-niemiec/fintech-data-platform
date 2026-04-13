@@ -67,12 +67,14 @@ docker compose -f infra/docker-compose.yaml --env-file infra/.env up -d clamav s
 make infra-tf-apply
 ```
 
-7. Start UI query API and UI frontend:
+7. Build and start the UI query API container:
 
 ```bash
 make api-install
 make api-dev
 ```
+
+The API is exposed at `http://localhost:8000` and connects to event-store Postgres over Docker-internal networking.
 
 ## Internal Service Access (No Data-Plane Host Ports)
 

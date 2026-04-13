@@ -5,8 +5,6 @@ INFRA_ENV_FILE := infra/.env
 TERRAFORM_BOOTSTRAP_DIR := infra/terraform/bootstrap
 TERRAFORM_IDENTITY_DIR := infra/terraform/identity
 TF_RUNNER_SERVICE := terraform_runner
-API_DIR := backend
-API_BIN_DIR := .venv/bin
 
 include $(INFRA_ENV_FILE)
 
@@ -34,8 +32,8 @@ help:
 	@printf "  terraform-plan           Show Terraform plans for bootstrap + identity\n"
 	@printf "  terraform-plan-bootstrap Show Terraform plan for bootstrap phase\n"
 	@printf "  terraform-plan-identity  Show Terraform plan for identity phase\n"
-	@printf "  api-install              Install backend Python dependencies into backend/.venv\n"
-	@printf "  api-dev                  Run the FastAPI app with reload enabled\n"
+	@printf "  api-install              Build the API Docker image\n"
+	@printf "  api-dev                  Start the API container with reload enabled\n"
 	@printf "  db-psql-core             Open a psql shell in the core Postgres instance\n"
 	@printf "  db-psql-event-store      Open a psql shell in the event-store Postgres instance\n"
 
@@ -114,10 +112,10 @@ terraform-plan-identity:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) identity plan
 
 api-install:
-	cd $(API_DIR) && $(API_BIN_DIR)/pip install -r requirements.txt pytest
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) build api
 
 api-dev:
-	cd $(API_DIR) && $(API_BIN_DIR)/uvicorn app.main:app --reload
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) up -d api
 
 db-psql-core:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) exec postgres psql -U '$(value POSTGRES_ROOT_USER)' -d '$(value POSTGRES_DB)'
