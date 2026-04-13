@@ -2,21 +2,31 @@
 
 This roadmap is ordered around event-driven delivery, not API-first delivery.
 
+Terraform work is split into two phases applied via the in-network `terraform_runner` container:
+- `bootstrap` - storage and database resources (Postgres roles/databases, MinIO buckets, bucket policies, encryption configuration).
+- `identity` - Keycloak realm/clients, Redpanda topic ACLs, and service identities.
+
 ## Phase 1 - Event-Driven Foundation
 
-- Add Redpanda as canonical broker.
-- Add dedicated event-store database.
-- Wire MinIO bucket notifications to Redpanda.
-- Define topic ACLs and service identities in Terraform.
-- Establish internal Docker network boundaries for processing services.
-- Lock partitioning standards for topics, event-store tables, and object paths.
-- Encode run-domain metadata (`pipeline_class`, `pipeline_name`) and event-first run initiation invariants.
+Completed:
+- Redpanda is the canonical broker (compose service on internal network).
+- Dedicated event-store database runs as an isolated Postgres instance.
+- Internal Docker network boundaries enforced (`platform_internal` is `internal: true`; data-plane services publish no host ports).
 
-## Phase 2 - Security Baseline and Encryption
+Remaining:
+- Wire MinIO bucket notifications to Redpanda.
+- Define Redpanda topic ACLs and service identities in the Terraform `identity` phase.
+- Add event-store schema with append-only constraints (immutable event log, partitioning).
+- Encode run-domain metadata (`pipeline_class`, `pipeline_name`) and event-first run initiation invariants in the schema.
+- Lock partitioning standards for topics, event-store tables, and object paths (documented; enforce in writers/migrations).
+
+## Phase 2 - Encryption and Append-Only Roles
+
+Network isolation is already in place via Phase 1, so this phase focuses on data-at-rest and database authorization controls.
 
 - Enforce MinIO SSE-KMS via KES/Vault.
 - Add bucket-policy enforcement for encrypted writes.
-- Define append-only database role permissions for event storage.
+- Define append-only database role permissions for the event-store DB (apply in the Terraform `bootstrap` phase).
 - Add key rotation and credential rotation runbook guidance.
 
 ## Phase 3 - Excel Pipeline
