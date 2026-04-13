@@ -22,7 +22,7 @@ help:
 	@printf "  infra-up                 Show the staged infra startup sequence\n"
 	@printf "  infra-up <1-6>           Run one startup step (e.g. make infra-up 3)\n"
 	@printf "  infra-tf-init            Initialize Terraform providers in Docker (bootstrap + identity)\n"
-	@printf "  infra-pg-up              Start Postgres + event-store DB + MinIO + Redpanda containers\n"
+	@printf "  infra-pg-up              Start Postgres + event-store DB + Vault/KES + MinIO + Redpanda containers\n"
 	@printf "  infra-tf-bootstrap       Apply Terraform bootstrap phase in Docker (Postgres + MinIO)\n"
 	@printf "  infra-kc-up              Start Keycloak container\n"
 	@printf "  infra-tf-apply           Apply Terraform identity phase in Docker (Keycloak)\n"
@@ -73,7 +73,7 @@ infra-tf-init:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) identity init
 
 infra-pg-up:
-	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) up -d postgres event_store_db minio redpanda
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) up -d postgres event_store_db vault kes minio redpanda
 
 infra-tf-bootstrap:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) bootstrap apply -auto-approve
@@ -92,8 +92,8 @@ infra-ps:
 
 infra-clean:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) down --volumes --remove-orphans
-	-docker volume rm postgres_data event_store_data minio_data redpanda_data
-	-docker volume rm infra_postgres_data infra_event_store_data infra_minio_data infra_redpanda_data
+	-docker volume rm postgres_data event_store_data minio_data redpanda_data kms_shared
+	-docker volume rm infra_postgres_data infra_event_store_data infra_minio_data infra_redpanda_data infra_kms_shared
 	rm -rf $(TERRAFORM_BOOTSTRAP_DIR)/.terraform
 	rm -f $(TERRAFORM_BOOTSTRAP_DIR)/.terraform.lock.hcl
 	rm -f $(TERRAFORM_BOOTSTRAP_DIR)/terraform.tfstate

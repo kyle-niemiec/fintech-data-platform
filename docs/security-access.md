@@ -36,17 +36,22 @@ This architecture enforces least privilege and immutable audit trails across eve
   - Required admin consoles in local development.
 - Ingress services do not require direct internet inbound paths.
 - Public UI mode means no user login dependency in the request path.
+- Vault and KES run on `platform_internal` only and are not host-reachable.
 
 ## Encryption Model
 
 ### At Rest
 
 - MinIO uses SSE-KMS with KES/Vault-managed keys.
-- Bucket policies require encryption headers for writes to:
+- Bucket policies deny `PutObject` unless SSE-KMS headers are present for:
   - `bronze/*`
   - `silver/*`
   - `gold/*`
-- Optional enforcement for `raw/*` and `quarantine/*` per environment policy.
+  - `quarantine/*`
+- Current phase keeps `landing/*` and `raw/*` writable without mandatory SSE-KMS headers.
+- Enforced write headers:
+  - `x-amz-server-side-encryption=aws:kms`
+  - `x-amz-server-side-encryption-aws-kms-key-id=<approved key id>`
 
 ### In Transit
 
@@ -63,10 +68,12 @@ This architecture enforces least privilege and immutable audit trails across eve
 
 ### Event Store Database
 
-- Pipeline services have append-only rights on event tables.
-- No `UPDATE`/`DELETE` privileges for ingestion and transform identities.
+- `event_append_runtime` is the write-path runtime login and is bound to `event_store_appender`.
+- `event_query_runtime` is the UI/API read-path runtime login and is bound to `event_store_reader`.
+- Pipeline write path is append-only on event tables.
+- No `UPDATE`/`DELETE` privileges for appender or query principals.
 - Read-model builders can write materialized read tables in isolated schemas.
-- UI query API has `SELECT` on read-model schema only.
+- Current local baseline grants UI query reads on `event_store` tables through `event_store_reader`; this is narrowed to read-model-only schemas once those schemas are introduced.
 
 ### OLTP Source Database
 
@@ -90,3 +97,10 @@ This architecture enforces least privilege and immutable audit trails across eve
 
 - Alerts are published as events and surfaced in UI feed read models.
 - Slack integration is out of scope for this local reference architecture.
+
+## Rotation Posture
+
+- Vault transit key rotation increments key version and is non-destructive for existing ciphertext.
+- MinIO service-user credential rotation is applied through Terraform.
+- Event-store runtime credential rotation is applied through Terraform role password updates.
+- See [operations.md](operations.md) for command-level procedures.

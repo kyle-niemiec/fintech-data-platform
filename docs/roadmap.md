@@ -16,18 +16,18 @@ Completed:
 Remaining:
 - Wire MinIO bucket notifications to Redpanda.
 - Define Redpanda topic ACLs and service identities in the Terraform `identity` phase.
-- Add event-store schema with append-only constraints (immutable event log, partitioning).
-- Encode run-domain metadata (`pipeline_class`, `pipeline_name`) and event-first run initiation invariants in the schema.
-- Lock partitioning standards for topics, event-store tables, and object paths (documented; enforce in writers/migrations).
+- Enforce partitioning standards in active writers/jobs (topic keys, event-store monthly partition rollover, object-path partition templates).
 
 ## Phase 2 - Encryption and Append-Only Roles
 
 Network isolation is already in place via Phase 1, so this phase focuses on data-at-rest and database authorization controls.
 
-- Enforce MinIO SSE-KMS via KES/Vault.
-- Add bucket-policy enforcement for encrypted writes.
-- Define append-only database role permissions for the event-store DB (apply in the Terraform `bootstrap` phase).
-- Add key rotation and credential rotation runbook guidance.
+- Enforce MinIO SSE-KMS via KES + Vault Transit.
+- Enforce encrypted writes on `bronze/*`, `silver/*`, `gold/*`, and `quarantine/*`.
+- Keep `landing/*` and `raw/*` writable without mandatory KMS headers in this phase.
+- Define append-only database runtime role permissions for the event-store DB in Terraform `bootstrap` (`event_append_runtime` -> `event_store_appender`).
+- Keep query runtime read-only (`event_query_runtime` -> `event_store_reader`).
+- Add key/credential rotation runbook guidance for Vault transit keys, MinIO users, and event-store runtime logins.
 
 ## Phase 3 - Excel Pipeline
 

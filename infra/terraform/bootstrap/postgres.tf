@@ -6,6 +6,14 @@ resource "postgresql_role" "event_query_runtime" {
   roles    = ["event_store_reader"]
 }
 
+resource "postgresql_role" "event_append_runtime" {
+  provider = postgresql.event_store
+  name     = var.event_append_db_user
+  login    = true
+  password = var.event_append_db_password
+  roles    = ["event_store_appender"]
+}
+
 resource "postgresql_role" "keycloak_runtime" {
   name     = var.kc_db_user
   login    = true

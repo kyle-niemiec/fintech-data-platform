@@ -137,6 +137,29 @@ variable "event_query_db_password" {
   }
 }
 
+variable "event_append_db_user" {
+  description = "DB login for append-only event-store runtime"
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.event_append_db_user) != ""
+    error_message = "event_append_db_user must be set."
+  }
+}
+
+variable "event_append_db_password" {
+  description = "DB password for append-only event-store runtime"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.event_append_db_password)) >= 12
+    error_message = "event_append_db_password must be at least 12 characters."
+  }
+}
+
 variable "kc_db_user" {
   description = "DB login for Keycloak runtime"
   type        = string
@@ -205,6 +228,25 @@ variable "minio_bucket_name" {
     condition     = can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.minio_bucket_name))
     error_message = "minio_bucket_name must follow S3-style naming (3-63 chars, lowercase, numbers, '.' or '-')."
   }
+}
+
+variable "minio_kms_key_id" {
+  description = "MinIO KMS key ID used for SSE-KMS on enforced lakehouse prefixes"
+  type        = string
+  default     = "fintech-lakehouse-kms-key"
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.minio_kms_key_id) != ""
+    error_message = "minio_kms_key_id must be set."
+  }
+}
+
+variable "minio_enforce_kms_write_prefixes" {
+  description = "Enable deny-by-policy enforcement for SSE-KMS headers on protected prefixes"
+  type        = bool
+  default     = true
+  nullable    = false
 }
 
 variable "minio_ingest_user" {

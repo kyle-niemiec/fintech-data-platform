@@ -22,7 +22,7 @@ This matrix maps `project-planning.md` requirements to local event-driven compon
 | Independent source pipelines | Excel, CDC, and Salesforce ingestion runs are tracked independently by `pipeline_name` and trigger criteria | Event-store schema + orchestration contracts |
 | Curated boundary after bronze | Curated promotion starts only from bronze-ready events and runs as a separate pipeline domain | Airflow DAG chain + event contracts + event-store lineage fields |
 | Partitioning across event storage layers | Redpanda partitions by run/entity key, monthly DB partitions for event log, source/date/run_id object prefixes in MinIO | Topic contracts, SQL migrations, writer path conventions in IaC-managed services |
-| Encryption with KMS-like controls | MinIO SSE-KMS through KES/Vault with encrypted-write policy enforcement | Terraform bucket policies + KES/Vault config |
+| Encryption with KMS-like controls | MinIO SSE-KMS through KES/Vault with encrypted-write enforcement on `bronze/silver/gold/quarantine` and `landing/raw` excluded in this phase | Terraform bucket policies + KES/Vault config |
 | Append-only and replay-first processing | Immutable event log, offset checkpoints, replay-driven backfills | Event-store schema + topic retention policy IaC |
 | No destructive data correction | Corrections append new events rather than update/delete history | SQL role constraints + pipeline contract |
 | UI shows pipeline status and traceability | Read-only FastAPI query API serving run timeline, lineage, artifacts, alerts | Backend query API + read-model builders |

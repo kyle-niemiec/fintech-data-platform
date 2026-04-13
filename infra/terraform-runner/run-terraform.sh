@@ -39,6 +39,8 @@ require_env EVENT_STORE_DB_ROOT_USER
 require_env EVENT_STORE_DB_ROOT_PASSWORD
 require_env EVENT_QUERY_DB_USER
 require_env EVENT_QUERY_DB_PASSWORD
+require_env EVENT_APPEND_DB_USER
+require_env EVENT_APPEND_DB_PASSWORD
 require_env KC_DB_USER
 require_env KC_DB_PASSWORD
 require_env KC_ADMIN_USER
@@ -58,6 +60,7 @@ require_env MINIO_TRINO_WRITE_USER
 require_env MINIO_TRINO_WRITE_SECRET
 require_env MINIO_TRINO_READ_USER
 require_env MINIO_TRINO_READ_SECRET
+require_env MINIO_KMS_KEY_ID
 
 export TF_VAR_postgres_db="$POSTGRES_DB"
 export TF_VAR_postgres_host="postgres"
@@ -72,6 +75,8 @@ export TF_VAR_event_store_db_root_user="$EVENT_STORE_DB_ROOT_USER"
 export TF_VAR_event_store_db_root_password="$EVENT_STORE_DB_ROOT_PASSWORD"
 export TF_VAR_event_query_db_user="$EVENT_QUERY_DB_USER"
 export TF_VAR_event_query_db_password="$EVENT_QUERY_DB_PASSWORD"
+export TF_VAR_event_append_db_user="$EVENT_APPEND_DB_USER"
+export TF_VAR_event_append_db_password="$EVENT_APPEND_DB_PASSWORD"
 
 export TF_VAR_kc_db_user="$KC_DB_USER"
 export TF_VAR_kc_db_password="$KC_DB_PASSWORD"
@@ -95,5 +100,7 @@ export TF_VAR_minio_trino_write_user="$MINIO_TRINO_WRITE_USER"
 export TF_VAR_minio_trino_write_secret="$MINIO_TRINO_WRITE_SECRET"
 export TF_VAR_minio_trino_read_user="$MINIO_TRINO_READ_USER"
 export TF_VAR_minio_trino_read_secret="$MINIO_TRINO_READ_SECRET"
+export TF_VAR_minio_kms_key_id="$MINIO_KMS_KEY_ID"
+export TF_VAR_minio_enforce_kms_write_prefixes="${MINIO_ENFORCE_KMS_WRITE_PREFIXES:-true}"
 
 exec terraform -chdir="/workspace/infra/terraform/${root}" "$@"

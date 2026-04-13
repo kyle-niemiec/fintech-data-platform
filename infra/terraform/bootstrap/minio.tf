@@ -1,10 +1,97 @@
 locals {
   minio_bucket_arn = "arn:aws:s3:::${var.minio_bucket_name}"
+  kms_enforced_prefixes = [
+    "bronze/*",
+    "silver/*",
+    "gold/*",
+    "quarantine/*"
+  ]
+  kms_enforced_resources = sort([
+    for prefix in local.kms_enforced_prefixes : "${local.minio_bucket_arn}/${prefix}"
+  ])
+  kms_write_condition = {
+    StringEquals = {
+      "s3:x-amz-server-side-encryption"                = "aws:kms"
+      "s3:x-amz-server-side-encryption-aws-kms-key-id" = var.minio_kms_key_id
+    }
+  }
 }
 
 resource "minio_s3_bucket" "lakehouse" {
   bucket = var.minio_bucket_name
   acl    = "private"
+}
+
+resource "minio_s3_bucket_server_side_encryption" "lakehouse" {
+  bucket          = minio_s3_bucket.lakehouse.bucket
+  encryption_type = "aws:kms"
+  kms_key_id      = var.minio_kms_key_id
+}
+
+resource "minio_s3_bucket_policy" "lakehouse_enforced_prefixes" {
+  count  = var.minio_enforce_kms_write_prefixes ? 1 : 0
+  bucket = minio_s3_bucket.lakehouse.bucket
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DenyMissingSSEAlgorithmHeader"
+        Effect = "Deny"
+        Principal = {
+          AWS = ["*"]
+        }
+        Action   = ["s3:PutObject"]
+        Resource = local.kms_enforced_resources
+        Condition = {
+          Null = {
+            "s3:x-amz-server-side-encryption" = [true]
+          }
+        }
+      },
+      {
+        Sid    = "DenyInvalidSSEAlgorithmHeader"
+        Effect = "Deny"
+        Principal = {
+          AWS = ["*"]
+        }
+        Action   = ["s3:PutObject"]
+        Resource = local.kms_enforced_resources
+        Condition = {
+          StringNotEquals = {
+            "s3:x-amz-server-side-encryption" = ["aws:kms"]
+          }
+        }
+      },
+      {
+        Sid    = "DenyMissingKMSKeyHeader"
+        Effect = "Deny"
+        Principal = {
+          AWS = ["*"]
+        }
+        Action   = ["s3:PutObject"]
+        Resource = local.kms_enforced_resources
+        Condition = {
+          Null = {
+            "s3:x-amz-server-side-encryption-aws-kms-key-id" = [true]
+          }
+        }
+      },
+      {
+        Sid    = "DenyInvalidKMSKeyHeader"
+        Effect = "Deny"
+        Principal = {
+          AWS = ["*"]
+        }
+        Action   = ["s3:PutObject"]
+        Resource = local.kms_enforced_resources
+        Condition = {
+          StringNotEquals = {
+            "s3:x-amz-server-side-encryption-aws-kms-key-id" = [var.minio_kms_key_id]
+          }
+        }
+      }
+    ]
+  })
 }
 
 resource "minio_iam_policy" "ingest" {
@@ -64,20 +151,26 @@ resource "minio_iam_policy" "transform" {
         Resource = ["${local.minio_bucket_arn}/raw/*"]
       },
       {
-        Sid    = "WriteCuratedLayers"
+        Sid      = "ReadCuratedLayers"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = local.kms_enforced_resources
+      },
+      {
+        Sid       = "WriteCuratedLayers"
+        Effect    = "Allow"
+        Action    = ["s3:PutObject"]
+        Resource  = local.kms_enforced_resources
+        Condition = local.kms_write_condition
+      },
+      {
+        Sid    = "ManageCuratedLayerMultipartUploads"
         Effect = "Allow"
         Action = [
-          "s3:GetObject",
-          "s3:PutObject",
           "s3:AbortMultipartUpload",
           "s3:ListMultipartUploadParts"
         ]
-        Resource = [
-          "${local.minio_bucket_arn}/bronze/*",
-          "${local.minio_bucket_arn}/silver/*",
-          "${local.minio_bucket_arn}/gold/*",
-          "${local.minio_bucket_arn}/quarantine/*"
-        ]
+        Resource = local.kms_enforced_resources
       }
     ]
   })
@@ -114,8 +207,18 @@ resource "minio_iam_policy" "trino_write" {
       {
         Sid    = "WriteIcebergMetadata"
         Effect = "Allow"
+        Action = ["s3:PutObject"]
+        Resource = [
+          "${local.minio_bucket_arn}/bronze/*",
+          "${local.minio_bucket_arn}/silver/*",
+          "${local.minio_bucket_arn}/gold/*"
+        ]
+        Condition = local.kms_write_condition
+      },
+      {
+        Sid    = "ManageIcebergMultipartUploads"
+        Effect = "Allow"
         Action = [
-          "s3:PutObject",
           "s3:AbortMultipartUpload",
           "s3:ListMultipartUploadParts"
         ]
