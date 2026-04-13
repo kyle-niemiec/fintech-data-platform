@@ -130,7 +130,7 @@ Transformation provenance:
 Rules:
 - Ordering is guaranteed only within a partition.
 - Producer payloads must include fields needed to reconstruct order (`run_id`, and for CDC `lsn`).
-- Consumers persist `(topic, partition, offset)` in the event store for replay checkpoints.
+- Consumers persist `(topic, partition, offset)` in the event store for replay checkpoints (`offset` is stored in `event_log.kafka_offset`).
 - Event-first invariant: a trigger event creates the run context; runs do not pre-exist their initiating event.
 
 ## Run Boundary Rules

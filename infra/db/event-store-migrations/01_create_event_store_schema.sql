@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS event_store.event_log (
     event_type TEXT NOT NULL,
     topic TEXT NOT NULL,
     partition INT NOT NULL,
-    offset BIGINT NOT NULL,
+    kafka_offset BIGINT NOT NULL,
     occurred_at TIMESTAMPTZ NOT NULL,
     trace_id UUID,
     payload JSONB NOT NULL,
@@ -109,8 +109,8 @@ CREATE TABLE IF NOT EXISTS event_store.alert_event_2026_04
     PARTITION OF event_store.alert_event
     FOR VALUES FROM ('2026-04-01 00:00:00+00') TO ('2026-05-01 00:00:00+00');
 
-CREATE UNIQUE INDEX IF NOT EXISTS event_log_2026_04_topic_partition_offset_uq
-    ON event_store.event_log_2026_04 (topic, partition, offset);
+CREATE UNIQUE INDEX IF NOT EXISTS event_log_2026_04_topic_partition_kafka_offset_uq
+    ON event_store.event_log_2026_04 (topic, partition, kafka_offset);
 
 CREATE INDEX IF NOT EXISTS event_log_2026_04_run_id_occurred_at_idx
     ON event_store.event_log_2026_04 (run_id, occurred_at);

@@ -48,7 +48,7 @@ The event store is separate from UI query-service persistence and source OLTP sy
 - `event_store.event_log` is partitioned by `occurred_at` monthly ranges.
 - `event_store.alert_event` is partitioned by `occurred_at` monthly ranges.
 - Each `event_log` partition must include:
-  - unique index on `(topic, partition, offset)`
+  - unique index on `(topic, partition, kafka_offset)`
   - index on `(run_id, occurred_at)`
   - index on `(trace_id, occurred_at)`
   - index on `(event_type, occurred_at)`
@@ -93,7 +93,7 @@ Required invariants:
 | `event_type` | TEXT | Topic event name |
 | `topic` | TEXT | Kafka topic |
 | `partition` | INT | Kafka partition |
-| `offset` | BIGINT | Kafka offset |
+| `kafka_offset` | BIGINT | Kafka offset |
 | `occurred_at` | TIMESTAMPTZ | Event production time |
 | `payload` | JSONB | Full event payload |
 | `payload_hash` | TEXT | SHA256 hash |

@@ -62,7 +62,7 @@ Other event-store tables remain unpartitioned initially unless row volume justif
 
 ### Required Indexes Per `event_log` Partition
 
-- Unique: `(topic, partition, offset)`
+- Unique: `(topic, partition, kafka_offset)`
 - B-tree: `(run_id, occurred_at)`
 - B-tree: `(trace_id, occurred_at)`
 - B-tree: `(event_type, occurred_at)`
