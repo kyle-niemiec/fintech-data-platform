@@ -12,11 +12,9 @@ Completed:
 - Redpanda is the canonical broker (compose service on internal network).
 - Dedicated event-store database runs as an isolated Postgres instance.
 - Internal Docker network boundaries enforced (`platform_internal` is `internal: true`; data-plane services publish no host ports).
-
-Remaining:
 - Wire MinIO bucket notifications to Redpanda.
 - Define Redpanda topic ACLs and service identities in the Terraform `identity` phase.
-- Enforce partitioning standards in active writers/jobs (topic keys, event-store monthly partition rollover, object-path partition templates).
+- Enforce partitioning standards in active writers/jobs (topic keys, event-store monthly partition automation via pg_partman/pg_cron, object-path partition templates).
 
 ## Phase 2 - Encryption and Append-Only Roles
 

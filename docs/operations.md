@@ -9,6 +9,7 @@ This runbook defines the local event-driven operating sequence.
 - `jq` (optional)
 
 Terraform CLI is run inside a Docker image via Make targets; no host Terraform installation is required.
+The event-store service uses a custom Postgres image that installs `pg_partman` and `pg_cron` during build.
 
 ## Environment Configuration
 
@@ -49,8 +50,9 @@ docker compose -f infra/docker-compose.yaml --env-file infra/.env up -d postgres
 ```
 
 `vault_bootstrap` and `kes_bootstrap` run automatically as one-shot dependencies during this step.
+MinIO Kafka target `notify_kafka:PRIMARY` is also configured at container startup from Compose environment variables.
 
-3. Apply Terraform bootstrap (bucket/policies, topic ACLs, identities, encryption policies):
+3. Apply Terraform bootstrap (DB roles, bucket policies, MinIO->Redpanda notifications, encryption policies):
 
 ```bash
 make infra-tf-bootstrap
@@ -68,7 +70,7 @@ docker compose -f infra/docker-compose.yaml --env-file infra/.env up -d keycloak
 docker compose -f infra/docker-compose.yaml --env-file infra/.env up -d clamav scanner debezium fraud-worker sf-extractor bronze-writer curated-promoter
 ```
 
-6. Apply Terraform identity and access layer:
+6. Apply Terraform identity and access layer (Keycloak realm + Redpanda service identities/ACLs):
 
 ```bash
 make infra-tf-apply
@@ -175,9 +177,23 @@ make db-psql-event-store
 
 ## Partitioning Operations
 
-- Create monthly event-store partitions ahead of time for `event_log` and `alert_event`.
+- Event-store monthly partitions are managed automatically by `pg_partman` + `pg_cron`.
+- Verify event-store partition config and premake horizon:
+
+```bash
+make db-psql-event-store
+SELECT parent_table, partition_interval, premake, automatic_maintenance FROM partman.part_config ORDER BY parent_table;
+```
+
+- Run an on-demand maintenance cycle (operational/debug use only):
+
+```bash
+make db-psql-event-store
+SELECT event_store.run_partman_maintenance();
+```
+
 - Validate topic partition counts and keys against [event-contracts.md](event-contracts.md) before deploying producers.
-- Validate object path partition templates from [partitioning-strategy.md](partitioning-strategy.md) in writer jobs.
+- Validate object path partition templates from [partitioning-strategy.md](partitioning-strategy.md); MinIO writer policies enforce partitioned path shapes for active service users.
 - Confirm replay jobs honor `(topic, partition, offset)` checkpoints and CDC LSN windows.
 
 ## Failure Handling

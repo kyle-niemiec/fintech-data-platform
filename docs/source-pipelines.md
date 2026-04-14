@@ -17,14 +17,14 @@ All source pipelines are event-driven and write audit events to the dedicated ev
 
 ### Trigger and Ownership
 
-- Trigger: MinIO object-created event on `landing/finance/` prefix.
+- Trigger: MinIO object-created event on `landing/source=excel/` prefix.
 - Source actor: finance uploader identity with prefix-scoped write permissions.
 - Demo mode: the internal Excel generator selects a random actor from Keycloak users assigned to the `finance` role.
 - IaC owners: MinIO bucket notifications (Terraform + Compose wiring), topic ACLs (Terraform), scanner and validator services (Compose).
 
 ### Processing Flow
 
-1. Upload lands in `landing/`.
+1. Upload lands in partitioned landing path (`landing/source=excel/year=YYYY/month=MM/day=DD/run_id=<run_id>/...`).
 2. MinIO emits `ingest.excel.uploaded.v1` (this trigger event initiates the run).
 3. Scan worker performs:
    - ClamAV malware scan.
@@ -42,7 +42,7 @@ All source pipelines are event-driven and write audit events to the dedicated ev
 ### Audit Requirements
 
 - File name persists as `<original_name>__<run_id>.<ext>`.
-- Event store links run ID, uploaded object URI, quarantine/raw URI, bronze URI.
+- Event store links run ID and stage artifact URIs through `input_uris[]` / `output_uris[]`.
 - Validation failure reasons are persisted as structured error payloads.
 
 ## CDC + Fraud Pipeline
@@ -58,7 +58,7 @@ All source pipelines are event-driven and write audit events to the dedicated ev
 1. Debezium publishes raw event to `cdc.oltp.raw.v1` (this trigger event initiates the run).
 2. Fraud worker consumes raw event and applies rule scoring.
 3. Worker writes risk outcome to OLTP flag table and emits `cdc.oltp.assessed.v1`.
-4. Bronze writer consumes assessed events and writes source-faithful Parquet to `bronze/cdc/`.
+4. Bronze writer consumes assessed events and writes source-faithful Parquet to partitioned bronze paths (`bronze/source=cdc/table=<table>/year=YYYY/month=MM/day=DD/hour=HH/run_id=<run_id>/...`).
 5. Writer emits `cdc.oltp.bronze.ready.v1` for downstream curated processing.
 
 ### Legal Defensibility Rules
@@ -82,7 +82,7 @@ Salesforce pulls are internal-only. FastAPI/UI does not initiate pull execution.
 
 1. Pull start event emitted: `ingest.sf.pull.started.v1` with cursor window (this trigger event initiates the run).
 2. Airflow executes incremental query using last successful cursor.
-3. Raw API response envelope persisted to `raw/salesforce/`.
+3. Raw API response envelope persisted to partitioned raw path (`raw/source=salesforce/object=<object>/year=YYYY/month=MM/day=DD/run_id=<run_id>/...`).
 4. Pull result event emitted:
    - success: `ingest.sf.pull.succeeded.v1`
    - failure: `ingest.sf.pull.failed.v1`
@@ -101,7 +101,7 @@ Salesforce pulls are internal-only. FastAPI/UI does not initiate pull execution.
 2. Curated run uses `pipeline_class=curated`, `pipeline_name=curated_promotion`, and stores upstream ingestion `run_id` in `parent_run_id`.
 3. Silver DAG performs normalization, dedupe, and masking.
 4. Gold DAG performs KPI aggregation and business rollups.
-5. Each stage emits `pipeline.stage.completed.v1` or `pipeline.stage.failed.v1`.
+5. Silver and gold stages emit versioned completion/failure topics (`pipeline.silver.*.v1`, `pipeline.gold.*.v1`).
 6. UI feed reads stage events from event-store read models.
 
 Curated runs are separate from ingestion runs; they may reference the upstream ingestion run for lineage but are orchestrated independently.

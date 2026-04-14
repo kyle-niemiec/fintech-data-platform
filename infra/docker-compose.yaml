@@ -18,14 +18,23 @@ services:
       - platform_internal
 
   event_store_db:
-    image: postgres:16
+    build:
+      context: ..
+      dockerfile: infra/db/event-store-image/Dockerfile
     container_name: fintech_event_store
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${EVENT_STORE_DB}
       POSTGRES_USER: ${EVENT_STORE_DB_ROOT_USER}
       POSTGRES_PASSWORD: ${EVENT_STORE_DB_ROOT_PASSWORD}
-    command: ["postgres", "-p", "${EVENT_STORE_DB_PORT}"]
+    command:
+      - postgres
+      - -p
+      - "${EVENT_STORE_DB_PORT}"
+      - -c
+      - shared_preload_libraries=pg_cron
+      - -c
+      - cron.database_name=${EVENT_STORE_DB}
     volumes:
       - event_store_data:/var/lib/postgresql/data
       - ./db/event-store-migrations:/docker-entrypoint-initdb.d:ro
@@ -138,12 +147,18 @@ services:
       MINIO_KMS_KES_API_KEY: ${MINIO_KMS_KES_API_KEY}
       MINIO_KMS_KES_CAPATH: /opt/minio/kms/certs/ca.crt
       MINIO_KMS_KES_KEY_NAME: ${MINIO_KMS_KEY_ID}
+      MINIO_NOTIFY_KAFKA_ENABLE_PRIMARY: "on"
+      MINIO_NOTIFY_KAFKA_BROKERS_PRIMARY: redpanda:9092
+      MINIO_NOTIFY_KAFKA_TOPIC_PRIMARY: ${MINIO_INGEST_UPLOAD_TOPIC:-ingest.excel.uploaded.v1}
+      MINIO_NOTIFY_KAFKA_QUEUE_DIR_PRIMARY: /data/.minio/events/kafka-primary
     volumes:
       - minio_data:/data
       - kms_shared:/opt/minio/kms:ro
     command: server /data --console-address ":9001"
     depends_on:
       kes:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
     networks:
       - platform_internal

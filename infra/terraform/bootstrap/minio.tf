@@ -9,6 +9,52 @@ locals {
   kms_enforced_resources = sort([
     for prefix in local.kms_enforced_prefixes : "${local.minio_bucket_arn}/${prefix}"
   ])
+  landing_partition_paths = [
+    "landing/source=excel/year=*/month=*/day=*/run_id=*/*"
+  ]
+  raw_partition_paths = [
+    "raw/source=excel/year=*/month=*/day=*/run_id=*/*",
+    "raw/source=salesforce/object=*/year=*/month=*/day=*/run_id=*/*"
+  ]
+  quarantine_partition_paths = [
+    "quarantine/source=*/year=*/month=*/day=*/run_id=*/*"
+  ]
+  bronze_partition_paths = [
+    "bronze/source=cdc/table=*/year=*/month=*/day=*/hour=*/run_id=*/*",
+    "bronze/source=excel/year=*/month=*/day=*/run_id=*/*",
+    "bronze/source=salesforce/object=*/year=*/month=*/day=*/run_id=*/*"
+  ]
+  silver_partition_paths = [
+    "silver/domain=*/year=*/month=*/day=*/run_id=*/*"
+  ]
+  gold_partition_paths = [
+    "gold/metric=*/year=*/month=*/day=*/run_id=*/*"
+  ]
+  landing_partition_resources = sort([
+    for path in local.landing_partition_paths : "${local.minio_bucket_arn}/${path}"
+  ])
+  raw_partition_resources = sort([
+    for path in local.raw_partition_paths : "${local.minio_bucket_arn}/${path}"
+  ])
+  curated_partition_resources = sort([
+    for path in concat(
+      local.quarantine_partition_paths,
+      local.bronze_partition_paths,
+      local.silver_partition_paths,
+      local.gold_partition_paths
+    ) : "${local.minio_bucket_arn}/${path}"
+  ])
+  trino_write_partition_resources = sort([
+    for path in concat(
+      local.bronze_partition_paths,
+      local.silver_partition_paths,
+      local.gold_partition_paths
+    ) : "${local.minio_bucket_arn}/${path}"
+  ])
+  trino_read_partition_resources = sort([
+    for path in concat(local.silver_partition_paths, local.gold_partition_paths) : "${local.minio_bucket_arn}/${path}"
+  ])
+  kafka_notification_arn = "arn:minio:sqs::PRIMARY:kafka"
   kms_write_condition = {
     StringEquals = {
       "s3:x-amz-server-side-encryption"                = "aws:kms"
@@ -20,6 +66,16 @@ locals {
 resource "minio_s3_bucket" "lakehouse" {
   bucket = var.minio_bucket_name
   acl    = "private"
+}
+
+resource "minio_s3_bucket_notification" "excel_upload_created" {
+  bucket = minio_s3_bucket.lakehouse.bucket
+
+  queue {
+    queue_arn     = local.kafka_notification_arn
+    events        = ["s3:ObjectCreated:*"]
+    filter_prefix = "landing/source=excel/"
+  }
 }
 
 resource "minio_s3_bucket_server_side_encryption" "lakehouse" {
@@ -106,7 +162,11 @@ resource "minio_iam_policy" "ingest" {
         Resource = [local.minio_bucket_arn]
         Condition = {
           StringLike = {
-            "s3:prefix" = ["landing/*", "raw/*"]
+            "s3:prefix" = [
+              "landing/source=excel/*",
+              "raw/source=excel/*",
+              "raw/source=salesforce/*"
+            ]
           }
         }
       },
@@ -119,10 +179,7 @@ resource "minio_iam_policy" "ingest" {
           "s3:AbortMultipartUpload",
           "s3:ListMultipartUploadParts"
         ]
-        Resource = [
-          "${local.minio_bucket_arn}/landing/*",
-          "${local.minio_bucket_arn}/raw/*"
-        ]
+        Resource = sort(concat(local.landing_partition_resources, local.raw_partition_resources))
       }
     ]
   })
@@ -140,7 +197,13 @@ resource "minio_iam_policy" "transform" {
         Resource = [local.minio_bucket_arn]
         Condition = {
           StringLike = {
-            "s3:prefix" = ["raw/*", "bronze/*", "silver/*", "gold/*", "quarantine/*"]
+            "s3:prefix" = [
+              "raw/source=*/*",
+              "quarantine/source=*/*",
+              "bronze/source=*/*",
+              "silver/domain=*/*",
+              "gold/metric=*/*"
+            ]
           }
         }
       },
@@ -148,19 +211,19 @@ resource "minio_iam_policy" "transform" {
         Sid      = "ReadRawObjects"
         Effect   = "Allow"
         Action   = ["s3:GetObject"]
-        Resource = ["${local.minio_bucket_arn}/raw/*"]
+        Resource = local.raw_partition_resources
       },
       {
         Sid      = "ReadCuratedLayers"
         Effect   = "Allow"
         Action   = ["s3:GetObject"]
-        Resource = local.kms_enforced_resources
+        Resource = local.curated_partition_resources
       },
       {
         Sid       = "WriteCuratedLayers"
         Effect    = "Allow"
         Action    = ["s3:PutObject"]
-        Resource  = local.kms_enforced_resources
+        Resource  = local.curated_partition_resources
         Condition = local.kms_write_condition
       },
       {
@@ -170,7 +233,7 @@ resource "minio_iam_policy" "transform" {
           "s3:AbortMultipartUpload",
           "s3:ListMultipartUploadParts"
         ]
-        Resource = local.kms_enforced_resources
+        Resource = local.curated_partition_resources
       }
     ]
   })
@@ -188,31 +251,27 @@ resource "minio_iam_policy" "trino_write" {
         Resource = [local.minio_bucket_arn]
         Condition = {
           StringLike = {
-            "s3:prefix" = ["raw/*", "bronze/*", "silver/*", "gold/*", "quarantine/*"]
+            "s3:prefix" = [
+              "raw/source=*/*",
+              "quarantine/source=*/*",
+              "bronze/source=*/*",
+              "silver/domain=*/*",
+              "gold/metric=*/*"
+            ]
           }
         }
       },
       {
-        Sid    = "ReadAllCuratedLayers"
-        Effect = "Allow"
-        Action = ["s3:GetObject"]
-        Resource = [
-          "${local.minio_bucket_arn}/raw/*",
-          "${local.minio_bucket_arn}/bronze/*",
-          "${local.minio_bucket_arn}/silver/*",
-          "${local.minio_bucket_arn}/gold/*",
-          "${local.minio_bucket_arn}/quarantine/*"
-        ]
+        Sid      = "ReadAllCuratedLayers"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = sort(concat(local.raw_partition_resources, local.curated_partition_resources))
       },
       {
-        Sid    = "WriteIcebergMetadata"
-        Effect = "Allow"
-        Action = ["s3:PutObject"]
-        Resource = [
-          "${local.minio_bucket_arn}/bronze/*",
-          "${local.minio_bucket_arn}/silver/*",
-          "${local.minio_bucket_arn}/gold/*"
-        ]
+        Sid       = "WriteIcebergMetadata"
+        Effect    = "Allow"
+        Action    = ["s3:PutObject"]
+        Resource  = local.trino_write_partition_resources
         Condition = local.kms_write_condition
       },
       {
@@ -222,11 +281,7 @@ resource "minio_iam_policy" "trino_write" {
           "s3:AbortMultipartUpload",
           "s3:ListMultipartUploadParts"
         ]
-        Resource = [
-          "${local.minio_bucket_arn}/bronze/*",
-          "${local.minio_bucket_arn}/silver/*",
-          "${local.minio_bucket_arn}/gold/*"
-        ]
+        Resource = local.trino_write_partition_resources
       }
     ]
   })
@@ -244,18 +299,15 @@ resource "minio_iam_policy" "trino_read" {
         Resource = [local.minio_bucket_arn]
         Condition = {
           StringLike = {
-            "s3:prefix" = ["silver/*", "gold/*"]
+            "s3:prefix" = ["silver/domain=*/*", "gold/metric=*/*"]
           }
         }
       },
       {
-        Sid    = "ReadBILayers"
-        Effect = "Allow"
-        Action = ["s3:GetObject"]
-        Resource = [
-          "${local.minio_bucket_arn}/silver/*",
-          "${local.minio_bucket_arn}/gold/*"
-        ]
+        Sid      = "ReadBILayers"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = local.trino_read_partition_resources
       }
     ]
   })

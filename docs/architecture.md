@@ -112,6 +112,7 @@ Partitioning is required in three places:
 - Redpanda topics: keyed for per-run ordering and CDC entity ordering.
 - Event-store database: monthly range partitions on event time.
 - MinIO lakehouse paths: source/date/run_id partitioned prefixes.
+- Enforcement is IaC-owned: Terraform provisions topic partition counts and MinIO path-constrained writer policies, while event-store SQL migrations configure pg_partman + pg_cron for monthly partition automation.
 
 See [partitioning-strategy.md](partitioning-strategy.md) for the canonical plan and defaults.
 

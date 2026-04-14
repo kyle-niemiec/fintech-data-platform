@@ -132,6 +132,7 @@ Rules:
 - Producer payloads must include fields needed to reconstruct order (`run_id`, and for CDC `lsn`).
 - Consumers persist `(topic, partition, offset)` in the event store for replay checkpoints (`offset` is stored in `event_log.kafka_offset`).
 - Event-first invariant: a trigger event creates the run context; runs do not pre-exist their initiating event.
+- Terraform `identity` provisions the canonical topic set with these partition defaults and applies service-identity ACLs.
 
 ## Run Boundary Rules
 

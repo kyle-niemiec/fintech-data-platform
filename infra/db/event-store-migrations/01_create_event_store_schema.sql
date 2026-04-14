@@ -101,28 +101,100 @@ DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW
 EXECUTE FUNCTION event_store.assert_run_has_event();
 
-CREATE TABLE IF NOT EXISTS event_store.event_log_2026_04
-    PARTITION OF event_store.event_log
-    FOR VALUES FROM ('2026-04-01 00:00:00+00') TO ('2026-05-01 00:00:00+00');
+CREATE EXTENSION IF NOT EXISTS pg_partman;
+CREATE EXTENSION IF NOT EXISTS pg_cron;
 
-CREATE TABLE IF NOT EXISTS event_store.alert_event_2026_04
-    PARTITION OF event_store.alert_event
-    FOR VALUES FROM ('2026-04-01 00:00:00+00') TO ('2026-05-01 00:00:00+00');
+CREATE TABLE IF NOT EXISTS event_store.event_log_template (
+    LIKE event_store.event_log INCLUDING DEFAULTS INCLUDING CONSTRAINTS
+);
 
-CREATE UNIQUE INDEX IF NOT EXISTS event_log_2026_04_topic_partition_kafka_offset_uq
-    ON event_store.event_log_2026_04 (topic, partition, kafka_offset);
+CREATE TABLE IF NOT EXISTS event_store.alert_event_template (
+    LIKE event_store.alert_event INCLUDING DEFAULTS INCLUDING CONSTRAINTS
+);
 
-CREATE INDEX IF NOT EXISTS event_log_2026_04_run_id_occurred_at_idx
-    ON event_store.event_log_2026_04 (run_id, occurred_at);
+CREATE UNIQUE INDEX IF NOT EXISTS event_log_template_topic_partition_kafka_offset_uq
+    ON event_store.event_log_template (topic, partition, kafka_offset);
 
-CREATE INDEX IF NOT EXISTS event_log_2026_04_trace_id_occurred_at_idx
-    ON event_store.event_log_2026_04 (trace_id, occurred_at);
+CREATE INDEX IF NOT EXISTS event_log_template_run_id_occurred_at_idx
+    ON event_store.event_log_template (run_id, occurred_at);
 
-CREATE INDEX IF NOT EXISTS event_log_2026_04_event_type_occurred_at_idx
-    ON event_store.event_log_2026_04 (event_type, occurred_at);
+CREATE INDEX IF NOT EXISTS event_log_template_trace_id_occurred_at_idx
+    ON event_store.event_log_template (trace_id, occurred_at);
 
-CREATE INDEX IF NOT EXISTS alert_event_2026_04_run_id_occurred_at_idx
-    ON event_store.alert_event_2026_04 (run_id, occurred_at);
+CREATE INDEX IF NOT EXISTS event_log_template_event_type_occurred_at_idx
+    ON event_store.event_log_template (event_type, occurred_at);
+
+CREATE INDEX IF NOT EXISTS alert_event_template_run_id_occurred_at_idx
+    ON event_store.alert_event_template (run_id, occurred_at);
+
+DO
+$$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM partman.part_config
+        WHERE parent_table = 'event_store.event_log'
+    ) THEN
+        PERFORM partman.create_parent(
+            p_parent_table := 'event_store.event_log',
+            p_control := 'occurred_at',
+            p_interval := 'monthly',
+            p_premake := 2,
+            p_template_table := 'event_store.event_log_template'
+        );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM partman.part_config
+        WHERE parent_table = 'event_store.alert_event'
+    ) THEN
+        PERFORM partman.create_parent(
+            p_parent_table := 'event_store.alert_event',
+            p_control := 'occurred_at',
+            p_interval := 'monthly',
+            p_premake := 2,
+            p_template_table := 'event_store.alert_event_template'
+        );
+    END IF;
+END;
+$$;
+
+UPDATE partman.part_config
+SET premake = 2,
+    infinite_time_partitions = TRUE,
+    automatic_maintenance = 'on'
+WHERE parent_table IN ('event_store.event_log', 'event_store.alert_event');
+
+CREATE OR REPLACE FUNCTION event_store.run_partman_maintenance()
+RETURNS VOID
+LANGUAGE plpgsql
+AS
+$$
+BEGIN
+    PERFORM partman.run_maintenance_proc();
+END;
+$$;
+
+SELECT event_store.run_partman_maintenance();
+
+DO
+$$
+DECLARE
+    existing_job_id BIGINT;
+BEGIN
+    FOR existing_job_id IN
+        SELECT jobid
+        FROM cron.job
+        WHERE database = current_database()
+          AND command = 'SELECT event_store.run_partman_maintenance();'
+    LOOP
+        PERFORM cron.unschedule(existing_job_id);
+    END LOOP;
+
+    PERFORM cron.schedule('5 * * * *', 'SELECT event_store.run_partman_maintenance();');
+END;
+$$;
 
 GRANT USAGE ON SCHEMA event_store TO event_store_appender, event_store_reader;
 

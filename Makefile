@@ -23,9 +23,9 @@ help:
 	@printf "  infra-up <1-6>           Run one startup step (e.g. make infra-up 3)\n"
 	@printf "  infra-tf-init            Initialize Terraform providers in Docker (bootstrap + identity)\n"
 	@printf "  infra-pg-up              Start Postgres + event-store DB + Vault/KES + MinIO + Redpanda containers\n"
-	@printf "  infra-tf-bootstrap       Apply Terraform bootstrap phase in Docker (Postgres + MinIO)\n"
+	@printf "  infra-tf-bootstrap       Apply Terraform bootstrap phase in Docker (Postgres + MinIO + notifications)\n"
 	@printf "  infra-kc-up              Start Keycloak container\n"
-	@printf "  infra-tf-apply           Apply Terraform identity phase in Docker (Keycloak)\n"
+	@printf "  infra-tf-apply           Apply Terraform identity phase in Docker (Keycloak + Redpanda ACLs)\n"
 	@printf "  infra-down               Stop infrastructure containers\n"
 	@printf "  infra-ps                 Show infrastructure container status\n"
 	@printf "  infra-clean              Stop containers and remove local Postgres/Event Store/MinIO/Redpanda volumes and Terraform state\n"
@@ -69,20 +69,32 @@ infra-up:
 	@:
 
 infra-tf-init:
-	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) bootstrap init
-	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) identity init
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --build --no-deps $(TF_RUNNER_SERVICE) bootstrap init
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --build --no-deps $(TF_RUNNER_SERVICE) identity init
 
 infra-pg-up:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) up -d postgres event_store_db vault kes minio redpanda
 
 infra-tf-bootstrap:
-	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) bootstrap apply -auto-approve
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --build --no-deps $(TF_RUNNER_SERVICE) bootstrap apply -auto-approve
 
 infra-kc-up:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) up -d keycloak
 
 infra-tf-apply:
-	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) identity apply -auto-approve
+	@attempt=1; max_attempts=12; \
+	while true; do \
+		if docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --build --no-deps $(TF_RUNNER_SERVICE) identity apply -auto-approve; then \
+			break; \
+		fi; \
+		if [ $$attempt -ge $$max_attempts ]; then \
+			printf "infra-tf-apply failed after %s attempts.\n" "$$attempt" >&2; \
+			exit 1; \
+		fi; \
+		attempt=$$((attempt + 1)); \
+		printf "infra-tf-apply attempt %s/%s failed, retrying in 5s...\n" "$$attempt" "$$max_attempts" >&2; \
+		sleep 5; \
+	done
 
 infra-down:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) down
@@ -106,10 +118,10 @@ infra-clean:
 terraform-plan: terraform-plan-bootstrap terraform-plan-identity
 
 terraform-plan-bootstrap:
-	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) bootstrap plan
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --build --no-deps $(TF_RUNNER_SERVICE) bootstrap plan
 
 terraform-plan-identity:
-	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --no-deps $(TF_RUNNER_SERVICE) identity plan
+	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) run --rm --build --no-deps $(TF_RUNNER_SERVICE) identity plan
 
 api-install:
 	docker compose -f $(COMPOSE_FILE) --env-file $(INFRA_ENV_FILE) build api

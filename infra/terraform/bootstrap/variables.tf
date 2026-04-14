@@ -195,6 +195,18 @@ variable "minio_server" {
   }
 }
 
+variable "minio_ingest_upload_topic" {
+  description = "Kafka topic used for MinIO upload notifications"
+  type        = string
+  default     = "ingest.excel.uploaded.v1"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[a-z0-9._-]+$", var.minio_ingest_upload_topic))
+    error_message = "minio_ingest_upload_topic must use lowercase Kafka topic-safe characters."
+  }
+}
+
 variable "minio_root_user" {
   description = "MinIO root user for provisioning"
   type        = string

@@ -35,6 +35,7 @@ The goal is to preserve replayability, traceability, and predictable query perfo
 | `ui.alert.*` | 3 | Lower volume, timeline-oriented consumer use |
 
 If topic throughput exceeds local assumptions, increase partition count and document re-key impact.
+Terraform `identity` applies these partition counts when creating topics.
 
 ### Retention Baseline
 
@@ -57,8 +58,7 @@ Other event-store tables remain unpartitioned initially unless row volume justif
 
 ### Partition Naming
 
-- `event_log_YYYY_MM`
-- `alert_event_YYYY_MM`
+- pg_partman-managed monthly child names (for example `event_log_pYYYY_MM` and `alert_event_pYYYY_MM`).
 
 ### Required Indexes Per `event_log` Partition
 
@@ -72,6 +72,9 @@ Other event-store tables remain unpartitioned initially unless row volume justif
 - Keep recent partitions online for active operations and replay.
 - Archive old partitions to cold storage before detach/drop.
 - Retention windows are policy-driven and must not violate audit requirements.
+- Event-store migrations configure `pg_partman` parent registration for both partitioned tables and enforce per-partition indexes via template tables.
+- `pg_cron` runs `SELECT event_store.run_partman_maintenance();` hourly to pre-create monthly partitions.
+- `partman.part_config.premake=2` defines the active forward horizon.
 
 ## Layer 3: MinIO Object-Path Partitioning
 
@@ -99,6 +102,8 @@ Object paths are partitioned for selective reads, replay windows, and layer-spec
 
 - `silver/domain=<domain>/year=YYYY/month=MM/day=DD/run_id=<run_id>/part-*.parquet`
 - `gold/metric=<metric>/year=YYYY/month=MM/day=DD/run_id=<run_id>/part-*.parquet`
+
+Terraform MinIO IAM policies enforce these partitioned path shapes for active writer identities.
 
 ### Traceability Metadata Requirements
 

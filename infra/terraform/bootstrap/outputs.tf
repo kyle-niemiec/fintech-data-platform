@@ -8,6 +8,16 @@ output "minio_kms_key_id" {
   value       = var.minio_kms_key_id
 }
 
+output "minio_notification_topic" {
+  description = "Kafka topic receiving MinIO object-created notifications"
+  value       = var.minio_ingest_upload_topic
+}
+
+output "minio_notification_target_arn" {
+  description = "Configured MinIO Kafka target ARN used by bucket notifications"
+  value       = "arn:minio:sqs::PRIMARY:kafka"
+}
+
 output "event_append_db_user" {
   description = "Append-only event-store runtime DB login"
   value       = postgresql_role.event_append_runtime.name

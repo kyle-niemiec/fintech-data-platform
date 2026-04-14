@@ -80,3 +80,234 @@ variable "keycloak_demo_user_password" {
     error_message = "keycloak_demo_user_password must be at least 12 characters."
   }
 }
+
+variable "redpanda_bootstrap_servers" {
+  description = "Comma-separated Redpanda broker endpoints for topic/ACL provisioning"
+  type        = string
+  default     = "redpanda:9092"
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.redpanda_bootstrap_servers) != ""
+    error_message = "redpanda_bootstrap_servers must be set."
+  }
+}
+
+variable "redpanda_admin_hosts" {
+  description = "Comma-separated Redpanda Admin API endpoints for security provisioning"
+  type        = string
+  default     = "redpanda:9644"
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.redpanda_admin_hosts) != ""
+    error_message = "redpanda_admin_hosts must be set."
+  }
+}
+
+variable "redpanda_admin_user" {
+  description = "Optional Redpanda superuser for authenticated ACL provisioning"
+  type        = string
+  default     = ""
+  nullable    = false
+}
+
+variable "redpanda_admin_password" {
+  description = "Optional Redpanda superuser password for authenticated ACL provisioning"
+  type        = string
+  default     = ""
+  sensitive   = true
+  nullable    = false
+}
+
+variable "redpanda_ingest_topic_partitions" {
+  description = "Partition count for ingest.* topics in local development"
+  type        = number
+  default     = 6
+  nullable    = false
+
+  validation {
+    condition     = var.redpanda_ingest_topic_partitions == floor(var.redpanda_ingest_topic_partitions) && var.redpanda_ingest_topic_partitions >= 1
+    error_message = "redpanda_ingest_topic_partitions must be a positive integer."
+  }
+}
+
+variable "redpanda_pipeline_topic_partitions" {
+  description = "Partition count for pipeline.* topics in local development"
+  type        = number
+  default     = 6
+  nullable    = false
+
+  validation {
+    condition     = var.redpanda_pipeline_topic_partitions == floor(var.redpanda_pipeline_topic_partitions) && var.redpanda_pipeline_topic_partitions >= 1
+    error_message = "redpanda_pipeline_topic_partitions must be a positive integer."
+  }
+}
+
+variable "redpanda_cdc_topic_partitions" {
+  description = "Partition count for cdc.* topics in local development"
+  type        = number
+  default     = 12
+  nullable    = false
+
+  validation {
+    condition     = var.redpanda_cdc_topic_partitions == floor(var.redpanda_cdc_topic_partitions) && var.redpanda_cdc_topic_partitions >= 1
+    error_message = "redpanda_cdc_topic_partitions must be a positive integer."
+  }
+}
+
+variable "redpanda_alert_topic_partitions" {
+  description = "Partition count for ui.alert.* topics in local development"
+  type        = number
+  default     = 3
+  nullable    = false
+
+  validation {
+    condition     = var.redpanda_alert_topic_partitions == floor(var.redpanda_alert_topic_partitions) && var.redpanda_alert_topic_partitions >= 1
+    error_message = "redpanda_alert_topic_partitions must be a positive integer."
+  }
+}
+
+variable "redpanda_excel_service_user" {
+  description = "Redpanda service identity for Excel ingress/scanner/validator emissions"
+  type        = string
+  default     = "rp_excel_service"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]{3,64}$", var.redpanda_excel_service_user))
+    error_message = "redpanda_excel_service_user must be 3-64 chars using letters, numbers, '.', '_' or '-'."
+  }
+}
+
+variable "redpanda_excel_service_password" {
+  description = "Password for redpanda_excel_service_user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.redpanda_excel_service_password)) >= 12
+    error_message = "redpanda_excel_service_password must be at least 12 characters."
+  }
+}
+
+variable "redpanda_cdc_service_user" {
+  description = "Redpanda service identity for CDC source publication"
+  type        = string
+  default     = "rp_cdc_service"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]{3,64}$", var.redpanda_cdc_service_user))
+    error_message = "redpanda_cdc_service_user must be 3-64 chars using letters, numbers, '.', '_' or '-'."
+  }
+}
+
+variable "redpanda_cdc_service_password" {
+  description = "Password for redpanda_cdc_service_user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.redpanda_cdc_service_password)) >= 12
+    error_message = "redpanda_cdc_service_password must be at least 12 characters."
+  }
+}
+
+variable "redpanda_fraud_service_user" {
+  description = "Redpanda service identity for fraud worker consume/produce path"
+  type        = string
+  default     = "rp_fraud_service"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]{3,64}$", var.redpanda_fraud_service_user))
+    error_message = "redpanda_fraud_service_user must be 3-64 chars using letters, numbers, '.', '_' or '-'."
+  }
+}
+
+variable "redpanda_fraud_service_password" {
+  description = "Password for redpanda_fraud_service_user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.redpanda_fraud_service_password)) >= 12
+    error_message = "redpanda_fraud_service_password must be at least 12 characters."
+  }
+}
+
+variable "redpanda_salesforce_service_user" {
+  description = "Redpanda service identity for Salesforce pull event emissions"
+  type        = string
+  default     = "rp_salesforce_service"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]{3,64}$", var.redpanda_salesforce_service_user))
+    error_message = "redpanda_salesforce_service_user must be 3-64 chars using letters, numbers, '.', '_' or '-'."
+  }
+}
+
+variable "redpanda_salesforce_service_password" {
+  description = "Password for redpanda_salesforce_service_user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.redpanda_salesforce_service_password)) >= 12
+    error_message = "redpanda_salesforce_service_password must be at least 12 characters."
+  }
+}
+
+variable "redpanda_orchestrator_service_user" {
+  description = "Redpanda service identity for bronze->silver->gold orchestration events"
+  type        = string
+  default     = "rp_orchestrator_service"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]{3,64}$", var.redpanda_orchestrator_service_user))
+    error_message = "redpanda_orchestrator_service_user must be 3-64 chars using letters, numbers, '.', '_' or '-'."
+  }
+}
+
+variable "redpanda_orchestrator_service_password" {
+  description = "Password for redpanda_orchestrator_service_user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.redpanda_orchestrator_service_password)) >= 12
+    error_message = "redpanda_orchestrator_service_password must be at least 12 characters."
+  }
+}
+
+variable "redpanda_ui_service_user" {
+  description = "Redpanda service identity for UI notification feed consumption"
+  type        = string
+  default     = "rp_ui_service"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]{3,64}$", var.redpanda_ui_service_user))
+    error_message = "redpanda_ui_service_user must be 3-64 chars using letters, numbers, '.', '_' or '-'."
+  }
+}
+
+variable "redpanda_ui_service_password" {
+  description = "Password for redpanda_ui_service_user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.redpanda_ui_service_password)) >= 12
+    error_message = "redpanda_ui_service_password must be at least 12 characters."
+  }
+}

@@ -16,7 +16,7 @@ This architecture enforces least privilege and immutable audit trails across eve
 
 | Principal | Layer | Access |
 | --- | --- | --- |
-| Finance uploader | MinIO | Put-only to `landing/finance/*` |
+| Finance uploader | MinIO | Put-only to `landing/source=excel/year=*/month=*/day=*/run_id=*/*` |
 | Demo Excel generator | Keycloak + MinIO + Redpanda | Select random `finance` actor identity, upload sample files, emit ingress events |
 | Scan worker | MinIO + Redpanda | Read `landing/*`, write scan verdict topics |
 | Airflow worker | MinIO + Redpanda + Event DB | Read/write stage prefixes, consume/produce orchestration topics, append event-store records |
@@ -49,6 +49,7 @@ This architecture enforces least privilege and immutable audit trails across eve
   - `gold/*`
   - `quarantine/*`
 - Current phase keeps `landing/*` and `raw/*` writable without mandatory SSE-KMS headers.
+- MinIO IAM writer policies enforce partitioned object-path templates for landing/raw/quarantine/bronze/silver/gold writes.
 - Enforced write headers:
   - `x-amz-server-side-encryption=aws:kms`
   - `x-amz-server-side-encryption-aws-kms-key-id=<approved key id>`
@@ -63,6 +64,7 @@ This architecture enforces least privilege and immutable audit trails across eve
 - Topic ACLs enforce producer/consumer separation per service identity.
 - Consumers use dedicated groups for deterministic replay control.
 - Retention and compaction policies must preserve forensic replay requirements.
+- Terraform identity phase creates the canonical topic set and applies ACLs through Redpanda service identities.
 
 ## Database Controls
 

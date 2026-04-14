@@ -17,11 +17,11 @@ This matrix maps `project-planning.md` requirements to local event-driven compon
 | Failure retry and auditable logging | Airflow retry policy emits attempt/failure events into event store | Airflow DAG + event-store schema |
 | Event storage exclusive DB | Dedicated event-store database isolated from API query persistence | Compose DB service + Terraform roles + migrations |
 | Bronze->silver->gold sequential orchestration | Event-driven Airflow DAG chain triggered from bronze-ready events | Airflow DAG + Redpanda topics |
-| EventBridge-like trigger chaining | MinIO notifications and stage-completion events route through Redpanda topics | Terraform notification and ACL config |
+| EventBridge-like trigger chaining | MinIO notifications and stage-completion events route through Redpanda topics | Terraform bucket notification config + Compose Kafka target wiring + Terraform ACL config |
 | Event-first run initiation | Trigger events are emitted first, then `pipeline_run` records are created from those trigger events | Event contracts + event-store schema + pipeline writers |
 | Independent source pipelines | Excel, CDC, and Salesforce ingestion runs are tracked independently by `pipeline_name` and trigger criteria | Event-store schema + orchestration contracts |
 | Curated boundary after bronze | Curated promotion starts only from bronze-ready events and runs as a separate pipeline domain | Airflow DAG chain + event contracts + event-store lineage fields |
-| Partitioning across event storage layers | Redpanda partitions by run/entity key, monthly DB partitions for event log, source/date/run_id object prefixes in MinIO | Topic contracts, SQL migrations, writer path conventions in IaC-managed services |
+| Partitioning across event storage layers | Redpanda topics are provisioned with canonical partition counts, event-store uses monthly partitions managed by pg_partman/pg_cron, and MinIO writer policies enforce source/date/run_id path templates | Terraform identity topic bootstrap + ACL config, SQL migrations (`partman.create_parent` + `event_store.run_partman_maintenance` + cron schedule), Terraform MinIO IAM policy constraints |
 | Encryption with KMS-like controls | MinIO SSE-KMS through KES/Vault with encrypted-write enforcement on `bronze/silver/gold/quarantine` and `landing/raw` excluded in this phase | Terraform bucket policies + KES/Vault config |
 | Append-only and replay-first processing | Immutable event log, offset checkpoints, replay-driven backfills | Event-store schema + topic retention policy IaC |
 | No destructive data correction | Corrections append new events rather than update/delete history | SQL role constraints + pipeline contract |

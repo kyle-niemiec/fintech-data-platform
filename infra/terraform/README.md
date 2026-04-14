@@ -19,17 +19,15 @@ Vault/KES runtime startup is Compose-owned; encryption enforcement contracts are
 
 The platform uses phased Terraform roots to avoid dependency loops and keep concerns isolated.
 
-- `bootstrap/`: foundational storage, DB users/roles, SSE-KMS enforcement policies.
-- `identity/`: Keycloak realm/client/role/demo-user provisioning.
-- `eventing/` (target): broker ACLs, topic bootstrap, service credentials.
+- `bootstrap/`: foundational storage, DB users/roles, MinIO->Redpanda notification wiring, SSE-KMS enforcement policies.
+- `identity/`: Keycloak realm/client/role/demo-user provisioning plus Redpanda topic bootstrap/service identities/ACLs.
 
 ## Provisioning Sequence
 
 1. Start foundational runtime dependencies (Postgres/Event DB/Vault/KES/MinIO/Redpanda).
 2. Apply bootstrap Terraform for base security primitives.
 3. Start Keycloak and apply identity Terraform.
-4. Apply eventing Terraform roots.
-5. Start orchestration and workers (Airflow, scanner, Debezium, fraud, writers).
+4. Start orchestration and workers (Airflow, scanner, Debezium, fraud, writers).
 
 ## Workflow Commands
 
@@ -46,7 +44,7 @@ These targets invoke `docker compose run --rm terraform_runner ...` and map `.en
 
 ## Connectivity Model
 
-- Terraform provider endpoints use Docker service DNS (`postgres`, `event_store_db`, `minio`, `keycloak`).
+- Terraform provider/runtime endpoints use Docker service DNS (`postgres`, `event_store_db`, `minio`, `keycloak`, `redpanda`).
 - Postgres, event-store Postgres, MinIO, Redpanda, Vault, and KES remain internal-only and are not host-port accessible.
 - Host loopback endpoints (`localhost:*`) are not part of the Terraform contract.
 
