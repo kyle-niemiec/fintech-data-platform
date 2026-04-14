@@ -3,7 +3,9 @@
 
 # Python
 /**/.venv/
+/**/.venv-test/
 /**/__pycache__/
+/**/.pytest_cache/
 
 # AI
 .codex
