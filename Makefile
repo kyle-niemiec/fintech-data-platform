@@ -5,7 +5,8 @@ COMPOSE_FILES := \
 	infra/compose/foundation.yaml \
 	infra/compose/orchestration.yaml \
 	infra/compose/excel-pipeline.yaml \
-	infra/compose/api.yaml
+	infra/compose/api.yaml \
+	infra/compose/ui.yaml
 INFRA_ENV_FILE := infra/.env
 TERRAFORM_BOOTSTRAP_DIR := infra/terraform/bootstrap
 TERRAFORM_IDENTITY_DIR := infra/terraform/identity
@@ -14,21 +15,21 @@ COMPOSE := docker compose $(foreach file,$(COMPOSE_FILES),-f $(file)) --env-file
 
 include $(INFRA_ENV_FILE)
 
-INFRA_UP_STEPS := 1 2 3 4 5 6 7 8
+INFRA_UP_STEPS := 1 2 3 4 5 6 7 8 9
 INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))))
 
 .PHONY: help infra-up infra-down infra-ps infra-clean \
 	infra-tf-init infra-pg-up infra-kc-up infra-tf-bootstrap infra-tf-apply \
-	infra-excel-pipeline infra-api-up \
+	infra-excel-pipeline infra-api-up infra-ui-up \
 	terraform-plan terraform-plan-bootstrap terraform-plan-identity \
 	db-psql-core db-psql-event-store \
-	1 2 3 4 5 6 7 8
+	1 2 3 4 5 6 7 8 9
 
 help:
 	@printf "Available targets:\n"
-	@printf "  infra-up                 Run staged startup steps 1-8\n"
-	@printf "  infra-up <1-8>           Run one startup step (e.g. make infra-up 3)\n"
-	@printf "  compose stack            base + foundation + orchestration + excel-pipeline + api\n"
+	@printf "  infra-up                 Run staged startup steps 1-9\n"
+	@printf "  infra-up <1-9>           Run one startup step (e.g. make infra-up 3)\n"
+	@printf "  compose stack            base + foundation + orchestration + excel-pipeline + api + ui\n"
 	@printf "  infra-tf-init            Initialize Terraform providers in Docker (bootstrap + identity)\n"
 	@printf "  infra-pg-up              Start Postgres + event-store DB + Vault/KES + MinIO + Redpanda containers\n"
 	@printf "  infra-tf-bootstrap       Apply Terraform bootstrap phase in Docker (Postgres + MinIO + notifications)\n"
@@ -36,6 +37,7 @@ help:
 	@printf "  infra-tf-apply           Apply Terraform identity phase in Docker (Keycloak + Redpanda ACLs)\n"
 	@printf "  infra-excel-pipeline     Start and validate Airflow + ClamAV + Excel scanner/trigger/bronze services\n"
 	@printf "  infra-api-up             Start and validate read-only UI query API service\n"
+	@printf "  infra-ui-up              Build and start the React demo UI (nginx on :3000)\n"
 	@printf "  infra-down               Stop infrastructure containers\n"
 	@printf "  infra-ps                 Show infrastructure container status\n"
 	@printf "  infra-clean              Stop containers and remove local Postgres/Event Store/MinIO/Redpanda volumes and Terraform state\n"
@@ -54,6 +56,7 @@ infra-up:
 		$(MAKE) infra-tf-apply; \
 		$(MAKE) infra-excel-pipeline; \
 		$(MAKE) infra-api-up; \
+		$(MAKE) infra-ui-up; \
 		$(MAKE) infra-ps; \
 	elif [ "$(INFRA_UP_STEP)" = "1" ]; then \
 		$(MAKE) infra-tf-init; \
@@ -70,13 +73,15 @@ infra-up:
 	elif [ "$(INFRA_UP_STEP)" = "7" ]; then \
 		$(MAKE) infra-api-up; \
 	elif [ "$(INFRA_UP_STEP)" = "8" ]; then \
+		$(MAKE) infra-ui-up; \
+	elif [ "$(INFRA_UP_STEP)" = "9" ]; then \
 		$(MAKE) infra-ps; \
 	else \
-		printf "Invalid infra-up step '%s'. Use 1-8.\n" "$(INFRA_UP_STEP)" >&2; \
+		printf "Invalid infra-up step '%s'. Use 1-9.\n" "$(INFRA_UP_STEP)" >&2; \
 		exit 2; \
 	fi
 
-1 2 3 4 5 6 7 8:
+1 2 3 4 5 6 7 8 9:
 	@:
 
 infra-tf-init:
@@ -136,6 +141,14 @@ infra-api-up:
 	@state=$$(docker inspect -f '{{.State.Status}}' fintech_api 2>/dev/null || echo missing); \
 	if [ "$$state" != "running" ]; then \
 		printf "infra-api-up service check failed: fintech_api state=%s\n" "$$state" >&2; \
+		exit 1; \
+	fi
+
+infra-ui-up:
+	$(COMPOSE) up -d --build ui
+	@state=$$(docker inspect -f '{{.State.Status}}' fintech_ui 2>/dev/null || echo missing); \
+	if [ "$$state" != "running" ]; then \
+		printf "infra-ui-up service check failed: fintech_ui state=%s\n" "$$state" >&2; \
 		exit 1; \
 	fi
 

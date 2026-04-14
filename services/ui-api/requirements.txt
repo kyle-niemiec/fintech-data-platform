@@ -3,3 +3,6 @@ uvicorn[standard]
 sqlalchemy
 psycopg[binary]
 pydantic-settings
+boto3
+pandas
+openpyxl

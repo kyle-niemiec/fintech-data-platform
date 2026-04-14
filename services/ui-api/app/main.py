@@ -1,7 +1,18 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import settings
+from app.routes.demo_upload import router as demo_upload_router
 from app.routes.ui_query import router as ui_query_router
 
 app = FastAPI(title="Fintech Data Platform API")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.ui_origin],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
+
 app.include_router(ui_query_router)
+app.include_router(demo_upload_router)

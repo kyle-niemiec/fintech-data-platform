@@ -41,7 +41,13 @@ class MinioObjectStore:
 
     def stat(self, bucket: str, key: str) -> dict[str, Any]:
         obj = self._client.stat_object(bucket, key)
-        return {"size": obj.size, "etag": obj.etag, "content_type": obj.content_type}
+        metadata = getattr(obj, "metadata", None) or {}
+        return {
+            "size": obj.size,
+            "etag": obj.etag,
+            "content_type": obj.content_type,
+            "metadata": metadata,
+        }
 
     def get_stream(self, bucket: str, key: str):
         return self._client.get_object(bucket, key)

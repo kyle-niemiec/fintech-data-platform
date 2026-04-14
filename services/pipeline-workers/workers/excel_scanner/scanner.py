@@ -18,7 +18,7 @@ All scanned events are both produced to Redpanda AND appended to the event store
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, BinaryIO, Callable, Optional, Protocol
 from uuid import UUID, uuid4
@@ -207,6 +207,19 @@ class ExcelScanner:
         source_offset: int,
     ) -> None:
         obj = parse_minio_record(record)
+        try:
+            stat = self._objects.stat(obj.bucket, obj.object_key)
+        except Exception as exc:
+            logger.warning(
+                "failed to stat object for uploader metadata bucket=%s key=%s error=%s",
+                obj.bucket,
+                obj.object_key,
+                exc,
+            )
+        else:
+            metadata_uploader = _extract_uploader_from_stat(stat)
+            if metadata_uploader:
+                obj = replace(obj, uploader_principal=metadata_uploader)
         run_id = uuid4()
         trace_id = uuid4()
 
@@ -349,6 +362,23 @@ class ExcelScanner:
             occurred_at=self._now(),
             payload=payload,
         )
+
+
+def _extract_uploader_from_stat(stat: dict[str, Any]) -> str | None:
+    metadata = stat.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    lowered = {str(k).lower(): v for k, v in metadata.items()}
+    for key in (
+        "demo-uploader",
+        "x-amz-meta-demo-uploader",
+        "uploader-principal",
+        "x-amz-meta-uploader-principal",
+    ):
+        value = lowered.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
 
 
 __all__ = [

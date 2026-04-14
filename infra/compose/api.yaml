@@ -12,6 +12,12 @@ services:
       EVENT_STORE_DB_PORT: ${EVENT_STORE_DB_PORT}
       EVENT_QUERY_DB_USER: ${EVENT_QUERY_DB_USER}
       EVENT_QUERY_DB_PASSWORD: ${EVENT_QUERY_DB_PASSWORD}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_INGEST_USER: ${MINIO_INGEST_USER}
+      MINIO_INGEST_SECRET: ${MINIO_INGEST_SECRET}
+      MINIO_LANDING_BUCKET: ${MINIO_BUCKET_NAME}
+      UI_ORIGIN: ${UI_ORIGIN:-http://localhost:3000}
+      DEMO_FINANCE_USERS: ${DEMO_FINANCE_USERS:-james.beringer@meridian.example.com,kathy.winston@meridian.example.com,alex.ortiz@meridian.example.com}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ../services/ui-api:/app

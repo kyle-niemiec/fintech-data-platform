@@ -1,6 +1,12 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL
 
+DEFAULT_DEMO_FINANCE_USERS = (
+    "james.beringer@meridian.example.com,"
+    "kathy.winston@meridian.example.com,"
+    "alex.ortiz@meridian.example.com"
+)
+
 """
 The settings class that contains the environtment variables.
 """
@@ -10,6 +16,14 @@ class Settings(BaseSettings):
     event_store_db_port: int = 5433
     event_query_db_user: str
     event_query_db_password: str
+
+    minio_endpoint: str = "http://minio:9000"
+    minio_ingest_user: str = ""
+    minio_ingest_secret: str = ""
+    minio_landing_bucket: str = "fintech-lakehouse"
+
+    ui_origin: str = "http://localhost:3000"
+    demo_finance_users: str = DEFAULT_DEMO_FINANCE_USERS
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -27,6 +41,10 @@ class Settings(BaseSettings):
             port=self.event_store_db_port,
             database=self.event_store_db,
         )
+
+    @property
+    def demo_finance_users_list(self) -> list[str]:
+        return [u.strip() for u in self.demo_finance_users.split(",") if u.strip()]
 
 """
 Export the instantiated settings object
