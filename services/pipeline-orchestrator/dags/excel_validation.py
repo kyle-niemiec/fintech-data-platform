@@ -119,6 +119,7 @@ with DAG(
     schedule=None,
     catchup=False,
     max_active_runs=16,
+    is_paused_upon_creation=False,
     tags=["excel", "ingestion"],
 ) as dag:
 
