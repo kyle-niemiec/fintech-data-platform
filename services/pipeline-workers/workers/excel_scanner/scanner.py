@@ -21,6 +21,7 @@ import logging
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, BinaryIO, Callable, Optional, Protocol
+from urllib.parse import unquote_plus
 from uuid import UUID, uuid4
 
 import psycopg
@@ -96,7 +97,7 @@ def parse_minio_record(record: dict[str, Any]) -> UploadedObject:
         s3 = record["s3"]
         bucket = s3["bucket"]["name"]
         obj = s3["object"]
-        object_key = obj["key"]
+        object_key = unquote_plus(obj["key"])
         size_bytes = int(obj["size"])
         etag = obj.get("eTag") or obj.get("etag") or ""
         content_type = obj.get("contentType") or obj.get("content-type") or ""

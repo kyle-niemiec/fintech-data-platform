@@ -132,8 +132,14 @@ CREATE TABLE IF NOT EXISTS event_store.alert_event_template (
     LIKE event_store.alert_event INCLUDING DEFAULTS INCLUDING CONSTRAINTS
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS event_log_template_topic_partition_kafka_offset_uq
-    ON event_store.event_log_template (topic, partition, kafka_offset);
+CREATE UNIQUE INDEX IF NOT EXISTS event_log_template_topic_partition_offset_occurred_uq
+    ON event_store.event_log_template (topic, partition, kafka_offset, occurred_at);
+
+-- Parent-level unique so ON CONFLICT (topic, partition, kafka_offset, occurred_at)
+-- resolves against event_store.event_log. Partition key (occurred_at) must be
+-- included per Postgres partitioning rules.
+CREATE UNIQUE INDEX IF NOT EXISTS event_log_topic_partition_offset_occurred_uq
+    ON event_store.event_log (topic, partition, kafka_offset, occurred_at);
 
 CREATE INDEX IF NOT EXISTS event_log_template_run_id_occurred_at_idx
     ON event_store.event_log_template (run_id, occurred_at);

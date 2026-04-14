@@ -4,7 +4,8 @@ Schema invariants (see infra/db/event-store-migrations/01_create_event_store_sch
 - `pipeline_run` requires at least one `event_log` row by commit (deferred trigger).
   Callers MUST open a run, append its trigger event, and commit in one transaction.
 - Run idempotency key is `(pipeline_name, trigger_event_ref)`.
-- Event log dedupe key is `(topic, partition, kafka_offset)`.
+- Event log dedupe key is `(topic, partition, kafka_offset, occurred_at)`
+  (occurred_at included because event_log is partitioned by it).
 """
 
 from __future__ import annotations
@@ -94,8 +95,10 @@ def append_event(
 ) -> bool:
     """Append one event_log row. Returns True if inserted, False if deduped.
 
-    Dedupe is by (topic, partition, kafka_offset), matching the template
-    unique index used for replay safety.
+    Dedupe is by (topic, partition, kafka_offset, occurred_at). occurred_at is
+    included because event_log is partitioned by occurred_at and Postgres
+    requires the partition key to appear in any parent-level unique constraint
+    used as an ON CONFLICT target.
     """
     with conn.cursor() as cur:
         cur.execute(
@@ -105,7 +108,7 @@ def append_event(
                 occurred_at, trace_id, payload, payload_hash, schema_version
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (topic, partition, kafka_offset) DO NOTHING
+            ON CONFLICT (topic, partition, kafka_offset, occurred_at) DO NOTHING
             RETURNING event_id
             """,
             (

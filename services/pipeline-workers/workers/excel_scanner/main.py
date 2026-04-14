@@ -68,6 +68,7 @@ def build_scanner() -> tuple[ExcelScanner, psycopg.Connection, EventProducer, Co
         access_key=os.environ["MINIO_INGEST_USER"],
         secret_key=os.environ["MINIO_INGEST_SECRET"],
         secure=os.environ.get("MINIO_SECURE", "false").lower() == "true",
+        region=os.environ.get("MINIO_REGION", "us-east-1"),
     )
 
     clamd_client = clamd.ClamdNetworkSocket(

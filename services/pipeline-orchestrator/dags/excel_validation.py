@@ -64,6 +64,7 @@ def _get_minio_client():
         access_key=os.environ["MINIO_VALIDATION_USER"],
         secret_key=os.environ["MINIO_VALIDATION_SECRET"],
         secure=os.environ.get("MINIO_SECURE", "false").lower() == "true",
+        region=os.environ.get("MINIO_REGION", "us-east-1"),
     )
 
 

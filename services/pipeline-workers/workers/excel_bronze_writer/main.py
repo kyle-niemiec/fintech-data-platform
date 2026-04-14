@@ -72,6 +72,7 @@ def build_writer() -> tuple[ExcelBronzeWriter, Consumer, EventProducer]:
         access_key=os.environ["MINIO_TRANSFORM_USER"],
         secret_key=os.environ["MINIO_TRANSFORM_SECRET"],
         secure=os.environ.get("MINIO_SECURE", "false").lower() == "true",
+        region=os.environ.get("MINIO_REGION", "us-east-1"),
     )
     db = psycopg.connect(
         host=os.environ["EVENT_STORE_DB_HOST"],
