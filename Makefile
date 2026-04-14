@@ -26,7 +26,7 @@ INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))
 
 help:
 	@printf "Available targets:\n"
-	@printf "  infra-up                 Show the staged infra startup sequence\n"
+	@printf "  infra-up                 Run staged startup steps 1-8\n"
 	@printf "  infra-up <1-8>           Run one startup step (e.g. make infra-up 3)\n"
 	@printf "  compose stack            base + foundation + orchestration + excel-pipeline + api\n"
 	@printf "  infra-tf-init            Initialize Terraform providers in Docker (bootstrap + identity)\n"
@@ -47,17 +47,14 @@ help:
 
 infra-up:
 	@if [ -z "$(INFRA_UP_STEP)" ]; then \
-		printf "Run these commands in order:\n"; \
-		printf "  1) make infra-tf-init\n"; \
-		printf "  2) make infra-pg-up\n"; \
-		printf "  3) make infra-tf-bootstrap\n"; \
-		printf "  4) make infra-kc-up\n"; \
-		printf "  5) make infra-tf-apply\n"; \
-		printf "  6) make infra-excel-pipeline\n"; \
-		printf "  7) make infra-api-up\n"; \
-		printf "  8) make infra-ps\n"; \
-		printf "\nRun a single step:\n"; \
-		printf "  make infra-up <1-8>\n"; \
+		$(MAKE) infra-tf-init; \
+		$(MAKE) infra-pg-up; \
+		$(MAKE) infra-tf-bootstrap; \
+		$(MAKE) infra-kc-up; \
+		$(MAKE) infra-tf-apply; \
+		$(MAKE) infra-excel-pipeline; \
+		$(MAKE) infra-api-up; \
+		$(MAKE) infra-ps; \
 	elif [ "$(INFRA_UP_STEP)" = "1" ]; then \
 		$(MAKE) infra-tf-init; \
 	elif [ "$(INFRA_UP_STEP)" = "2" ]; then \
