@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from confluent_kafka import Producer
 
@@ -29,11 +29,17 @@ class ProducerConfig:
     client_id: str = "platform-events"
 
     @classmethod
-    def from_env(cls, *, client_id: str) -> "ProducerConfig":
+    def from_env(
+        cls,
+        *,
+        client_id: str,
+        username_var: str | None = None,
+        password_var: str | None = None,
+    ) -> "ProducerConfig":
         return cls(
-            bootstrap_servers=os.environ["REDPANDA_BOOTSTRAP"],
-            sasl_username=os.environ.get("REDPANDA_SASL_USERNAME"),
-            sasl_password=os.environ.get("REDPANDA_SASL_PASSWORD"),
+            bootstrap_servers=os.environ["REDPANDA_BOOTSTRAP_SERVERS"],
+            sasl_username=os.environ.get(username_var) if username_var else None,
+            sasl_password=os.environ.get(password_var) if password_var else None,
             security_protocol=os.environ.get("REDPANDA_SECURITY_PROTOCOL", "PLAINTEXT"),
             sasl_mechanism=os.environ.get("REDPANDA_SASL_MECHANISM", "SCRAM-SHA-256"),
             client_id=client_id,
@@ -67,7 +73,17 @@ class EventProducer:
     def __init__(self, config: ProducerConfig):
         self._producer = Producer(config.to_librdkafka())
 
-    def produce(self, topic: str, envelope: Envelope, *, key: str) -> None:
+    def produce(self, topic: str, envelope: Envelope, *, key: str) -> tuple[int, int]:
+        """Produce and return (partition, offset) once the broker acks."""
+        result: dict[str, Any] = {}
+
+        def _ack(err: Any, msg: Any) -> None:
+            if err is not None:
+                result["error"] = str(err)
+                return
+            result["partition"] = msg.partition()
+            result["offset"] = msg.offset()
+
         self._producer.produce(
             topic=topic,
             key=key.encode("utf-8"),
@@ -77,17 +93,23 @@ class EventProducer:
                 ("schema_version", envelope.schema_version.encode("utf-8")),
                 ("trace_id", str(envelope.trace_id).encode("utf-8")),
             ],
+            on_delivery=_ack,
         )
         remaining = self._producer.flush(timeout=10.0)
         if remaining > 0:
             raise RuntimeError(f"Redpanda flush left {remaining} messages undelivered")
+        if "error" in result:
+            raise RuntimeError(f"Redpanda produce failed: {result['error']}")
         logger.info(
-            "event_produced topic=%s event_type=%s event_id=%s run_id=%s",
+            "event_produced topic=%s event_type=%s event_id=%s run_id=%s partition=%s offset=%s",
             topic,
             envelope.event_type,
             envelope.event_id,
             envelope.run_id,
+            result["partition"],
+            result["offset"],
         )
+        return result["partition"], result["offset"]
 
     def close(self) -> None:
         self._producer.flush(timeout=10.0)

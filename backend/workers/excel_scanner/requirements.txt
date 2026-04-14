@@ -1,0 +1,5 @@
+pydantic
+confluent-kafka
+psycopg[binary]
+minio
+clamd
