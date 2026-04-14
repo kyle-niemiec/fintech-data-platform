@@ -19,8 +19,8 @@ services:
 
   airflow_init:
     build:
-      context: ../backend
-      dockerfile: airflow/Dockerfile
+      context: ..
+      dockerfile: services/pipeline-orchestrator/Dockerfile
       network: host
     container_name: fintech_airflow_init
     restart: "no"
@@ -74,8 +74,8 @@ services:
 
   airflow_scheduler:
     build:
-      context: ../backend
-      dockerfile: airflow/Dockerfile
+      context: ..
+      dockerfile: services/pipeline-orchestrator/Dockerfile
       network: host
     container_name: fintech_airflow_scheduler
     restart: unless-stopped
@@ -95,8 +95,8 @@ services:
 
   airflow_webserver:
     build:
-      context: ../backend
-      dockerfile: airflow/Dockerfile
+      context: ..
+      dockerfile: services/pipeline-orchestrator/Dockerfile
       network: host
     container_name: fintech_airflow_webserver
     restart: unless-stopped

@@ -1,6 +1,6 @@
 # UI Query API
 
-The backend API serves UI read models only.
+The UI query API serves UI read models only.
 
 It does not:
 - start ingestion runs,

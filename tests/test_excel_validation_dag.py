@@ -14,7 +14,8 @@ from pathlib import Path
 
 DAG_FILE = (
     Path(__file__).resolve().parents[1]
-    / "airflow"
+    / "services"
+    / "pipeline-orchestrator"
     / "dags"
     / "excel_validation.py"
 )

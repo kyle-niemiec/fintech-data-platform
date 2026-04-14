@@ -1,8 +1,8 @@
 services:
   api:
     build:
-      context: ../backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: services/ui-api/Dockerfile
       network: host
     container_name: fintech_api
     restart: unless-stopped
@@ -14,7 +14,7 @@ services:
       EVENT_QUERY_DB_PASSWORD: ${EVENT_QUERY_DB_PASSWORD}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
-      - ../backend:/app
+      - ../services/ui-api:/app
     depends_on:
       event_store_db:
         condition: service_healthy

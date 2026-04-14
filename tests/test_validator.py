@@ -18,9 +18,9 @@ from libs.excel_validation import (
     validate_dataframe,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 PAYROLL_CONTRACT_PATH = (
-    REPO_ROOT / "backend" / "libs" / "platform_events" / "excel_schemas" / "payroll_v1.json"
+    REPO_ROOT / "platform" / "libs" / "platform_events" / "excel_schemas" / "payroll_v1.json"
 )
 
 

@@ -71,6 +71,15 @@ This project standardizes a local event-driven stack:
 
 See [docs/operations.md](docs/operations.md) for the canonical startup and validation sequence.
 
+## Repository Structure
+
+- `apps/ui/`: public demo UI application workspace.
+- `services/ui-api/`: read-only FastAPI query API for the UI.
+- `services/pipeline-workers/`: event-driven ingestion workers (scanner, trigger bridge, bronze writer).
+- `services/pipeline-orchestrator/`: Airflow runtime and DAGs.
+- `platform/libs/`: shared event contracts and runtime libraries used across services.
+- `infra/`: Docker Compose, Terraform, DB migrations, KMS bootstrap, and operational tooling.
+
 ## Documentation
 
 | Document | Purpose |

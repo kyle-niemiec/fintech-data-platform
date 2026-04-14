@@ -7,12 +7,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 USER airflow
 
-COPY airflow/requirements.txt /tmp/worker-requirements.txt
+COPY services/pipeline-orchestrator/requirements.txt /tmp/worker-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/worker-requirements.txt
 
 # Place our shared libs on PYTHONPATH so DAGs can
 # `from libs.platform_events...` and `from libs.excel_validation...`.
-COPY --chown=airflow:airflow libs /opt/airflow/platform_libs/libs
+COPY --chown=airflow:airflow platform/libs /opt/airflow/platform_libs/libs
 ENV PYTHONPATH=/opt/airflow/platform_libs:${PYTHONPATH}
 
-COPY --chown=airflow:airflow airflow/dags /opt/airflow/dags
+COPY --chown=airflow:airflow services/pipeline-orchestrator/dags /opt/airflow/dags

@@ -3,7 +3,7 @@
 The Airflow DAG calls these helpers. Keeping them outside `airflow/` lets
 unit tests run without the Airflow runtime. A schema contract is a small
 JSON file declaring required columns and their expected pandas dtypes;
-contracts live under backend/libs/platform_events/excel_schemas/.
+contracts live under platform/libs/platform_events/excel_schemas/.
 """
 
 from __future__ import annotations

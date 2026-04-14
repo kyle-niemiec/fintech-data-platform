@@ -2,7 +2,7 @@
 
 ## Intent
 
-This platform is designed as an event-driven data system where pipeline execution is independent from the backend API.
+This platform is designed as an event-driven data system where pipeline execution is independent from the UI query API.
 
 - Source systems and storage events drive ETL.
 - Redpanda (Kafka API-compatible) is the backbone for orchestration and replay.
