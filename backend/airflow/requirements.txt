@@ -1,7 +1,6 @@
--r requirements.txt
-pytest
-pytest-mock
 confluent-kafka
 psycopg[binary]
+minio
 pandas
 openpyxl
+pydantic

@@ -1,0 +1,25 @@
+{
+  "contract_id": "payroll_v1",
+  "sheet_name": "payroll",
+  "required_columns": [
+    "employee_id",
+    "pay_period_end",
+    "gross_amount",
+    "net_amount",
+    "currency"
+  ],
+  "column_types": {
+    "employee_id": "string",
+    "pay_period_end": "datetime64[ns]",
+    "gross_amount": "float64",
+    "net_amount": "float64",
+    "currency": "string"
+  },
+  "disallow_null_columns": [
+    "employee_id",
+    "pay_period_end",
+    "gross_amount",
+    "net_amount",
+    "currency"
+  ]
+}

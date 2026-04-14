@@ -234,6 +234,115 @@ services:
       - platform_internal
       - platform_public
 
+  airflow_postgres:
+    image: postgres:16
+    container_name: fintech_airflow_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${AIRFLOW_DB}
+      POSTGRES_USER: ${AIRFLOW_DB_USER}
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
+    volumes:
+      - airflow_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AIRFLOW_DB_USER} -d ${AIRFLOW_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - platform_internal
+
+  airflow_init:
+    build:
+      context: ../backend
+      dockerfile: airflow/Dockerfile
+    container_name: fintech_airflow_init
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - >
+        airflow db migrate &&
+        (airflow users list | grep -q "${AIRFLOW_ADMIN_USER}" ||
+         airflow users create
+           --username "${AIRFLOW_ADMIN_USER}"
+           --firstname Meridian
+           --lastname Admin
+           --role Admin
+           --email admin@meridian.local
+           --password "${AIRFLOW_ADMIN_PASSWORD}")
+    environment: &airflow_env
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow_postgres/${AIRFLOW_DB}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
+      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+      AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+      REDPANDA_BOOTSTRAP_SERVERS: ${REDPANDA_BOOTSTRAP_SERVERS}
+      REDPANDA_AIRFLOW_USER: ${REDPANDA_AIRFLOW_USER}
+      REDPANDA_AIRFLOW_PASSWORD: ${REDPANDA_AIRFLOW_PASSWORD}
+      REDPANDA_SECURITY_PROTOCOL: ${REDPANDA_SECURITY_PROTOCOL:-PLAINTEXT}
+      REDPANDA_SASL_MECHANISM: ${REDPANDA_SASL_MECHANISM:-SCRAM-SHA-256}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_SECURE: "false"
+      MINIO_TRANSFORM_USER: ${MINIO_TRANSFORM_USER}
+      MINIO_TRANSFORM_SECRET: ${MINIO_TRANSFORM_SECRET}
+      MINIO_KMS_KEY_ID: ${MINIO_KMS_KEY_ID}
+      EVENT_STORE_DB: ${EVENT_STORE_DB}
+      EVENT_STORE_DB_HOST: event_store_db
+      EVENT_STORE_DB_PORT: ${EVENT_STORE_DB_PORT}
+      EVENT_APPEND_DB_USER: ${EVENT_APPEND_DB_USER}
+      EVENT_APPEND_DB_PASSWORD: ${EVENT_APPEND_DB_PASSWORD}
+    depends_on:
+      airflow_postgres:
+        condition: service_healthy
+    networks:
+      - platform_internal
+
+  airflow_scheduler:
+    build:
+      context: ../backend
+      dockerfile: airflow/Dockerfile
+    container_name: fintech_airflow_scheduler
+    restart: unless-stopped
+    command: scheduler
+    environment: *airflow_env
+    depends_on:
+      airflow_init:
+        condition: service_completed_successfully
+      event_store_db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      redpanda:
+        condition: service_healthy
+    networks:
+      - platform_internal
+
+  airflow_webserver:
+    build:
+      context: ../backend
+      dockerfile: airflow/Dockerfile
+    container_name: fintech_airflow_webserver
+    restart: unless-stopped
+    command: webserver
+    environment: *airflow_env
+    depends_on:
+      airflow_init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health | grep -q healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    ports:
+      - "8080:8080"
+    networks:
+      - platform_internal
+      - platform_public
+
   clamav:
     image: clamav/clamav:stable
     container_name: fintech_clamav
@@ -320,6 +429,7 @@ volumes:
   redpanda_data:
   kms_shared:
   clamav_data:
+  airflow_postgres_data:
 
 networks:
   platform_public:
