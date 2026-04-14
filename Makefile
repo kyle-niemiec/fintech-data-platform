@@ -181,7 +181,7 @@ infra-ps-dev:
 	$(COMPOSE_DEV) ps
 
 infra-clean:
-	$(COMPOSE) down --volumes --remove-orphans
+	$(COMPOSE_DEV) down --volumes --remove-orphans
 	-docker volume rm postgres_data event_store_data minio_data redpanda_data kms_shared
 	-docker volume rm infra_postgres_data infra_event_store_data infra_minio_data infra_redpanda_data infra_kms_shared
 	rm -rf $(TERRAFORM_BOOTSTRAP_DIR)/.terraform
