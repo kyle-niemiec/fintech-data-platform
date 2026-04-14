@@ -1,0 +1,22 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "fintech core (postgres)",
+      "Group": "Fintech",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "fintech_platform",
+      "Username": "fintech_platform_admin",
+      "SSLMode": "prefer"
+    },
+    "2": {
+      "Name": "event store",
+      "Group": "Fintech",
+      "Host": "event_store_db",
+      "Port": 5433,
+      "MaintenanceDB": "fintech_event_store",
+      "Username": "fintech_event_store_admin",
+      "SSLMode": "prefer"
+    }
+  }
+}

@@ -40,10 +40,16 @@ docker run --rm minio/kes:latest identity new
 Use this Compose file stack for direct `docker compose` commands:
 
 ```bash
-COMPOSE_FILES="-f infra/docker-compose.yaml -f infra/compose/foundation.yaml -f infra/compose/orchestration.yaml -f infra/compose/excel-pipeline.yaml -f infra/compose/api.yaml"
+COMPOSE_FILES="-f infra/docker-compose.yaml -f infra/compose/foundation.yaml -f infra/compose/orchestration.yaml -f infra/compose/excel-pipeline.yaml -f infra/compose/api.yaml -f infra/compose/ui.yaml"
 ```
 
-Run the staged infra bootstrap first:
+Run the staged infra bootstrap first (single command):
+
+```bash
+make infra-up
+```
+
+Or run individual steps:
 
 ```bash
 make infra-up 1
@@ -54,12 +60,25 @@ make infra-up 5
 make infra-up 6
 make infra-up 7
 make infra-up 8
+make infra-up 9
 ```
 
-The staged flow includes the read-only UI query API as a required service (`make infra-up 7`).
-The API is exposed at `http://localhost:8000` and connects to event-store Postgres over Docker-internal networking.
+The staged flow includes the read-only UI query API (`make infra-up 7`) and demo UI (`make infra-up 8`).
+The API is exposed at `http://localhost:8000` and the UI is exposed at `http://localhost:3000`.
 
-## Internal Service Access (No Data-Plane Host Ports)
+### Development override: MinIO console on host
+
+By default, MinIO remains internal-only. For local development that needs browser access to MinIO (`:9001`), use:
+
+```bash
+make infra-up-dev
+```
+
+This enables the dev override compose file (`infra/compose/dev-ui-access.yaml`) and publishes:
+- `http://localhost:9000` (S3 API)
+- `http://localhost:9001` (MinIO Console)
+
+## Internal Service Access (Default Stack)
 
 - Postgres/event-store/MinIO/Redpanda are intentionally not published to host ports.
 - Vault/KES are also internal-only and not host-published.

@@ -7,20 +7,25 @@ COMPOSE_FILES := \
 	infra/compose/excel-pipeline.yaml \
 	infra/compose/api.yaml \
 	infra/compose/ui.yaml
+COMPOSE_FILES_DEV := \
+	$(COMPOSE_FILES) \
+	infra/compose/dev/minio-console-access.yaml \
+	infra/compose/dev/pgadmin.yaml
 INFRA_ENV_FILE := infra/.env
 TERRAFORM_BOOTSTRAP_DIR := infra/terraform/bootstrap
 TERRAFORM_IDENTITY_DIR := infra/terraform/identity
 TF_RUNNER_SERVICE := terraform_runner
 COMPOSE := docker compose $(foreach file,$(COMPOSE_FILES),-f $(file)) --env-file $(INFRA_ENV_FILE)
+COMPOSE_DEV := docker compose $(foreach file,$(COMPOSE_FILES_DEV),-f $(file)) --env-file $(INFRA_ENV_FILE)
 
 include $(INFRA_ENV_FILE)
 
 INFRA_UP_STEPS := 1 2 3 4 5 6 7 8 9
 INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))))
 
-.PHONY: help infra-up infra-down infra-ps infra-clean \
+.PHONY: help infra-up infra-up-dev infra-down infra-down-dev infra-ps infra-ps-dev infra-clean \
 	infra-tf-init infra-pg-up infra-kc-up infra-tf-bootstrap infra-tf-apply \
-	infra-excel-pipeline infra-api-up infra-ui-up \
+	infra-excel-pipeline infra-api-up infra-ui-up infra-pgadmin-up \
 	terraform-plan terraform-plan-bootstrap terraform-plan-identity \
 	db-psql-core db-psql-event-store \
 	1 2 3 4 5 6 7 8 9
@@ -28,6 +33,7 @@ INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))
 help:
 	@printf "Available targets:\n"
 	@printf "  infra-up                 Run staged startup steps 1-9\n"
+	@printf "  infra-up-dev             Run staged startup steps 1-9 with dev overlays (MinIO console :9000/:9001, pgAdmin :5050)\n"
 	@printf "  infra-up <1-9>           Run one startup step (e.g. make infra-up 3)\n"
 	@printf "  compose stack            base + foundation + orchestration + excel-pipeline + api + ui\n"
 	@printf "  infra-tf-init            Initialize Terraform providers in Docker (bootstrap + identity)\n"
@@ -38,8 +44,11 @@ help:
 	@printf "  infra-excel-pipeline     Start and validate Airflow + ClamAV + Excel scanner/trigger/bronze services\n"
 	@printf "  infra-api-up             Start and validate read-only UI query API service\n"
 	@printf "  infra-ui-up              Build and start the React demo UI (nginx on :3000)\n"
+	@printf "  infra-pgadmin-up         Start dev-only pgAdmin overlay on :5050 (requires dev compose files)\n"
 	@printf "  infra-down               Stop infrastructure containers\n"
+	@printf "  infra-down-dev           Stop infrastructure containers (dev UI access stack)\n"
 	@printf "  infra-ps                 Show infrastructure container status\n"
+	@printf "  infra-ps-dev             Show infrastructure container status (dev UI access stack)\n"
 	@printf "  infra-clean              Stop containers and remove local Postgres/Event Store/MinIO/Redpanda volumes and Terraform state\n"
 	@printf "  terraform-plan           Show Terraform plans for bootstrap + identity\n"
 	@printf "  terraform-plan-bootstrap Show Terraform plan for bootstrap phase\n"
@@ -80,6 +89,10 @@ infra-up:
 		printf "Invalid infra-up step '%s'. Use 1-9.\n" "$(INFRA_UP_STEP)" >&2; \
 		exit 2; \
 	fi
+
+infra-up-dev:
+	@$(MAKE) COMPOSE="$(COMPOSE_DEV)" infra-up
+	make infra-pgadmin-up
 
 1 2 3 4 5 6 7 8 9:
 	@:
@@ -152,11 +165,20 @@ infra-ui-up:
 		exit 1; \
 	fi
 
+infra-pgadmin-up:
+	$(COMPOSE_DEV) up -d pgadmin
+
 infra-down:
 	$(COMPOSE) down
 
+infra-down-dev:
+	$(COMPOSE_DEV) down
+
 infra-ps:
 	$(COMPOSE) ps
+
+infra-ps-dev:
+	$(COMPOSE_DEV) ps
 
 infra-clean:
 	$(COMPOSE) down --volumes --remove-orphans
