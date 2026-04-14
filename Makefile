@@ -14,20 +14,20 @@ COMPOSE := docker compose $(foreach file,$(COMPOSE_FILES),-f $(file)) --env-file
 
 include $(INFRA_ENV_FILE)
 
-INFRA_UP_STEPS := 1 2 3 4 5 6 7
+INFRA_UP_STEPS := 1 2 3 4 5 6 7 8
 INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))))
 
 .PHONY: help infra-up infra-down infra-ps infra-clean \
 	infra-tf-init infra-pg-up infra-kc-up infra-tf-bootstrap infra-tf-apply \
-	infra-excel-pipeline \
-	terraform-plan terraform-plan-bootstrap terraform-plan-identity api-install api-dev \
+	infra-excel-pipeline infra-api-up \
+	terraform-plan terraform-plan-bootstrap terraform-plan-identity \
 	db-psql-core db-psql-event-store \
-	1 2 3 4 5 6 7
+	1 2 3 4 5 6 7 8
 
 help:
 	@printf "Available targets:\n"
 	@printf "  infra-up                 Show the staged infra startup sequence\n"
-	@printf "  infra-up <1-7>           Run one startup step (e.g. make infra-up 3)\n"
+	@printf "  infra-up <1-8>           Run one startup step (e.g. make infra-up 3)\n"
 	@printf "  compose stack            base + foundation + orchestration + excel-pipeline + api\n"
 	@printf "  infra-tf-init            Initialize Terraform providers in Docker (bootstrap + identity)\n"
 	@printf "  infra-pg-up              Start Postgres + event-store DB + Vault/KES + MinIO + Redpanda containers\n"
@@ -35,14 +35,13 @@ help:
 	@printf "  infra-kc-up              Start Keycloak container\n"
 	@printf "  infra-tf-apply           Apply Terraform identity phase in Docker (Keycloak + Redpanda ACLs)\n"
 	@printf "  infra-excel-pipeline     Start and validate Airflow + ClamAV + Excel scanner/trigger/bronze services\n"
+	@printf "  infra-api-up             Start and validate read-only UI query API service\n"
 	@printf "  infra-down               Stop infrastructure containers\n"
 	@printf "  infra-ps                 Show infrastructure container status\n"
 	@printf "  infra-clean              Stop containers and remove local Postgres/Event Store/MinIO/Redpanda volumes and Terraform state\n"
 	@printf "  terraform-plan           Show Terraform plans for bootstrap + identity\n"
 	@printf "  terraform-plan-bootstrap Show Terraform plan for bootstrap phase\n"
 	@printf "  terraform-plan-identity  Show Terraform plan for identity phase\n"
-	@printf "  api-install              Build the API Docker image\n"
-	@printf "  api-dev                  Start the API container with reload enabled\n"
 	@printf "  db-psql-core             Open a psql shell in the core Postgres instance\n"
 	@printf "  db-psql-event-store      Open a psql shell in the event-store Postgres instance\n"
 
@@ -55,9 +54,10 @@ infra-up:
 		printf "  4) make infra-kc-up\n"; \
 		printf "  5) make infra-tf-apply\n"; \
 		printf "  6) make infra-excel-pipeline\n"; \
-		printf "  7) make infra-ps\n"; \
+		printf "  7) make infra-api-up\n"; \
+		printf "  8) make infra-ps\n"; \
 		printf "\nRun a single step:\n"; \
-		printf "  make infra-up <1-7>\n"; \
+		printf "  make infra-up <1-8>\n"; \
 	elif [ "$(INFRA_UP_STEP)" = "1" ]; then \
 		$(MAKE) infra-tf-init; \
 	elif [ "$(INFRA_UP_STEP)" = "2" ]; then \
@@ -71,13 +71,15 @@ infra-up:
 	elif [ "$(INFRA_UP_STEP)" = "6" ]; then \
 		$(MAKE) infra-excel-pipeline; \
 	elif [ "$(INFRA_UP_STEP)" = "7" ]; then \
+		$(MAKE) infra-api-up; \
+	elif [ "$(INFRA_UP_STEP)" = "8" ]; then \
 		$(MAKE) infra-ps; \
 	else \
-		printf "Invalid infra-up step '%s'. Use 1-7.\n" "$(INFRA_UP_STEP)" >&2; \
+		printf "Invalid infra-up step '%s'. Use 1-8.\n" "$(INFRA_UP_STEP)" >&2; \
 		exit 2; \
 	fi
 
-1 2 3 4 5 6 7:
+1 2 3 4 5 6 7 8:
 	@:
 
 infra-tf-init:
@@ -132,6 +134,14 @@ infra-excel-pipeline:
 		fi; \
 	done
 
+infra-api-up:
+	$(COMPOSE) up -d api
+	@state=$$(docker inspect -f '{{.State.Status}}' fintech_api 2>/dev/null || echo missing); \
+	if [ "$$state" != "running" ]; then \
+		printf "infra-api-up service check failed: fintech_api state=%s\n" "$$state" >&2; \
+		exit 1; \
+	fi
+
 infra-down:
 	$(COMPOSE) down
 
@@ -158,12 +168,6 @@ terraform-plan-bootstrap:
 
 terraform-plan-identity:
 	$(COMPOSE) run --rm --build --no-deps $(TF_RUNNER_SERVICE) identity plan
-
-api-install:
-	$(COMPOSE) build api
-
-api-dev:
-	$(COMPOSE) up -d api
 
 db-psql-core:
 	$(COMPOSE) exec postgres psql -U '$(value POSTGRES_ROOT_USER)' -d '$(value POSTGRES_DB)'

@@ -53,15 +53,10 @@ make infra-up 4
 make infra-up 5
 make infra-up 6
 make infra-up 7
+make infra-up 8
 ```
 
-Start the UI query API (optional for ETL runtime):
-
-```bash
-make api-install
-make api-dev
-```
-
+The staged flow includes the read-only UI query API as a required service (`make infra-up 7`).
 The API is exposed at `http://localhost:8000` and connects to event-store Postgres over Docker-internal networking.
 
 ## Internal Service Access (No Data-Plane Host Ports)
