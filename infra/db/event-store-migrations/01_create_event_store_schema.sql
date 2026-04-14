@@ -101,7 +101,27 @@ DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW
 EXECUTE FUNCTION event_store.assert_run_has_event();
 
-CREATE EXTENSION IF NOT EXISTS pg_partman;
+CREATE SCHEMA IF NOT EXISTS partman;
+
+DO
+$$
+DECLARE
+    partman_schema TEXT;
+BEGIN
+    SELECT n.nspname
+    INTO partman_schema
+    FROM pg_extension e
+    JOIN pg_namespace n ON n.oid = e.extnamespace
+    WHERE e.extname = 'pg_partman';
+
+    IF partman_schema IS NULL THEN
+        EXECUTE 'CREATE EXTENSION pg_partman SCHEMA partman';
+    ELSIF partman_schema <> 'partman' THEN
+        EXECUTE 'ALTER EXTENSION pg_partman SET SCHEMA partman';
+    END IF;
+END;
+$$;
+
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
 CREATE TABLE IF NOT EXISTS event_store.event_log_template (
@@ -138,7 +158,7 @@ BEGIN
         PERFORM partman.create_parent(
             p_parent_table := 'event_store.event_log',
             p_control := 'occurred_at',
-            p_interval := 'monthly',
+            p_interval := '1 month',
             p_premake := 2,
             p_template_table := 'event_store.event_log_template'
         );
@@ -152,7 +172,7 @@ BEGIN
         PERFORM partman.create_parent(
             p_parent_table := 'event_store.alert_event',
             p_control := 'occurred_at',
-            p_interval := 'monthly',
+            p_interval := '1 month',
             p_premake := 2,
             p_template_table := 'event_store.alert_event_template'
         );
@@ -172,7 +192,16 @@ LANGUAGE plpgsql
 AS
 $$
 BEGIN
-    PERFORM partman.run_maintenance_proc();
+    PERFORM partman.run_maintenance(
+        p_parent_table := 'event_store.event_log',
+        p_analyze := FALSE,
+        p_jobmon := FALSE
+    );
+    PERFORM partman.run_maintenance(
+        p_parent_table := 'event_store.alert_event',
+        p_analyze := FALSE,
+        p_jobmon := FALSE
+    );
 END;
 $$;
 

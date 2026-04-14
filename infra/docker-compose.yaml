@@ -21,6 +21,7 @@ services:
     build:
       context: ..
       dockerfile: infra/db/event-store-image/Dockerfile
+      network: host
     container_name: fintech_event_store
     restart: unless-stopped
     environment:
