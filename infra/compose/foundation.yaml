@@ -1,0 +1,235 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: fintech_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_ROOT_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ROOT_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - platform_internal
+
+  event_store_db:
+    build:
+      context: ..
+      dockerfile: infra/db/event-store-image/Dockerfile
+      network: host
+    container_name: fintech_event_store
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${EVENT_STORE_DB}
+      POSTGRES_USER: ${EVENT_STORE_DB_ROOT_USER}
+      POSTGRES_PASSWORD: ${EVENT_STORE_DB_ROOT_PASSWORD}
+    command:
+      - postgres
+      - -p
+      - "${EVENT_STORE_DB_PORT}"
+      - -c
+      - shared_preload_libraries=pg_cron
+      - -c
+      - cron.database_name=${EVENT_STORE_DB}
+    volumes:
+      - event_store_data:/var/lib/postgresql/data
+      - ./db/event-store-migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${EVENT_STORE_DB_ROOT_USER} -d ${EVENT_STORE_DB} -p ${EVENT_STORE_DB_PORT}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - platform_internal
+
+  vault:
+    image: hashicorp/vault:1.16
+    container_name: fintech_vault
+    restart: unless-stopped
+    command:
+      - server
+      - -dev
+      - -dev-root-token-id=${VAULT_DEV_ROOT_TOKEN_ID}
+      - -dev-listen-address=0.0.0.0:8200
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
+      VAULT_ADDR: http://127.0.0.1:8200
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - platform_internal
+
+  vault_bootstrap:
+    image: hashicorp/vault:1.16
+    container_name: fintech_vault_bootstrap
+    restart: "no"
+    entrypoint: ["/bin/sh", "/bootstrap-vault.sh"]
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
+      VAULT_KV_ENGINE: ${VAULT_KV_ENGINE}
+      VAULT_TRANSIT_ENGINE: ${VAULT_TRANSIT_ENGINE}
+      VAULT_TRANSIT_KEY_NAME: ${VAULT_TRANSIT_KEY_NAME}
+      KES_VAULT_APPROLE: ${KES_VAULT_APPROLE}
+      KES_VAULT_POLICY: ${KES_VAULT_POLICY}
+      KES_VAULT_CREDS_FILE: /kms/vault-kes-approle.env
+    volumes:
+      - ./kms/bootstrap-vault.sh:/bootstrap-vault.sh:ro
+      - kms_shared:/kms
+    depends_on:
+      vault:
+        condition: service_healthy
+    networks:
+      - platform_internal
+
+  kes_bootstrap:
+    image: alpine/openssl:latest
+    container_name: fintech_kes_bootstrap
+    restart: "no"
+    entrypoint: ["/bin/sh", "/bootstrap-kes.sh"]
+    environment:
+      MINIO_KMS_KEY_ID: ${MINIO_KMS_KEY_ID}
+      MINIO_KMS_KES_IDENTITY: ${MINIO_KMS_KES_IDENTITY}
+      VAULT_ADDR: http://vault:8200
+      VAULT_KV_ENGINE: ${VAULT_KV_ENGINE}
+      VAULT_TRANSIT_ENGINE: ${VAULT_TRANSIT_ENGINE}
+      VAULT_TRANSIT_KEY_NAME: ${VAULT_TRANSIT_KEY_NAME}
+      KES_VAULT_PREFIX: ${KES_VAULT_PREFIX}
+      KES_VAULT_CREDS_FILE: /kms/vault-kes-approle.env
+      KES_CONFIG_FILE: /kms/config/kes-server-config.yaml
+      KES_CERT_DIR: /kms/certs
+    volumes:
+      - ./kms/bootstrap-kes.sh:/bootstrap-kes.sh:ro
+      - kms_shared:/kms
+    depends_on:
+      vault_bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - platform_internal
+
+  kes:
+    image: minio/kes:latest
+    container_name: fintech_kes
+    restart: unless-stopped
+    command: server --config /kms/config/kes-server-config.yaml
+    environment:
+      MINIO_KES_API_KEY: ${MINIO_KMS_KES_API_KEY}
+    healthcheck:
+      test: ["CMD-SHELL", "/kes status -k -s >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - kms_shared:/kms:ro
+    depends_on:
+      kes_bootstrap:
+        condition: service_completed_successfully
+    networks:
+      - platform_internal
+
+  minio:
+    image: minio/minio:latest
+    container_name: fintech_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_KMS_KES_ENDPOINT: https://kes:7373
+      MINIO_KMS_KES_API_KEY: ${MINIO_KMS_KES_API_KEY}
+      MINIO_KMS_KES_CAPATH: /opt/minio/kms/certs/ca.crt
+      MINIO_KMS_KES_KEY_NAME: ${MINIO_KMS_KEY_ID}
+      MINIO_NOTIFY_KAFKA_ENABLE_PRIMARY: "on"
+      MINIO_NOTIFY_KAFKA_BROKERS_PRIMARY: redpanda:9092
+      MINIO_NOTIFY_KAFKA_TOPIC_PRIMARY: ${MINIO_INGEST_UPLOAD_TOPIC:-ingest.excel.uploaded.v1}
+      MINIO_NOTIFY_KAFKA_QUEUE_DIR_PRIMARY: /data/.minio/events/kafka-primary
+    volumes:
+      - minio_data:/data
+      - kms_shared:/opt/minio/kms:ro
+    command: server /data --console-address ":9001"
+    depends_on:
+      kes:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    networks:
+      - platform_internal
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.18
+    container_name: fintech_redpanda
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health -X brokers=localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    networks:
+      - platform_internal
+
+  terraform_runner:
+    build:
+      context: ..
+      dockerfile: infra/terraform-runner/Dockerfile
+    user: "1000:1000"
+    working_dir: /workspace
+    volumes:
+      - ../:/workspace
+    entrypoint: ["/workspace/infra/terraform-runner/run-terraform.sh"]
+    env_file:
+      - ./.env
+    environment:
+      TF_IN_AUTOMATION: "1"
+    networks:
+      - platform_internal
+      - platform_public
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: fintech_keycloak
+    restart: unless-stopped
+    command: start-dev
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      KC_DB_SCHEMA: keycloak
+      KC_DB_USERNAME: ${KC_DB_USER}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
+    ports:
+      - "8180:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - platform_internal
+      - platform_public

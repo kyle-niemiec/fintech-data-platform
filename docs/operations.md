@@ -37,6 +37,12 @@ docker run --rm minio/kes:latest identity new
 
 ## Startup Sequence (Target Local Stack)
 
+Use this Compose file stack for direct `docker compose` commands:
+
+```bash
+COMPOSE_FILES="-f infra/docker-compose.yaml -f infra/compose/foundation.yaml -f infra/compose/orchestration.yaml -f infra/compose/excel-pipeline.yaml -f infra/compose/api.yaml"
+```
+
 Run the staged infra bootstrap first:
 
 ```bash
@@ -46,14 +52,7 @@ make infra-up 3
 make infra-up 4
 make infra-up 5
 make infra-up 6
-```
-
-Then start Phase 3 orchestration + workers:
-
-```bash
-docker compose -f infra/docker-compose.yaml --env-file infra/.env up -d \
-  airflow_postgres airflow_init airflow_scheduler airflow_webserver \
-  clamav excel_scanner excel_validation_trigger excel_bronze_writer
+make infra-up 7
 ```
 
 Start the UI query API (optional for ETL runtime):
@@ -74,10 +73,10 @@ The API is exposed at `http://localhost:8000` and connects to event-store Postgr
 ```bash
 make db-psql-core
 make db-psql-event-store
-docker compose -f infra/docker-compose.yaml --env-file infra/.env exec minio sh
-docker compose -f infra/docker-compose.yaml --env-file infra/.env exec redpanda rpk cluster info
-docker compose -f infra/docker-compose.yaml --env-file infra/.env exec vault sh
-docker compose -f infra/docker-compose.yaml --env-file infra/.env logs kes --tail=50
+docker compose $COMPOSE_FILES --env-file infra/.env exec minio sh
+docker compose $COMPOSE_FILES --env-file infra/.env exec redpanda rpk cluster info
+docker compose $COMPOSE_FILES --env-file infra/.env exec vault sh
+docker compose $COMPOSE_FILES --env-file infra/.env logs kes --tail=50
 ```
 
 ## KMS Readiness Checks
@@ -85,19 +84,19 @@ docker compose -f infra/docker-compose.yaml --env-file infra/.env logs kes --tai
 1. Verify Vault transit key exists:
 
 ```bash
-docker compose -f infra/docker-compose.yaml --env-file infra/.env exec -T vault sh -ec 'export VAULT_ADDR=http://127.0.0.1:8200; export VAULT_TOKEN="$VAULT_DEV_ROOT_TOKEN_ID"; vault read transit/keys/fintech-minio-kms-root'
+docker compose $COMPOSE_FILES --env-file infra/.env exec -T vault sh -ec 'export VAULT_ADDR=http://127.0.0.1:8200; export VAULT_TOKEN="$VAULT_DEV_ROOT_TOKEN_ID"; vault read transit/keys/fintech-minio-kms-root'
 ```
 
 2. Verify KES started against Vault:
 
 ```bash
-docker compose -f infra/docker-compose.yaml --env-file infra/.env logs kes --tail=50
+docker compose $COMPOSE_FILES --env-file infra/.env logs kes --tail=50
 ```
 
 3. Verify MinIO is up with KES endpoint configured:
 
 ```bash
-docker compose -f infra/docker-compose.yaml --env-file infra/.env logs minio --tail=50
+docker compose $COMPOSE_FILES --env-file infra/.env logs minio --tail=50
 ```
 
 4. Vault is intentionally running in dev mode for local demonstration. Restarting the `vault` container resets its in-memory state and can make previously written ciphertext undecryptable. Treat Vault restarts as a local re-bootstrap event.
@@ -214,7 +213,7 @@ mc cp --enc-kms "transform/fintech-lakehouse/bronze/=fintech-lakehouse-kms-key" 
 ### Vault Transit Key Rotation
 
 ```bash
-docker compose -f infra/docker-compose.yaml --env-file infra/.env exec -T vault sh -ec 'export VAULT_ADDR=http://127.0.0.1:8200; export VAULT_TOKEN="$VAULT_DEV_ROOT_TOKEN_ID"; vault write -f transit/keys/fintech-minio-kms-root/rotate; vault read -field=latest_version transit/keys/fintech-minio-kms-root'
+docker compose $COMPOSE_FILES --env-file infra/.env exec -T vault sh -ec 'export VAULT_ADDR=http://127.0.0.1:8200; export VAULT_TOKEN="$VAULT_DEV_ROOT_TOKEN_ID"; vault write -f transit/keys/fintech-minio-kms-root/rotate; vault read -field=latest_version transit/keys/fintech-minio-kms-root'
 ```
 
 After rotation, validate one new SSE-KMS write and read back both pre- and post-rotation objects.

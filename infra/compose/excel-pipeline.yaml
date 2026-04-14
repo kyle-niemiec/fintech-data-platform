@@ -1,0 +1,115 @@
+services:
+  clamav:
+    image: clamav/clamav:stable
+    container_name: fintech_clamav
+    restart: unless-stopped
+    environment:
+      CLAMAV_NO_FRESHCLAMD: "false"
+      CLAMAV_NO_MILTERD: "true"
+    volumes:
+      - clamav_data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "echo PING | nc -w 2 127.0.0.1 3310 | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 180s
+    networks:
+      - platform_internal
+
+  excel_scanner:
+    build:
+      context: ../backend
+      dockerfile: workers/excel_scanner/Dockerfile
+      network: host
+    container_name: fintech_excel_scanner
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      REDPANDA_BOOTSTRAP_SERVERS: ${REDPANDA_BOOTSTRAP_SERVERS}
+      REDPANDA_EXCEL_SCANNER_USER: ${REDPANDA_EXCEL_SCANNER_USER}
+      REDPANDA_EXCEL_SCANNER_PASSWORD: ${REDPANDA_EXCEL_SCANNER_PASSWORD}
+      REDPANDA_SECURITY_PROTOCOL: ${REDPANDA_SECURITY_PROTOCOL:-PLAINTEXT}
+      REDPANDA_SASL_MECHANISM: ${REDPANDA_SASL_MECHANISM:-SCRAM-SHA-256}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_SECURE: "false"
+      MINIO_INGEST_USER: ${MINIO_INGEST_USER}
+      MINIO_INGEST_SECRET: ${MINIO_INGEST_SECRET}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+      EXCEL_MAX_BYTES: ${EXCEL_MAX_BYTES:-26214400}
+      EVENT_STORE_DB: ${EVENT_STORE_DB}
+      EVENT_STORE_DB_HOST: event_store_db
+      EVENT_STORE_DB_PORT: ${EVENT_STORE_DB_PORT}
+      EVENT_APPEND_DB_USER: ${EVENT_APPEND_DB_USER}
+      EVENT_APPEND_DB_PASSWORD: ${EVENT_APPEND_DB_PASSWORD}
+    depends_on:
+      clamav:
+        condition: service_healthy
+      event_store_db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      redpanda:
+        condition: service_healthy
+    networks:
+      - platform_internal
+
+  excel_validation_trigger:
+    build:
+      context: ../backend
+      dockerfile: workers/excel_validation_trigger/Dockerfile
+      network: host
+    container_name: fintech_excel_validation_trigger
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      REDPANDA_BOOTSTRAP_SERVERS: ${REDPANDA_BOOTSTRAP_SERVERS}
+      REDPANDA_AIRFLOW_USER: ${REDPANDA_AIRFLOW_USER}
+      REDPANDA_AIRFLOW_PASSWORD: ${REDPANDA_AIRFLOW_PASSWORD}
+      REDPANDA_SECURITY_PROTOCOL: ${REDPANDA_SECURITY_PROTOCOL:-PLAINTEXT}
+      REDPANDA_SASL_MECHANISM: ${REDPANDA_SASL_MECHANISM:-SCRAM-SHA-256}
+      AIRFLOW_BASE_URL: http://airflow_webserver:8080
+      AIRFLOW_API_USER: ${AIRFLOW_ADMIN_USER}
+      AIRFLOW_API_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+    depends_on:
+      airflow_webserver:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    networks:
+      - platform_internal
+
+  excel_bronze_writer:
+    build:
+      context: ../backend
+      dockerfile: workers/excel_bronze_writer/Dockerfile
+      network: host
+    container_name: fintech_excel_bronze_writer
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      REDPANDA_BOOTSTRAP_SERVERS: ${REDPANDA_BOOTSTRAP_SERVERS}
+      REDPANDA_EXCEL_BRONZE_USER: ${REDPANDA_EXCEL_BRONZE_USER}
+      REDPANDA_EXCEL_BRONZE_PASSWORD: ${REDPANDA_EXCEL_BRONZE_PASSWORD}
+      REDPANDA_SECURITY_PROTOCOL: ${REDPANDA_SECURITY_PROTOCOL:-PLAINTEXT}
+      REDPANDA_SASL_MECHANISM: ${REDPANDA_SASL_MECHANISM:-SCRAM-SHA-256}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_SECURE: "false"
+      MINIO_TRANSFORM_USER: ${MINIO_TRANSFORM_USER}
+      MINIO_TRANSFORM_SECRET: ${MINIO_TRANSFORM_SECRET}
+      MINIO_KMS_KEY_ID: ${MINIO_KMS_KEY_ID}
+      EVENT_STORE_DB: ${EVENT_STORE_DB}
+      EVENT_STORE_DB_HOST: event_store_db
+      EVENT_STORE_DB_PORT: ${EVENT_STORE_DB_PORT}
+      EVENT_APPEND_DB_USER: ${EVENT_APPEND_DB_USER}
+      EVENT_APPEND_DB_PASSWORD: ${EVENT_APPEND_DB_PASSWORD}
+    depends_on:
+      event_store_db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      redpanda:
+        condition: service_healthy
+    networks:
+      - platform_internal
