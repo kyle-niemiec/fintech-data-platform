@@ -86,15 +86,21 @@ def build_scanner() -> tuple[ExcelScanner, psycopg.Connection, EventProducer, Co
     )
     producer = EventProducer(producer_config)
 
-    consumer = Consumer(
-        {
-            "bootstrap.servers": os.environ["REDPANDA_BOOTSTRAP_SERVERS"],
-            "group.id": CONSUMER_GROUP,
-            "auto.offset.reset": "earliest",
-            "enable.auto.commit": False,
-            "client.id": "excel-scanner-consumer",
-        }
-    )
+    consumer_config: dict[str, str] = {
+        "bootstrap.servers": os.environ["REDPANDA_BOOTSTRAP_SERVERS"],
+        "group.id": CONSUMER_GROUP,
+        "auto.offset.reset": "earliest",
+        "enable.auto.commit": False,
+        "client.id": "excel-scanner-consumer",
+    }
+    security_protocol = os.environ.get("REDPANDA_SECURITY_PROTOCOL", "PLAINTEXT")
+    if security_protocol != "PLAINTEXT":
+        consumer_config["security.protocol"] = security_protocol
+        consumer_config["sasl.mechanism"] = os.environ.get("REDPANDA_SASL_MECHANISM", "SCRAM-SHA-256")
+        consumer_config["sasl.username"] = os.environ["REDPANDA_EXCEL_SCANNER_USER"]
+        consumer_config["sasl.password"] = os.environ["REDPANDA_EXCEL_SCANNER_PASSWORD"]
+
+    consumer = Consumer(consumer_config)
     consumer.subscribe([TOPIC_UPLOADED])
 
     scanner = ExcelScanner(

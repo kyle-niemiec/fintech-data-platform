@@ -285,6 +285,30 @@ variable "minio_ingest_secret" {
   }
 }
 
+variable "minio_validation_user" {
+  description = "MinIO user for Excel validation DAG read/write path"
+  type        = string
+  default     = "minio_validation"
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.minio_validation_user) != ""
+    error_message = "minio_validation_user must be set."
+  }
+}
+
+variable "minio_validation_secret" {
+  description = "MinIO secret for Excel validation user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.minio_validation_secret)) >= 12
+    error_message = "minio_validation_secret must be at least 12 characters."
+  }
+}
+
 variable "minio_transform_user" {
   description = "MinIO user for transform services"
   type        = string

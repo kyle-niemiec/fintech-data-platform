@@ -1,0 +1,6 @@
+confluent-kafka
+minio
+pandas
+openpyxl
+pyarrow
+psycopg[binary]

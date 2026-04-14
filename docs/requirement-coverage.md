@@ -1,31 +1,27 @@
 # Requirement Coverage Matrix
 
-This matrix maps `project-planning.md` requirements to local event-driven components and IaC ownership.
+This matrix maps `project-planning.md` requirements to local event-driven components, IaC ownership, and delivery status.
 
-| Requirement Theme | Local Implementation | IaC Owner |
-| --- | --- | --- |
-| Excel upload triggers ingestion | Finance upload to MinIO landing prefix; object-created event emits to Redpanda | Terraform (bucket policy + notification), Compose (MinIO + Redpanda) |
-| Virus, type, and size checks | ClamAV scanner and file-gate worker consume upload event and emit verdict events | Compose service definitions, Terraform service identities/ACLs |
-| Airflow-driven schema validation | Airflow DAG validates Excel payload and routes raw vs quarantine | Airflow DAG code + Compose orchestration |
-| Quarantine on validation fail | Validation DAG writes quarantine artifact and failure event | Airflow DAG + MinIO policy IaC |
-| Raw file traceability linked to run IDs | Event-store `file_ingress` records map run IDs to landing/raw/quarantine URIs | SQL migrations + Terraform DB roles |
-| Bronze conversion from valid Excel | Airflow conversion task writes Parquet to bronze and emits bronze-ready event | Airflow DAG + MinIO policy IaC |
-| OLTP CDC via Debezium/DMS equivalent | Debezium captures WAL changes and publishes raw CDC topics | Compose connectors + Terraform topic ACLs |
-| CDC fraud detection subscriber | Fraud worker consumes CDC raw topics, scores risk, emits assessed events, flags OLTP records | Compose runtime + Terraform identities |
-| CDC bronze persistence with metadata | Bronze writer persists assessed payload with topic metadata and LSN fields | Airflow/worker code + data model contract |
-| Salesforce batch pull (scheduled) | Airflow incremental pulls with cursor tracking and auditable pull events; no API/UI initiation path | Airflow DAG + Compose + Terraform secrets |
-| Failure retry and auditable logging | Airflow retry policy emits attempt/failure events into event store | Airflow DAG + event-store schema |
-| Event storage exclusive DB | Dedicated event-store database isolated from API query persistence | Compose DB service + Terraform roles + migrations |
-| Bronze->silver->gold sequential orchestration | Event-driven Airflow DAG chain triggered from bronze-ready events | Airflow DAG + Redpanda topics |
-| EventBridge-like trigger chaining | MinIO notifications and stage-completion events route through Redpanda topics | Terraform bucket notification config + Compose Kafka target wiring + Terraform ACL config |
-| Event-first run initiation | Trigger events are emitted first, then `pipeline_run` records are created from those trigger events | Event contracts + event-store schema + pipeline writers |
-| Independent source pipelines | Excel, CDC, and Salesforce ingestion runs are tracked independently by `pipeline_name` and trigger criteria | Event-store schema + orchestration contracts |
-| Curated boundary after bronze | Curated promotion starts only from bronze-ready events and runs as a separate pipeline domain | Airflow DAG chain + event contracts + event-store lineage fields |
-| Partitioning across event storage layers | Redpanda topics are provisioned with canonical partition counts, event-store uses monthly partitions managed by pg_partman/pg_cron, and MinIO writer policies enforce source/date/run_id path templates | Terraform identity topic bootstrap + ACL config, SQL migrations (`partman.create_parent` + `event_store.run_partman_maintenance` + cron schedule), Terraform MinIO IAM policy constraints |
-| Encryption with KMS-like controls | MinIO SSE-KMS through KES/Vault with encrypted-write enforcement on `bronze/silver/gold/quarantine` and `landing/raw` excluded in this phase | Terraform bucket policies + KES/Vault config |
-| Append-only and replay-first processing | Immutable event log, offset checkpoints, replay-driven backfills | Event-store schema + topic retention policy IaC |
-| No destructive data correction | Corrections append new events rather than update/delete history | SQL role constraints + pipeline contract |
-| UI shows pipeline status and traceability | Read-only FastAPI query API serving run timeline, lineage, artifacts, alerts | Backend query API + read-model builders |
-| UI can generate success/failure demo data | UI triggers source-adapter generators that publish into source ingress paths; Excel generator picks a random actor from Keycloak `finance` role users | Compose source-adapter services + topic contracts + Keycloak IaC |
-| Notifications visible to any viewer | UI alert feed populated from `ui.alert.raised.v1` and event-store read models | Event contracts + query API |
-| API not required for ETL execution | All ingestion and transformation flows run through source triggers, broker, workers, and Airflow | Architecture boundary + runtime topology |
+| Requirement Theme | Local Implementation | IaC Owner | Delivery Phase |
+| --- | --- | --- | --- |
+| Excel upload triggers ingestion | Finance upload to MinIO `landing/source=excel/`; object-created notification publishes `ingest.excel.uploaded.v1` to Redpanda | Terraform bootstrap (bucket notification + IAM), Compose (MinIO + Redpanda) | Phase 3 complete |
+| Virus, type, and size checks | `excel_scanner` worker enforces ClamAV + MIME + size gates and emits pass/fail events | Compose service + Terraform identity ACLs | Phase 3 complete |
+| Airflow-driven schema validation | `excel_validation_trigger` worker consumes scan-pass and triggers Airflow `excel_validation` DAG idempotently | Compose + Terraform identity ACLs | Phase 3 complete |
+| Quarantine on validation fail | Airflow DAG copies artifact to `quarantine/` and emits `ingest.excel.quarantined.v1` | Airflow DAG + Terraform MinIO policy | Phase 3 complete |
+| Raw-ready on validation pass | Airflow DAG copies artifact to `raw/` and emits `ingest.excel.raw.ready.v1` | Airflow DAG + Terraform MinIO policy | Phase 3 complete |
+| Bronze conversion from valid Excel | `excel_bronze_writer` consumes `raw.ready`, writes Parquet to bronze with SSE-KMS, emits `ingest.excel.bronze.ready.v1` | Compose runtime + Terraform MinIO policy + Redpanda ACLs | Phase 3 complete |
+| Raw/bronze artifact traceability | `event_store.pipeline_run` + `event_store.event_log` persist run/event lineage with `input_uris[]` and `output_uris[]` | SQL migrations + Terraform DB roles | Phase 3 complete |
+| Event storage exclusive DB | Dedicated event-store Postgres instance, isolated from core app DB | Compose + Terraform bootstrap + migrations | Phase 1 complete |
+| Event-first run initiation | Trigger event is emitted first; `pipeline_run` enforced to include event before commit | Event contracts + DB trigger constraint | Phase 1 complete |
+| Independent ingestion pipelines | Fixed run domains (`excel_ingestion`, `cdc_ingestion`, `salesforce_ingestion`) and curated boundary contract | Event contracts + DB constraints | Phase 1 complete |
+| Curated boundary after bronze | Curated run contract begins from `*.bronze.ready.v1` with `parent_run_id` linkage | Event contracts + DB constraints | Phase 1 complete |
+| Partitioning across event storage layers | Redpanda topic partition defaults + event-store monthly partitions via `pg_partman/pg_cron` + MinIO path templates | Terraform identity + SQL migrations + Terraform MinIO IAM | Phase 1 complete |
+| Encryption with KMS-like controls | MinIO SSE-KMS via KES + Vault Transit; enforced writes on `bronze/silver/gold/quarantine` | Compose (Vault/KES/MinIO) + Terraform bootstrap policy | Phase 2 complete |
+| Append-only and replay-first processing | Event-store appender/query role split; append-only grants for runtime writers | SQL hardening migration + Terraform bootstrap roles | Phase 2 complete |
+| No destructive data correction | Runtime roles have no `UPDATE`/`DELETE`; replay appends events | SQL hardening migration + role model | Phase 2 complete |
+| API is not ETL control plane | FastAPI remains query-only; ingestion flow runs without API availability | Backend boundary + runtime topology | Phase 1 complete |
+| CDC via Debezium + fraud path | Debezium source -> fraud assessor -> bronze-ready event chain | Planned Compose services + Terraform ACLs/contracts | Phase 4 planned |
+| Salesforce incremental pull path | Airflow scheduled pull -> raw artifact -> bronze-ready events | Planned DAG/services + Terraform secrets/ACLs | Phase 5 planned |
+| Curated bronze->silver->gold orchestration | Event-driven DAG chain from bronze-ready into silver and gold outcomes | Planned DAG/services + Terraform ACLs | Phase 6 planned |
+| UI traceability + alert feed | Read-only UI query API uses event-store timeline and alert events | Backend query API + contracts | Phase 7 planned |
+| UI-triggered demo data generation | UI triggers internal source adapters (no direct ETL writes via API) | Planned adapter services + Keycloak IaC + contracts | Phase 7 planned |

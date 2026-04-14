@@ -46,3 +46,10 @@ def test_dag_imports_shared_libs():
     source = DAG_FILE.read_text()
     assert "libs.platform_events" in source
     assert "libs.excel_validation" in source
+
+
+def test_dag_handles_run_state_boundaries():
+    source = DAG_FILE.read_text()
+    assert "close_run" in source
+    assert "status=\"quarantined\"" in source
+    assert "status=\"running\"" in source

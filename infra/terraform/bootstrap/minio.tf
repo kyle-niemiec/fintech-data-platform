@@ -12,10 +12,22 @@ locals {
   landing_partition_paths = [
     "landing/source=excel/year=*/month=*/day=*/run_id=*/*"
   ]
-  raw_partition_paths = [
-    "raw/source=excel/year=*/month=*/day=*/run_id=*/*",
+  raw_excel_partition_paths = [
+    "raw/source=excel/year=*/month=*/day=*/run_id=*/*"
+  ]
+  raw_salesforce_partition_paths = [
     "raw/source=salesforce/object=*/year=*/month=*/day=*/run_id=*/*"
   ]
+  raw_partition_paths = concat(
+    local.raw_excel_partition_paths,
+    local.raw_salesforce_partition_paths
+  )
+  raw_excel_partition_resources = sort([
+    for path in local.raw_excel_partition_paths : "${local.minio_bucket_arn}/${path}"
+  ])
+  raw_partition_resources = sort([
+    for path in local.raw_partition_paths : "${local.minio_bucket_arn}/${path}"
+  ])
   quarantine_partition_paths = [
     "quarantine/source=*/year=*/month=*/day=*/run_id=*/*"
   ]
@@ -33,9 +45,14 @@ locals {
   landing_partition_resources = sort([
     for path in local.landing_partition_paths : "${local.minio_bucket_arn}/${path}"
   ])
-  raw_partition_resources = sort([
-    for path in local.raw_partition_paths : "${local.minio_bucket_arn}/${path}"
+  quarantine_partition_resources = sort([
+    for path in local.quarantine_partition_paths : "${local.minio_bucket_arn}/${path}"
   ])
+  validation_partition_resources = sort(concat(
+    local.landing_partition_resources,
+    local.raw_excel_partition_resources,
+    local.quarantine_partition_resources
+  ))
   curated_partition_resources = sort([
     for path in concat(
       local.quarantine_partition_paths,
@@ -185,6 +202,58 @@ resource "minio_iam_policy" "ingest" {
   })
 }
 
+resource "minio_iam_policy" "validation" {
+  name = "minio_validation"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ListValidationPrefixes"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = [local.minio_bucket_arn]
+        Condition = {
+          StringLike = {
+            "s3:prefix" = [
+              "landing/source=excel/*",
+              "raw/source=excel/*",
+              "quarantine/source=*/*"
+            ]
+          }
+        }
+      },
+      {
+        Sid      = "ReadValidationInputs"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = local.validation_partition_resources
+      },
+      {
+        Sid      = "WriteRawExcelObjects"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
+        Resource = local.raw_excel_partition_resources
+      },
+      {
+        Sid       = "WriteQuarantineObjects"
+        Effect    = "Allow"
+        Action    = ["s3:PutObject"]
+        Resource  = local.quarantine_partition_resources
+        Condition = local.kms_write_condition
+      },
+      {
+        Sid    = "ManageValidationMultipartUploads"
+        Effect = "Allow"
+        Action = [
+          "s3:AbortMultipartUpload",
+          "s3:ListMultipartUploadParts"
+        ]
+        Resource = sort(concat(local.raw_excel_partition_resources, local.quarantine_partition_resources))
+      }
+    ]
+  })
+}
+
 resource "minio_iam_policy" "transform" {
   name = "minio_transform"
   policy = jsonencode({
@@ -327,6 +396,13 @@ resource "minio_iam_user" "transform" {
   update_secret = true
 }
 
+resource "minio_iam_user" "validation" {
+  name          = var.minio_validation_user
+  secret        = var.minio_validation_secret
+  force_destroy = true
+  update_secret = true
+}
+
 resource "minio_iam_user" "trino_write" {
   name          = var.minio_trino_write_user
   secret        = var.minio_trino_write_secret
@@ -349,6 +425,11 @@ resource "minio_iam_user_policy_attachment" "ingest" {
 resource "minio_iam_user_policy_attachment" "transform" {
   user_name   = var.minio_transform_user
   policy_name = minio_iam_policy.transform.name
+}
+
+resource "minio_iam_user_policy_attachment" "validation" {
+  user_name   = var.minio_validation_user
+  policy_name = minio_iam_policy.validation.name
 }
 
 resource "minio_iam_user_policy_attachment" "trino_write" {

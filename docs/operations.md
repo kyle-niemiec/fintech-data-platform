@@ -37,46 +37,26 @@ docker run --rm minio/kes:latest identity new
 
 ## Startup Sequence (Target Local Stack)
 
-1. Initialize Terraform providers:
+Run the staged infra bootstrap first:
 
 ```bash
-make infra-tf-init
+make infra-up 1
+make infra-up 2
+make infra-up 3
+make infra-up 4
+make infra-up 5
+make infra-up 6
 ```
 
-2. Start core stateful services (Postgres, event-store DB, Vault/KES, MinIO, Redpanda):
+Then start Phase 3 orchestration + workers:
 
 ```bash
-docker compose -f infra/docker-compose.yaml --env-file infra/.env up -d postgres event_store_db vault kes minio redpanda
+docker compose -f infra/docker-compose.yaml --env-file infra/.env up -d \
+  airflow_postgres airflow_init airflow_scheduler airflow_webserver \
+  clamav excel_scanner excel_validation_trigger excel_bronze_writer
 ```
 
-`vault_bootstrap` and `kes_bootstrap` run automatically as one-shot dependencies during this step.
-MinIO Kafka target `notify_kafka:PRIMARY` is also configured at container startup from Compose environment variables.
-
-3. Apply Terraform bootstrap (DB roles, bucket policies, MinIO->Redpanda notifications, encryption policies):
-
-```bash
-make infra-tf-bootstrap
-```
-
-4. Start identity and orchestration services:
-
-```bash
-docker compose -f infra/docker-compose.yaml --env-file infra/.env up -d keycloak airflow-webserver airflow-scheduler airflow-worker
-```
-
-5. Start ingestion and processing services:
-
-```bash
-docker compose -f infra/docker-compose.yaml --env-file infra/.env up -d clamav scanner debezium fraud-worker sf-extractor bronze-writer curated-promoter
-```
-
-6. Apply Terraform identity and access layer (Keycloak realm + Redpanda service identities/ACLs):
-
-```bash
-make infra-tf-apply
-```
-
-7. Build and start the UI query API container:
+Start the UI query API (optional for ETL runtime):
 
 ```bash
 make api-install
@@ -135,39 +115,38 @@ make db-psql-event-store
 \i /docker-entrypoint-initdb.d/02_harden_privileges.sql
 ```
 
-## Source-to-Gold Validation Sequence
+## Excel Validation Sequence (Phase 3)
 
 ### Excel validation path
 
 1. Upload workbook to landing prefix using finance upload identity.
-2. Confirm events in order:
+2. Confirm scanner + trigger + DAG + writer events in order:
    - `ingest.excel.uploaded.v1`
-   - `ingest.excel.scanned.*.v1`
+   - `ingest.excel.scanned.pass.v1` or `ingest.excel.scanned.fail.v1`
    - `ingest.excel.raw.ready.v1` or `ingest.excel.quarantined.v1`
    - `ingest.excel.bronze.ready.v1`
-3. Confirm event-store run timeline includes every stage.
-4. Confirm run metadata indicates `pipeline_class=ingestion` and `pipeline_name=excel_ingestion`.
+3. Confirm `excel_validation_trigger` creates exactly one DAG run per run ID (`excel_validation__<run_id>`; duplicate trigger should return 409-idempotent success).
+4. Confirm event-store run timeline includes every stage.
+5. Confirm run metadata indicates `pipeline_class=ingestion` and `pipeline_name=excel_ingestion`.
 
-### CDC validation path
+### Negative-path checks
 
-1. Wait for internal CDC data generator cycle (5-10 minutes) or insert/update OLTP transaction rows for an immediate check.
-2. Confirm CDC events and fraud-assessed events are emitted.
-3. Verify bronze records include Kafka metadata and LSN.
-4. Confirm run metadata indicates `pipeline_class=ingestion` and `pipeline_name=cdc_ingestion`.
+1. Virus fail path:
+   - publish/upload known-infected sample (EICAR test file in xlsx container)
+   - confirm `ingest.excel.scanned.fail.v1`
+   - confirm run closes `scan_failed`
+2. Schema fail path:
+   - upload structurally invalid workbook
+   - confirm `ingest.excel.quarantined.v1`
+   - confirm run closes `quarantined`
 
-### Salesforce validation path
+### Pending pipelines (later roadmap phases)
 
-1. Wait for scheduled incremental pull trigger.
-2. Confirm pull started/succeeded or failed events.
-3. Verify raw response persistence and bronze output event.
-4. Confirm run metadata indicates `pipeline_class=ingestion` and `pipeline_name=salesforce_ingestion`.
+- CDC/Fraud validation is Phase 4.
+- Salesforce pull validation is Phase 5.
+- Curated promotion validation is Phase 6.
 
-### Curated validation path
-
-1. Confirm bronze-ready events trigger silver DAG.
-2. Confirm silver-completed events trigger gold DAG.
-3. Verify UI run trace shows full lineage through gold.
-4. Confirm curated promotion runs are tracked separately with `pipeline_class=curated` and linked to ingestion runs via `parent_run_id`.
+Do not expect CDC/Salesforce/curated runtime services in Phase 3 bring-up.
 
 ## Replay and Backfill
 
@@ -198,10 +177,10 @@ SELECT event_store.run_partman_maintenance();
 
 ## Failure Handling
 
-- Scan failures route to quarantine and emit alert events.
-- Validation failures route to quarantine with structured error payload.
-- Airflow retries follow DAG policy and emit retry metadata events.
-- Fraud high-risk outcomes emit UI alerts and flag OLTP records.
+- Scan failures emit `ingest.excel.scanned.fail.v1` and close runs as `scan_failed`.
+- Validation failures emit `ingest.excel.quarantined.v1` and close runs as `quarantined`.
+- Bronze conversion failures raise `ui.alert.raised.v1` and close runs as `failed`.
+- Airflow trigger worker commits Kafka offsets only after DAG trigger success or idempotent 409.
 
 ## Operational Constraints
 
@@ -259,6 +238,7 @@ Treat runtime auth validation as the acceptance check for secret rotation.
 docker run --rm --env-file infra/.env --entrypoint /bin/sh --network infra_platform_internal minio/mc -ec '
 mc alias set root http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
 mc admin user add root "$MINIO_INGEST_USER" "$MINIO_INGEST_SECRET"
+mc admin user add root "$MINIO_VALIDATION_USER" "$MINIO_VALIDATION_SECRET"
 mc admin user add root "$MINIO_TRANSFORM_USER" "$MINIO_TRANSFORM_SECRET"
 '
 ```

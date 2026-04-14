@@ -29,11 +29,15 @@ Network isolation is already in place via Phase 1, so this phase focuses on data
 
 ## Phase 3 - Excel Pipeline
 
-- Implement ClamAV scanning workflow.
-- Implement file size/type gating.
-- Implement Airflow validation DAG with raw/quarantine branching.
-- Persist structured validation events and artifact lineage.
-- Emit bronze-ready events.
+Completed:
+- ClamAV scanner worker consumes `ingest.excel.uploaded.v1` and enforces size/type/malware gates.
+- Dedicated trigger worker consumes `ingest.excel.scanned.pass.v1` and creates idempotent Airflow DAG runs (`dag_run_id=excel_validation__<run_id>`).
+- Airflow `excel_validation` DAG performs schema validation and emits:
+  - `ingest.excel.raw.ready.v1` on pass (`pipeline_run` remains `running`)
+  - `ingest.excel.quarantined.v1` on fail (`pipeline_run` closes `quarantined`)
+- Dedicated bronze writer consumes `ingest.excel.raw.ready.v1`, writes Parquet to bronze with SSE-KMS headers, emits `ingest.excel.bronze.ready.v1`, and closes run `completed` (or `failed` with alert on error).
+- Terraform identity provisions dedicated Redpanda principals for scanner, airflow trigger, and bronze writer with least-privilege topic/group ACLs.
+- Terraform bootstrap provisions dedicated MinIO validation principal (`landing/raw/quarantine` scope) used by the Airflow validation DAG.
 
 ## Phase 4 - CDC and Fraud Pipeline
 

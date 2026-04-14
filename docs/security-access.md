@@ -18,11 +18,13 @@ This architecture enforces least privilege and immutable audit trails across eve
 | --- | --- | --- |
 | Finance uploader | MinIO | Put-only to `landing/source=excel/year=*/month=*/day=*/run_id=*/*` |
 | Demo Excel generator | Keycloak + MinIO + Redpanda | Select random `finance` actor identity, upload sample files, emit ingress events |
-| Scan worker | MinIO + Redpanda | Read `landing/*`, write scan verdict topics |
-| Airflow worker | MinIO + Redpanda + Event DB | Read/write stage prefixes, consume/produce orchestration topics, append event-store records |
-| Debezium connector | OLTP + Redpanda | Read WAL/CDC, publish `cdc.oltp.raw.v1` |
-| Fraud worker | Redpanda + OLTP + MinIO | Consume CDC raw, write risk flags, publish assessed events, write bronze outputs |
-| Salesforce extractor | Salesforce API + MinIO + Event DB | Pull raw responses, persist raw artifacts, append pull events |
+| Excel scanner worker (`rp_excel_scanner`) | MinIO + Redpanda + Event DB | Consume `ingest.excel.uploaded.v1`, read landing object, emit scan verdict topics, append event-store records |
+| Excel validation trigger worker (`rp_airflow`) | Redpanda + Airflow API | Consume `ingest.excel.scanned.pass.v1`, trigger idempotent `excel_validation` DAG runs |
+| Airflow validation DAG (`rp_airflow` + `minio_validation`) | MinIO + Redpanda + Event DB | Read landing/raw/quarantine inputs, write raw/quarantine outputs, emit `raw.ready`/`quarantined`, append event-store records |
+| Excel bronze writer (`rp_excel_bronze`) | MinIO + Redpanda + Event DB | Consume `ingest.excel.raw.ready.v1`, write bronze parquet with SSE-KMS, emit `ingest.excel.bronze.ready.v1`, append event-store records |
+| Debezium connector | OLTP + Redpanda | Read WAL/CDC, publish `cdc.oltp.raw.v1` (Phase 4) |
+| Fraud worker | Redpanda + OLTP + MinIO | Consume CDC raw, write risk flags, publish assessed events, write bronze outputs (Phase 4) |
+| Salesforce extractor | Salesforce API + MinIO + Event DB | Pull raw responses, persist raw artifacts, append pull events (Phase 5) |
 | UI query API | Event DB read models | Read-only run/lineage/artifact/alert views |
 | Trino analyst path | Iceberg/MinIO | Read `silver/*` only |
 | Trino executive path | Iceberg/MinIO | Read `gold/*` only |

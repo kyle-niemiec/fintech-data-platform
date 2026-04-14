@@ -41,21 +41,35 @@ resource "terraform_data" "redpanda_identity_and_acls" {
       cdc_topics        = local.redpanda_cdc_topics
       pipeline_topics   = local.redpanda_pipeline_topics
       alert_topics      = local.redpanda_alert_topics
+      consumer_groups = {
+        excel_scanner = "excel-scanner-v1"
+        airflow       = "excel-validation-trigger-v1"
+        excel_bronze  = "excel-bronze-writer-v1"
+        fraud         = "fraud-worker-v1"
+        orchestrator  = "curated-orchestrator-v1"
+        ui_alerts     = "ui-alert-feed-v1"
+      }
       users = {
-        excel        = var.redpanda_excel_service_user
-        cdc          = var.redpanda_cdc_service_user
-        fraud        = var.redpanda_fraud_service_user
-        salesforce   = var.redpanda_salesforce_service_user
-        orchestrator = var.redpanda_orchestrator_service_user
-        ui           = var.redpanda_ui_service_user
+        excel_upload  = var.redpanda_excel_service_user
+        excel_scanner = var.redpanda_excel_scanner_user
+        airflow       = var.redpanda_airflow_user
+        excel_bronze  = var.redpanda_excel_bronze_user
+        cdc           = var.redpanda_cdc_service_user
+        fraud         = var.redpanda_fraud_service_user
+        salesforce    = var.redpanda_salesforce_service_user
+        orchestrator  = var.redpanda_orchestrator_service_user
+        ui            = var.redpanda_ui_service_user
       }
       user_password_hashes = {
-        excel        = sha256(var.redpanda_excel_service_password)
-        cdc          = sha256(var.redpanda_cdc_service_password)
-        fraud        = sha256(var.redpanda_fraud_service_password)
-        salesforce   = sha256(var.redpanda_salesforce_service_password)
-        orchestrator = sha256(var.redpanda_orchestrator_service_password)
-        ui           = sha256(var.redpanda_ui_service_password)
+        excel_upload  = sha256(var.redpanda_excel_service_password)
+        excel_scanner = sha256(var.redpanda_excel_scanner_password)
+        airflow       = sha256(var.redpanda_airflow_password)
+        excel_bronze  = sha256(var.redpanda_excel_bronze_password)
+        cdc           = sha256(var.redpanda_cdc_service_password)
+        fraud         = sha256(var.redpanda_fraud_service_password)
+        salesforce    = sha256(var.redpanda_salesforce_service_password)
+        orchestrator  = sha256(var.redpanda_orchestrator_service_password)
+        ui            = sha256(var.redpanda_ui_service_password)
       }
     }))
   ]
@@ -78,6 +92,12 @@ resource "terraform_data" "redpanda_identity_and_acls" {
       REDPANDA_ALERT_TOPICS                  = join(",", local.redpanda_alert_topics)
       REDPANDA_EXCEL_SERVICE_USER            = var.redpanda_excel_service_user
       REDPANDA_EXCEL_SERVICE_PASSWORD        = var.redpanda_excel_service_password
+      REDPANDA_EXCEL_SCANNER_USER            = var.redpanda_excel_scanner_user
+      REDPANDA_EXCEL_SCANNER_PASSWORD        = var.redpanda_excel_scanner_password
+      REDPANDA_AIRFLOW_USER                  = var.redpanda_airflow_user
+      REDPANDA_AIRFLOW_PASSWORD              = var.redpanda_airflow_password
+      REDPANDA_EXCEL_BRONZE_USER             = var.redpanda_excel_bronze_user
+      REDPANDA_EXCEL_BRONZE_PASSWORD         = var.redpanda_excel_bronze_password
       REDPANDA_CDC_SERVICE_USER              = var.redpanda_cdc_service_user
       REDPANDA_CDC_SERVICE_PASSWORD          = var.redpanda_cdc_service_password
       REDPANDA_FRAUD_SERVICE_USER            = var.redpanda_fraud_service_user
@@ -89,6 +109,9 @@ resource "terraform_data" "redpanda_identity_and_acls" {
       REDPANDA_UI_SERVICE_USER               = var.redpanda_ui_service_user
       REDPANDA_UI_SERVICE_PASSWORD           = var.redpanda_ui_service_password
       REDPANDA_FRAUD_CONSUMER_GROUP          = "fraud-worker-v1"
+      REDPANDA_EXCEL_SCANNER_CONSUMER_GROUP  = "excel-scanner-v1"
+      REDPANDA_AIRFLOW_CONSUMER_GROUP        = "excel-validation-trigger-v1"
+      REDPANDA_EXCEL_BRONZE_CONSUMER_GROUP   = "excel-bronze-writer-v1"
       REDPANDA_ORCHESTRATOR_CONSUMER_GROUP   = "curated-orchestrator-v1"
       REDPANDA_UI_ALERTS_CONSUMER_GROUP      = "ui-alert-feed-v1"
     }

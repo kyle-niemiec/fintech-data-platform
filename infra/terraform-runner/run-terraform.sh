@@ -54,6 +54,8 @@ require_env MINIO_ROOT_PASSWORD
 require_env MINIO_BUCKET_NAME
 require_env MINIO_INGEST_USER
 require_env MINIO_INGEST_SECRET
+require_env MINIO_VALIDATION_USER
+require_env MINIO_VALIDATION_SECRET
 require_env MINIO_TRANSFORM_USER
 require_env MINIO_TRANSFORM_SECRET
 require_env MINIO_TRINO_WRITE_USER
@@ -94,6 +96,8 @@ export TF_VAR_minio_root_password="$MINIO_ROOT_PASSWORD"
 export TF_VAR_minio_bucket_name="$MINIO_BUCKET_NAME"
 export TF_VAR_minio_ingest_user="$MINIO_INGEST_USER"
 export TF_VAR_minio_ingest_secret="$MINIO_INGEST_SECRET"
+export TF_VAR_minio_validation_user="$MINIO_VALIDATION_USER"
+export TF_VAR_minio_validation_secret="$MINIO_VALIDATION_SECRET"
 export TF_VAR_minio_transform_user="$MINIO_TRANSFORM_USER"
 export TF_VAR_minio_transform_secret="$MINIO_TRANSFORM_SECRET"
 export TF_VAR_minio_trino_write_user="$MINIO_TRINO_WRITE_USER"
@@ -114,6 +118,12 @@ export TF_VAR_redpanda_cdc_topic_partitions="${REDPANDA_CDC_TOPIC_PARTITIONS:-12
 export TF_VAR_redpanda_alert_topic_partitions="${REDPANDA_ALERT_TOPIC_PARTITIONS:-3}"
 export TF_VAR_redpanda_excel_service_user="${REDPANDA_EXCEL_SERVICE_USER:-rp_excel_service}"
 export TF_VAR_redpanda_excel_service_password="${REDPANDA_EXCEL_SERVICE_PASSWORD:-replace_with_redpanda_excel_service_password}"
+export TF_VAR_redpanda_excel_scanner_user="${REDPANDA_EXCEL_SCANNER_USER:-rp_excel_scanner}"
+export TF_VAR_redpanda_excel_scanner_password="${REDPANDA_EXCEL_SCANNER_PASSWORD:-replace_with_redpanda_excel_scanner_password}"
+export TF_VAR_redpanda_airflow_user="${REDPANDA_AIRFLOW_USER:-rp_airflow}"
+export TF_VAR_redpanda_airflow_password="${REDPANDA_AIRFLOW_PASSWORD:-replace_with_redpanda_airflow_password}"
+export TF_VAR_redpanda_excel_bronze_user="${REDPANDA_EXCEL_BRONZE_USER:-rp_excel_bronze}"
+export TF_VAR_redpanda_excel_bronze_password="${REDPANDA_EXCEL_BRONZE_PASSWORD:-replace_with_redpanda_excel_bronze_password}"
 export TF_VAR_redpanda_cdc_service_user="${REDPANDA_CDC_SERVICE_USER:-rp_cdc_service}"
 export TF_VAR_redpanda_cdc_service_password="${REDPANDA_CDC_SERVICE_PASSWORD:-replace_with_redpanda_cdc_service_password}"
 export TF_VAR_redpanda_fraud_service_user="${REDPANDA_FRAUD_SERVICE_USER:-rp_fraud_service}"

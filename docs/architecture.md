@@ -76,11 +76,15 @@ Primary runtime components:
 - MinIO
 - Redpanda
 - Airflow
+- ClamAV scanner
+- Excel validation trigger worker
+- Excel bronze writer
+
+Planned for later phases:
 - Debezium
 - Fraud worker
-- ClamAV scanner
 - Salesforce extractor
-- Parquet writers
+- Curated promotion workers/DAGs
 
 ### Query Plane
 
@@ -122,9 +126,9 @@ See [partitioning-strategy.md](partitioning-strategy.md) for the canonical plan 
 1. Finance uploads to `landing/` using constrained write identity.
 2. MinIO emits object-created event to Redpanda.
 3. Scan worker runs ClamAV + type/size checks and emits verdict events.
-4. Airflow validates schema/content and writes either `raw/` or `quarantine/`.
-5. Airflow converts valid payloads to Parquet and writes `bronze/`.
-6. Airflow emits bronze-ready event for curated DAG chain.
+4. Trigger worker consumes `scanned.pass` and creates idempotent Airflow DAG runs.
+5. Airflow validates schema/content and writes either `raw/` or `quarantine/`.
+6. Bronze writer consumes `raw.ready`, writes Parquet to `bronze/`, and emits bronze-ready events.
 
 ### CDC
 1. OLTP changes are captured by Debezium.

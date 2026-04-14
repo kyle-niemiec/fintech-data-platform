@@ -26,6 +26,12 @@ require_env REDPANDA_PIPELINE_TOPICS
 require_env REDPANDA_ALERT_TOPICS
 require_env REDPANDA_EXCEL_SERVICE_USER
 require_env REDPANDA_EXCEL_SERVICE_PASSWORD
+require_env REDPANDA_EXCEL_SCANNER_USER
+require_env REDPANDA_EXCEL_SCANNER_PASSWORD
+require_env REDPANDA_AIRFLOW_USER
+require_env REDPANDA_AIRFLOW_PASSWORD
+require_env REDPANDA_EXCEL_BRONZE_USER
+require_env REDPANDA_EXCEL_BRONZE_PASSWORD
 require_env REDPANDA_CDC_SERVICE_USER
 require_env REDPANDA_CDC_SERVICE_PASSWORD
 require_env REDPANDA_FRAUD_SERVICE_USER
@@ -36,6 +42,9 @@ require_env REDPANDA_ORCHESTRATOR_SERVICE_USER
 require_env REDPANDA_ORCHESTRATOR_SERVICE_PASSWORD
 require_env REDPANDA_UI_SERVICE_USER
 require_env REDPANDA_UI_SERVICE_PASSWORD
+require_env REDPANDA_EXCEL_SCANNER_CONSUMER_GROUP
+require_env REDPANDA_AIRFLOW_CONSUMER_GROUP
+require_env REDPANDA_EXCEL_BRONZE_CONSUMER_GROUP
 require_env REDPANDA_FRAUD_CONSUMER_GROUP
 require_env REDPANDA_ORCHESTRATOR_CONSUMER_GROUP
 require_env REDPANDA_UI_ALERTS_CONSUMER_GROUP
@@ -165,19 +174,34 @@ for topic_name in $(split_csv "${REDPANDA_ALERT_TOPICS}"); do
 done
 
 ensure_user "${REDPANDA_EXCEL_SERVICE_USER}" "${REDPANDA_EXCEL_SERVICE_PASSWORD}"
+ensure_user "${REDPANDA_EXCEL_SCANNER_USER}" "${REDPANDA_EXCEL_SCANNER_PASSWORD}"
+ensure_user "${REDPANDA_AIRFLOW_USER}" "${REDPANDA_AIRFLOW_PASSWORD}"
+ensure_user "${REDPANDA_EXCEL_BRONZE_USER}" "${REDPANDA_EXCEL_BRONZE_PASSWORD}"
 ensure_user "${REDPANDA_CDC_SERVICE_USER}" "${REDPANDA_CDC_SERVICE_PASSWORD}"
 ensure_user "${REDPANDA_FRAUD_SERVICE_USER}" "${REDPANDA_FRAUD_SERVICE_PASSWORD}"
 ensure_user "${REDPANDA_SALESFORCE_SERVICE_USER}" "${REDPANDA_SALESFORCE_SERVICE_PASSWORD}"
 ensure_user "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "${REDPANDA_ORCHESTRATOR_SERVICE_PASSWORD}"
 ensure_user "${REDPANDA_UI_SERVICE_USER}" "${REDPANDA_UI_SERVICE_PASSWORD}"
 
-# Excel ingress/scanner/validator emissions.
+# Excel upload ingress (kept for demo upload generation only).
 ensure_acl "${REDPANDA_EXCEL_SERVICE_USER}" "write" "topic" "ingest.excel.uploaded.v1"
-ensure_acl "${REDPANDA_EXCEL_SERVICE_USER}" "write" "topic" "ingest.excel.scanned.pass.v1"
-ensure_acl "${REDPANDA_EXCEL_SERVICE_USER}" "write" "topic" "ingest.excel.scanned.fail.v1"
-ensure_acl "${REDPANDA_EXCEL_SERVICE_USER}" "write" "topic" "ingest.excel.raw.ready.v1"
-ensure_acl "${REDPANDA_EXCEL_SERVICE_USER}" "write" "topic" "ingest.excel.quarantined.v1"
-ensure_acl "${REDPANDA_EXCEL_SERVICE_USER}" "write" "topic" "ingest.excel.bronze.ready.v1"
+
+# Excel scanner consume uploaded, emit scanned outcomes.
+ensure_acl "${REDPANDA_EXCEL_SCANNER_USER}" "read" "topic" "ingest.excel.uploaded.v1"
+ensure_acl "${REDPANDA_EXCEL_SCANNER_USER}" "read" "group" "${REDPANDA_EXCEL_SCANNER_CONSUMER_GROUP}"
+ensure_acl "${REDPANDA_EXCEL_SCANNER_USER}" "write" "topic" "ingest.excel.scanned.pass.v1"
+ensure_acl "${REDPANDA_EXCEL_SCANNER_USER}" "write" "topic" "ingest.excel.scanned.fail.v1"
+
+# Airflow trigger worker consume scanned.pass, emit raw/quarantine outcomes.
+ensure_acl "${REDPANDA_AIRFLOW_USER}" "read" "topic" "ingest.excel.scanned.pass.v1"
+ensure_acl "${REDPANDA_AIRFLOW_USER}" "read" "group" "${REDPANDA_AIRFLOW_CONSUMER_GROUP}"
+ensure_acl "${REDPANDA_AIRFLOW_USER}" "write" "topic" "ingest.excel.raw.ready.v1"
+ensure_acl "${REDPANDA_AIRFLOW_USER}" "write" "topic" "ingest.excel.quarantined.v1"
+
+# Bronze writer consume raw.ready, emit bronze.ready.
+ensure_acl "${REDPANDA_EXCEL_BRONZE_USER}" "read" "topic" "ingest.excel.raw.ready.v1"
+ensure_acl "${REDPANDA_EXCEL_BRONZE_USER}" "read" "group" "${REDPANDA_EXCEL_BRONZE_CONSUMER_GROUP}"
+ensure_acl "${REDPANDA_EXCEL_BRONZE_USER}" "write" "topic" "ingest.excel.bronze.ready.v1"
 
 # CDC source publication.
 ensure_acl "${REDPANDA_CDC_SERVICE_USER}" "write" "topic" "cdc.oltp.raw.v1"

@@ -20,7 +20,7 @@ All source pipelines are event-driven and write audit events to the dedicated ev
 - Trigger: MinIO object-created event on `landing/source=excel/` prefix.
 - Source actor: finance uploader identity with prefix-scoped write permissions.
 - Demo mode: the internal Excel generator selects a random actor from Keycloak users assigned to the `finance` role.
-- IaC owners: MinIO bucket notifications (Terraform + Compose wiring), topic ACLs (Terraform), scanner and validator services (Compose).
+- IaC owners: MinIO bucket notifications (Terraform + Compose wiring), topic ACLs (Terraform), scanner/trigger/bronze-writer services (Compose), Airflow DAG runtime (Compose + DAG code).
 
 ### Processing Flow
 
@@ -33,11 +33,12 @@ All source pipelines are event-driven and write audit events to the dedicated ev
 4. Scan verdict event emitted:
    - pass: `ingest.excel.scanned.pass.v1`
    - fail: `ingest.excel.scanned.fail.v1`
-5. Airflow validation DAG consumes pass events, performs schema validation.
-6. Validation outcome:
+5. `excel_validation_trigger` worker consumes `ingest.excel.scanned.pass.v1` and creates an idempotent `excel_validation` DAG run (`dag_run_id=excel_validation__<run_id>`).
+6. Airflow validation DAG performs schema validation.
+7. Validation outcome:
    - fail -> original file copied to `quarantine/` + `ingest.excel.quarantined.v1`
    - pass -> raw canonical payload written to `raw/` + `ingest.excel.raw.ready.v1`
-7. Airflow conversion task writes Parquet to `bronze/` and emits `ingest.excel.bronze.ready.v1`.
+8. `excel_bronze_writer` worker consumes `ingest.excel.raw.ready.v1`, converts to Parquet, writes to `bronze/` with SSE-KMS headers, and emits `ingest.excel.bronze.ready.v1`.
 
 ### Audit Requirements
 

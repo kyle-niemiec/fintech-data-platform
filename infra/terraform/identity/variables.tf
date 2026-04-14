@@ -192,6 +192,78 @@ variable "redpanda_excel_service_password" {
   }
 }
 
+variable "redpanda_excel_scanner_user" {
+  description = "Redpanda service identity for Excel scanner consume/produce path"
+  type        = string
+  default     = "rp_excel_scanner"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]{3,64}$", var.redpanda_excel_scanner_user))
+    error_message = "redpanda_excel_scanner_user must be 3-64 chars using letters, numbers, '.', '_' or '-'."
+  }
+}
+
+variable "redpanda_excel_scanner_password" {
+  description = "Password for redpanda_excel_scanner_user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.redpanda_excel_scanner_password)) >= 12
+    error_message = "redpanda_excel_scanner_password must be at least 12 characters."
+  }
+}
+
+variable "redpanda_airflow_user" {
+  description = "Redpanda service identity for Excel validation trigger worker"
+  type        = string
+  default     = "rp_airflow"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]{3,64}$", var.redpanda_airflow_user))
+    error_message = "redpanda_airflow_user must be 3-64 chars using letters, numbers, '.', '_' or '-'."
+  }
+}
+
+variable "redpanda_airflow_password" {
+  description = "Password for redpanda_airflow_user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.redpanda_airflow_password)) >= 12
+    error_message = "redpanda_airflow_password must be at least 12 characters."
+  }
+}
+
+variable "redpanda_excel_bronze_user" {
+  description = "Redpanda service identity for Excel bronze writer consume/produce path"
+  type        = string
+  default     = "rp_excel_bronze"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]{3,64}$", var.redpanda_excel_bronze_user))
+    error_message = "redpanda_excel_bronze_user must be 3-64 chars using letters, numbers, '.', '_' or '-'."
+  }
+}
+
+variable "redpanda_excel_bronze_password" {
+  description = "Password for redpanda_excel_bronze_user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.redpanda_excel_bronze_password)) >= 12
+    error_message = "redpanda_excel_bronze_password must be at least 12 characters."
+  }
+}
+
 variable "redpanda_cdc_service_user" {
   description = "Redpanda service identity for CDC source publication"
   type        = string

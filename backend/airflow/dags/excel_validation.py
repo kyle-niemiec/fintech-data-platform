@@ -61,8 +61,8 @@ def _get_minio_client():
 
     return Minio(
         os.environ["MINIO_ENDPOINT"],
-        access_key=os.environ["MINIO_TRANSFORM_USER"],
-        secret_key=os.environ["MINIO_TRANSFORM_SECRET"],
+        access_key=os.environ["MINIO_VALIDATION_USER"],
+        secret_key=os.environ["MINIO_VALIDATION_SECRET"],
         secure=os.environ.get("MINIO_SECURE", "false").lower() == "true",
     )
 
@@ -209,7 +209,7 @@ with DAG(
             PipelineClass,
             PipelineName,
         )
-        from libs.platform_events.event_store import append_event
+        from libs.platform_events.event_store import append_event, close_run
 
         outcome = next((b for b in branch_outputs if b), None)
         if outcome is None:
@@ -263,6 +263,11 @@ with DAG(
                     topic=topic,
                     partition=partition,
                     kafka_offset=offset,
+                )
+                close_run(
+                    conn,
+                    UUID(outcome["run_id"]),
+                    status="running" if is_raw else "quarantined",
                 )
 
     end = EmptyOperator(task_id="end", trigger_rule="none_failed_min_one_success")

@@ -27,7 +27,9 @@ The platform uses phased Terraform roots to avoid dependency loops and keep conc
 1. Start foundational runtime dependencies (Postgres/Event DB/Vault/KES/MinIO/Redpanda).
 2. Apply bootstrap Terraform for base security primitives.
 3. Start Keycloak and apply identity Terraform.
-4. Start orchestration and workers (Airflow, scanner, Debezium, fraud, writers).
+4. Start orchestration and workers for the active phase:
+   - Phase 3 baseline: Airflow + `excel_scanner` + `excel_validation_trigger` + `excel_bronze_writer`.
+   - Later phases add CDC/Salesforce/curated services.
 
 ## Workflow Commands
 
