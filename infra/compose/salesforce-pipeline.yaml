@@ -1,0 +1,63 @@
+services:
+  salesforce_mock:
+    build:
+      context: ..
+      dockerfile: services/salesforce-mock/Dockerfile
+      network: host
+    container_name: fintech_salesforce_mock
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SALESFORCE_MOCK_CLIENT_ID: ${SALESFORCE_CLIENT_ID}
+      SALESFORCE_MOCK_CLIENT_SECRET: ${SALESFORCE_CLIENT_SECRET}
+      SALESFORCE_MOCK_API_VERSION: ${SALESFORCE_API_VERSION:-v59.0}
+      SALESFORCE_MOCK_TOKEN_TTL_SECONDS: ${SALESFORCE_MOCK_TOKEN_TTL_SECONDS:-900}
+      SALESFORCE_MOCK_MUTATION_INTERVAL_SECONDS: ${SALESFORCE_MOCK_MUTATION_INTERVAL_SECONDS:-30}
+      SALESFORCE_MOCK_SEED_ACCOUNTS: ${SALESFORCE_MOCK_SEED_ACCOUNTS:-100}
+      SALESFORCE_MOCK_SEED_CONTACTS: ${SALESFORCE_MOCK_SEED_CONTACTS:-300}
+      SALESFORCE_MOCK_SEED_OPPORTUNITIES: ${SALESFORCE_MOCK_SEED_OPPORTUNITIES:-150}
+      SALESFORCE_MOCK_RNG_SEED: ${SALESFORCE_MOCK_RNG_SEED:-42}
+      SALESFORCE_MOCK_DEFAULT_PAGE_SIZE: ${SALESFORCE_PAGE_SIZE:-200}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys;urllib.request.urlopen('http://localhost:8080/healthz',timeout=2)\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - platform_internal
+
+  salesforce_bronze_writer:
+    build:
+      context: ..
+      dockerfile: services/pipeline-workers/workers/salesforce_bronze_writer/Dockerfile
+      network: host
+    container_name: fintech_salesforce_bronze_writer
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      REDPANDA_BOOTSTRAP_SERVERS: ${REDPANDA_BOOTSTRAP_SERVERS}
+      REDPANDA_SALESFORCE_BRONZE_USER: ${REDPANDA_SALESFORCE_BRONZE_USER}
+      REDPANDA_SALESFORCE_BRONZE_PASSWORD: ${REDPANDA_SALESFORCE_BRONZE_PASSWORD}
+      REDPANDA_SECURITY_PROTOCOL: ${REDPANDA_SECURITY_PROTOCOL:-PLAINTEXT}
+      REDPANDA_SASL_MECHANISM: ${REDPANDA_SASL_MECHANISM:-SCRAM-SHA-256}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_SECURE: "false"
+      MINIO_TRANSFORM_USER: ${MINIO_TRANSFORM_USER}
+      MINIO_TRANSFORM_SECRET: ${MINIO_TRANSFORM_SECRET}
+      MINIO_KMS_KEY_ID: ${MINIO_KMS_KEY_ID}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
+      EVENT_STORE_DB: ${EVENT_STORE_DB}
+      EVENT_STORE_DB_HOST: event_store_db
+      EVENT_STORE_DB_PORT: ${EVENT_STORE_DB_PORT}
+      EVENT_APPEND_DB_USER: ${EVENT_APPEND_DB_USER}
+      EVENT_APPEND_DB_PASSWORD: ${EVENT_APPEND_DB_PASSWORD}
+    depends_on:
+      event_store_db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      redpanda:
+        condition: service_healthy
+    networks:
+      - platform_internal
