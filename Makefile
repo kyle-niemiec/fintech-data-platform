@@ -21,6 +21,15 @@ COMPOSE_DEV := docker compose $(foreach file,$(COMPOSE_FILES_DEV),-f $(file)) --
 
 include $(INFRA_ENV_FILE)
 
+NO_FORMAT=\033[0m
+F_BOLD=\033[1m
+C_HOTPINK=\033[38;5;206m
+C_AQUA=\033[38;5;14m
+
+define banner
+@printf "\n${F_BOLD}${C_HOTPINK}🭪 Fintech Demo 🭨${NO_FORMAT} ${F_BOLD}${C_AQUA}🭬%s🭮${NO_FORMAT}\n\n" "$(1)"
+endef
+
 INFRA_UP_STEPS := 1 2 3 4 5 6 7 8 9 10
 INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))))
 
@@ -103,19 +112,24 @@ infra-up-dev:
 	@:
 
 infra-tf-init:
+	$(call banner,Initializing Terraform providers for bootstrap and identity phases...)
 	$(COMPOSE) run --rm --build --no-deps $(TF_RUNNER_SERVICE) bootstrap init
 	$(COMPOSE) run --rm --build --no-deps $(TF_RUNNER_SERVICE) identity init
 
 infra-pg-up:
+	$(call banner,Starting platform and event PostgreSQL instances plus Vault/KES/MinIO/Redpanda...)
 	$(COMPOSE) up -d postgres event_store_db vault kes minio redpanda
 
 infra-tf-bootstrap:
+	$(call banner,Applying Terraform bootstrap phase (Postgres + MinIO + notifications)...)
 	$(COMPOSE) run --rm --build --no-deps $(TF_RUNNER_SERVICE) bootstrap apply -auto-approve
 
 infra-kc-up:
+	$(call banner,Starting Keycloak identity provider...)
 	$(COMPOSE) up -d keycloak
 
 infra-tf-apply:
+	$(call banner,Applying Terraform identity phase (Keycloak realm + Redpanda ACLs)...)
 	@attempt=1; max_attempts=12; \
 	while true; do \
 		if $(COMPOSE) run --rm --build --no-deps $(TF_RUNNER_SERVICE) identity apply -auto-approve; then \
@@ -131,6 +145,7 @@ infra-tf-apply:
 	done
 
 infra-excel-pipeline:
+	$(call banner,Starting Airflow + ClamAV + Excel scanner/trigger/bronze writer services...)
 	$(COMPOSE) up -d airflow_postgres airflow_init airflow_scheduler airflow_webserver clamav excel_scanner excel_validation_trigger excel_bronze_writer
 	@attempt=1; max_attempts=60; \
 	while true; do \
@@ -155,6 +170,7 @@ infra-excel-pipeline:
 	done
 
 infra-cdc-pipeline:
+	$(call banner,Starting OLTP + Debezium + fraud worker + CDC bronze writer services...)
 	$(COMPOSE) up -d --build oltp_db oltp_load_generator debezium_server fraud_worker cdc_bronze_writer
 	@attempt=1; max_attempts=60; \
 	while true; do \
@@ -178,6 +194,7 @@ infra-cdc-pipeline:
 	done
 
 infra-api-up:
+	$(call banner,Starting read-only UI query API service...)
 	$(COMPOSE) up -d api
 	@state=$$(docker inspect -f '{{.State.Status}}' fintech_api 2>/dev/null || echo missing); \
 	if [ "$$state" != "running" ]; then \
@@ -186,6 +203,7 @@ infra-api-up:
 	fi
 
 infra-ui-up:
+	$(call banner,Building and starting React demo UI on :3000...)
 	$(COMPOSE) up -d --build ui
 	@state=$$(docker inspect -f '{{.State.Status}}' fintech_ui 2>/dev/null || echo missing); \
 	if [ "$$state" != "running" ]; then \
@@ -203,6 +221,7 @@ infra-down-dev:
 	$(COMPOSE_DEV) down
 
 infra-ps:
+	$(call banner,Showing infrastructure container status...)
 	$(COMPOSE) ps
 
 infra-ps-dev:
