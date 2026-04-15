@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from decimal import Decimal
 
 from workers.fraud_worker.scorer import (
@@ -43,3 +44,14 @@ def test_missing_fields_return_zero() -> None:
     assert result.risk_flags == []
     assert result.risk_score == Decimal("0")
     assert result.fraud_rule_version == RULES_VERSION
+
+
+def test_high_value_aapl_flags_when_amount_is_kafka_connect_decimal_base64() -> None:
+    # Debezium emits NUMERIC as base64 bytes when schema is included.
+    unscaled_cents = 10001 * 100
+    raw_amount = base64.b64encode(
+        unscaled_cents.to_bytes(4, byteorder="big", signed=True)
+    ).decode("ascii")
+    result = score_transaction({"instrument": "AAPL", "amount": raw_amount})
+    assert HIGH_VALUE_AAPL_FLAG in result.risk_flags
+    assert result.risk_score == HIGH_VALUE_AAPL_SCORE

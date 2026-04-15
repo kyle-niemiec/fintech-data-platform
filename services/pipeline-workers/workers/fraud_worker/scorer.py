@@ -10,6 +10,8 @@ assessments reproducible.
 
 from __future__ import annotations
 
+import base64
+import binascii
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -21,6 +23,7 @@ HIGH_VALUE_AAPL_THRESHOLD = Decimal("10000")
 HIGH_VALUE_AAPL_INSTRUMENT = "AAPL"
 HIGH_VALUE_AAPL_SCORE = Decimal("0.9")
 HIGH_VALUE_AAPL_FLAG = "high_value_aapl"
+TRANSACTION_AMOUNT_SCALE = 2
 
 
 @dataclass(frozen=True)
@@ -43,7 +46,7 @@ def score_transaction(row: dict[str, Any]) -> RiskAssessment:
         return RiskAssessment(Decimal("0"), [], RULES_VERSION)
 
     try:
-        amount = Decimal(str(amount_raw))
+        amount = _parse_amount(amount_raw)
     except (ArithmeticError, ValueError):
         return RiskAssessment(Decimal("0"), [], RULES_VERSION)
 
@@ -56,3 +59,30 @@ def score_transaction(row: dict[str, Any]) -> RiskAssessment:
             score = HIGH_VALUE_AAPL_SCORE
 
     return RiskAssessment(score, flags, RULES_VERSION)
+
+
+def _parse_amount(raw: Any) -> Decimal:
+    """Parse Postgres NUMERIC from CDC value.
+
+    Debezium+Kafka Connect may encode NUMERIC as base64 bytes when schema is
+    included (`org.apache.kafka.connect.data.Decimal`), e.g. `"A96M"` for
+    450.68 with scale=2.
+    """
+    try:
+        return Decimal(str(raw))
+    except (ArithmeticError, ValueError):
+        pass
+
+    if isinstance(raw, bytes):
+        unscaled = int.from_bytes(raw, byteorder="big", signed=True)
+        return Decimal(unscaled) / (Decimal(10) ** TRANSACTION_AMOUNT_SCALE)
+
+    if isinstance(raw, str):
+        try:
+            decoded = base64.b64decode(raw, validate=True)
+        except (binascii.Error, ValueError):
+            raise ValueError("amount is neither decimal text nor valid base64 decimal bytes")
+        unscaled = int.from_bytes(decoded, byteorder="big", signed=True)
+        return Decimal(unscaled) / (Decimal(10) ** TRANSACTION_AMOUNT_SCALE)
+
+    raise ValueError("unsupported amount type")
