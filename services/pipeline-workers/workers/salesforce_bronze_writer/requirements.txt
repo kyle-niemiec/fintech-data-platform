@@ -1,0 +1,5 @@
+confluent-kafka
+minio
+psycopg[binary]
+pydantic
+pyarrow
