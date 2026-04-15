@@ -59,7 +59,7 @@ class RunEventItem(BaseModel):
     source: str
     run_id: UUID
     trace_id: UUID | None
-    message: str
+    message: str | None
 
 
 class RecentTransactionItem(BaseModel):
