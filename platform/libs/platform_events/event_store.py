@@ -176,4 +176,38 @@ def raise_alert(
         )
 
 
-__all__ = ["open_run", "append_event", "close_run", "raise_alert"]
+def append_cdc_checkpoint(
+    conn: psycopg.Connection,
+    *,
+    run_id: UUID,
+    source_table: str,
+    lsn_start: Optional[str],
+    lsn_end: Optional[str],
+    kafka_partition: int,
+    offset_start: int,
+    offset_end: int,
+    record_count: int,
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO event_store.cdc_checkpoint (
+                run_id, source_table, lsn_start, lsn_end,
+                kafka_partition, offset_start, offset_end, record_count
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                str(run_id),
+                source_table,
+                lsn_start,
+                lsn_end,
+                kafka_partition,
+                offset_start,
+                offset_end,
+                record_count,
+            ),
+        )
+
+
+__all__ = ["open_run", "append_event", "close_run", "raise_alert", "append_cdc_checkpoint"]
