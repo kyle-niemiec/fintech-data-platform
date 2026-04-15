@@ -48,26 +48,43 @@ All source pipelines are event-driven and write audit events to the dedicated ev
 
 ## CDC + Fraud Pipeline
 
-### Trigger and Ownership
+### Topology
 
-- Trigger: Debezium change event from OLTP transaction tables.
-- Internal load generator: synthetic customer/transaction writes every 5-10 minutes to keep CDC active in demo mode.
-- IaC owners: Debezium connector config, Kafka topic ACLs, and fraud worker runtime.
+- Source of truth: dedicated OLTP Postgres (`wal_level=logical`) with `trading.transaction` and `trading.risk_flag`.
+- Debezium Server (single container, `pgoutput` plugin) writes directly to Redpanda. A `ByLogicalTableRouter` SMT collapses per-table topics onto one canonical contract topic (`cdc.oltp.raw.v1`); Debezium offsets live on a named volume.
+- Fraud worker (`group.id=fraud-worker-v1`, 12-partition topic) consumes raw events, scores with pure functional rules, and emits `cdc.oltp.assessed.v1`.
+- CDC bronze writer batches assessed events, writes zero-transformation Parquet to `bronze/source=cdc/table=<table>/year=YYYY/month=MM/day=DD/hour=HH/run_id=<run_id>/...`, and emits `cdc.oltp.bronze.ready.v1`.
+- Internal load generator (container, 60s default cadence) is the only writer into the OLTP; a tunable fraction of inserts are high-value AAPL to fire the fraud rule.
 
-### Processing Flow
+### Partition Keys and Run Boundary
 
-1. Debezium publishes raw event to `cdc.oltp.raw.v1` (this trigger event initiates the run).
-2. Fraud worker consumes raw event and applies rule scoring.
-3. Worker writes risk outcome to OLTP flag table and emits `cdc.oltp.assessed.v1`.
-4. Bronze writer consumes assessed events and writes source-faithful Parquet to partitioned bronze paths (`bronze/source=cdc/table=<table>/year=YYYY/month=MM/day=DD/hour=HH/run_id=<run_id>/...`).
-5. Writer emits `cdc.oltp.bronze.ready.v1` for downstream curated processing.
+- Raw and assessed topics: key is `<source_table>:<business_key>` so all events for a transaction colocate on a single partition.
+- Run boundary:
+  - Fraud worker: one `pipeline_run` per consumed raw event, `trigger_event_ref = <topic>:<partition>:<offset>`.
+  - CDC bronze writer: one `pipeline_run` per flushed batch, per source table.
+
+### Rule Versioning
+
+- `fraud_rule_version` (currently `rules-v1`: `high_value_aapl` when instrument == AAPL and amount > 10000, score 0.9) is persisted on every `trading.risk_flag` row and on the assessed envelope payload so historical assessments are reproducible even as rules evolve.
+
+### Idempotency and At-Least-Once
+
+- `trading.risk_flag` carries `raw_topic`, `raw_partition`, `raw_offset` with a unique constraint. Kafka redeliveries no-op at the OLTP upsert; the assessed event is still re-emitted, and the event-store dedupes on `(topic, partition, kafka_offset, occurred_at)`.
+- Fraud worker ordering: OLTP upsert -> produce assessed -> event-store append -> Kafka commit. Any failure before the commit causes replay; all three writes are idempotent.
+- CDC bronze writer uses per-batch `run_id` in the object path, so replays produce new files without overwriting. Silver-stage dedup by `(source_table, transaction_id, lsn)` is a later-phase concern.
 
 ### Legal Defensibility Rules
 
-- Bronze payload must preserve Debezium and Kafka metadata.
-- LSN and source commit ordering fields are mandatory.
-- No business transformation before bronze write.
-- Replay from topic offsets must reconstruct identical bronze records.
+- Bronze Parquet columns include `op`, `source_lsn`, `source_ts_ms`, `kafka_topic`, `kafka_partition`, `kafka_offset`, `event_id`, `fraud_rule_version`, `risk_score`, `risk_flags`, plus the full assessed payload JSON verbatim.
+- No business transformation before bronze write; batches are sorted by LSN, then Kafka offset.
+- `event_store.cdc_checkpoint` records first/last LSN, Kafka offset range, and record count per flush to prove coverage.
+- Replay from topic offsets reconstructs identical bronze records with new run IDs; prior runs remain untouched.
+
+### Failure Modes
+
+- Debezium downtime: replication slot `cdc_slot` retains WAL; offsets volume preserves progress; operations runbook monitors `pg_replication_slots`.
+- Produce failure after OLTP upsert: run is marked `failed` with `cdc_assessed_produce_failed` alert; replay re-emits.
+- Checkpoint failure after Parquet write: alert raised; object remains and is replay-superseded.
 
 ## Salesforce Pipeline
 

@@ -153,13 +153,95 @@ make db-psql-event-store
    - confirm `ingest.excel.quarantined.v1`
    - confirm run closes `quarantined`
 
+## CDC + Fraud Validation Sequence (Phase 4)
+
+### Bring-up
+
+```bash
+make infra-up            # base stack (steps 1-6)
+make infra-cdc-pipeline  # step 7: oltp_db, load gen, Debezium, fraud worker, bronze writer
+```
+
+The OLTP load generator runs continuously (60s cadence by default) so no
+manual data writes are required.
+
+### Happy-path validation
+
+1. Wait for Debezium snapshot completion. Tail the connector log:
+
+   ```bash
+   docker logs -f fintech_debezium_server | grep -i "Snapshot ended"
+   ```
+
+2. Confirm raw CDC envelopes on the canonical topic:
+
+   ```bash
+   docker exec fintech_redpanda rpk topic consume cdc.oltp.raw.v1 -n 5
+   ```
+
+3. Trigger a deterministic fraud path by inserting a high-value AAPL trade:
+
+   ```bash
+   make db-psql-oltp
+   \c fintech_oltp
+   INSERT INTO trading.transaction (account_id, instrument, amount, executed_at)
+   VALUES (gen_random_uuid(), 'AAPL', 15000, now());
+   ```
+
+4. Within seconds the assessed topic should carry `risk_flags=["high_value_aapl"]`:
+
+   ```bash
+   docker exec fintech_redpanda rpk topic consume cdc.oltp.assessed.v1 -n 1
+   ```
+
+5. Confirm the idempotent `risk_flag` row is persisted:
+
+   ```sql
+   SELECT transaction_id, risk_score, risk_flags, fraud_rule_version
+   FROM trading.risk_flag ORDER BY flagged_at DESC LIMIT 3;
+   ```
+
+6. After the bronze batch flush window, inspect MinIO and the checkpoint table:
+
+   ```bash
+   docker exec fintech_minio mc ls --recursive local/fintech-lakehouse/bronze/source=cdc/ | head
+   ```
+
+   ```sql
+   SELECT run_id, source_table, lsn_start, lsn_end, record_count
+   FROM event_store.cdc_checkpoint ORDER BY recorded_at DESC LIMIT 5;
+   ```
+
+7. Three-event arc per batch is visible in the event log:
+
+   ```sql
+   SELECT event_type, count(*) FROM event_store.event_log
+   WHERE event_type LIKE 'cdc.%' GROUP BY 1;
+   ```
+
+### Replay test
+
+```bash
+docker compose stop cdc_bronze_writer
+docker exec fintech_redpanda rpk group seek cdc-bronze-writer-v1 --to start
+docker compose start cdc_bronze_writer
+```
+
+Verify no duplicate `trading.risk_flag` rows (idempotency holds) and distinct
+`run_id`s on new bronze objects.
+
+### Operational notes
+
+- Replication slot growth: sustained Debezium downtime + active OLTP writes
+  grow WAL. Monitor with `SELECT slot_name, active, pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) AS backlog FROM pg_replication_slots;`.
+- Rule evolution: historical `risk_flag` rows retain their
+  `fraud_rule_version`; downstream consumers must filter by version for
+  reproducibility.
+
 ### Pending pipelines (later roadmap phases)
 
-- CDC/Fraud validation is Phase 4.
 - Salesforce pull validation is Phase 5.
 - Curated promotion validation is Phase 6.
-
-Do not expect CDC/Salesforce/curated runtime services in Phase 3 bring-up.
 
 ## Replay and Backfill
 

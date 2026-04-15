@@ -41,10 +41,14 @@ Completed:
 
 ## Phase 4 - CDC and Fraud Pipeline
 
-- Add OLTP simulation and Debezium CDC connector.
-- Implement fraud worker (single container runtime).
-- Emit assessed CDC events.
-- Persist source-faithful CDC bronze data including offsets and LSN.
+Completed:
+- Dedicated OLTP Postgres (`wal_level=logical`) with `trading.transaction` and `trading.risk_flag` schema, per-role credentials (`oltp_app`, `cdc_replicator`, `oltp_ui_reader`), and a `cdc_pub` publication.
+- Synthetic load generator seeds transactions on a configurable cadence; a tunable fraction of AAPL trades exceed the fraud threshold so the rule fires on demand.
+- Debezium Server (single container, `pgoutput`) streams WAL changes to Redpanda with a `ByLogicalTableRouter` SMT collapsing all `trading.*` tables onto the canonical `cdc.oltp.raw.v1` topic.
+- Fraud worker consumes raw CDC events, scores transactions against versioned rules (`rules-v1`: `high_value_aapl`), upserts `trading.risk_flag` idempotently via `(raw_topic, raw_partition, raw_offset)`, and emits `cdc.oltp.assessed.v1`.
+- CDC bronze writer batches assessed events, writes zero-transformation Parquet to `bronze/source=cdc/...` with SSE-KMS, emits `cdc.oltp.bronze.ready.v1`, and records a `cdc_checkpoint` row per flush (LSN range + Kafka offsets + record count).
+- Event-store DDL adds `event_store.cdc_checkpoint`; `append_cdc_checkpoint` helper joins the existing `platform_events.event_store` API.
+- Root UI runs view generalized across pipelines with a multi-select pipeline pill filter and a Recent Transactions tab backed by a least-privilege `oltp_ui_reader` role.
 
 ## Phase 5 - Salesforce Pipeline
 

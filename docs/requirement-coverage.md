@@ -20,7 +20,7 @@ This matrix maps `project-planning.md` requirements to local event-driven compon
 | Append-only and replay-first processing | Event-store appender/query role split; append-only grants for runtime writers | SQL hardening migration + Terraform bootstrap roles | Phase 2 complete |
 | No destructive data correction | Runtime roles have no `UPDATE`/`DELETE`; replay appends events | SQL hardening migration + role model | Phase 2 complete |
 | API is not ETL control plane | FastAPI remains query-only; ingestion flow runs without API availability | Backend boundary + runtime topology | Phase 1 complete |
-| CDC via Debezium + fraud path | Debezium source -> fraud assessor -> bronze-ready event chain | Planned Compose services + Terraform ACLs/contracts | Phase 4 planned |
+| CDC via Debezium + fraud path | OLTP Postgres + Debezium Server -> `fraud_worker` (versioned rules, idempotent `risk_flag` upsert) -> `cdc_bronze_writer` (LSN-sorted Parquet + `cdc_checkpoint`) | Compose services + Terraform identity ACLs + OLTP/event-store migrations | Phase 4 complete |
 | Salesforce incremental pull path | Airflow scheduled pull -> raw artifact -> bronze-ready events | Planned DAG/services + Terraform secrets/ACLs | Phase 5 planned |
 | Curated bronze->silver->gold orchestration | Event-driven DAG chain from bronze-ready into silver and gold outcomes | Planned DAG/services + Terraform ACLs | Phase 6 planned |
 | UI traceability + alert feed | Read-only UI query API uses event-store timeline and alert events | Backend query API + contracts | Phase 7 planned |

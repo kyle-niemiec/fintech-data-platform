@@ -80,9 +80,13 @@ Primary runtime components:
 - Excel validation trigger worker
 - Excel bronze writer
 
+CDC + fraud (Phase 4):
+- Dedicated OLTP Postgres (`wal_level=logical`, `cdc_pub` publication on `trading.*`).
+- Debezium Server runs as a single container with the `pgoutput` plugin and a `ByLogicalTableRouter` SMT collapsing per-table topics onto `cdc.oltp.raw.v1`. Chosen over Kafka Connect to keep the demo stack small while preserving Debezium's pgoutput maturity and offset durability on a named volume.
+- Fraud worker applies versioned rules, upserts `trading.risk_flag` idempotently, and emits `cdc.oltp.assessed.v1`.
+- CDC bronze writer batches assessed events, writes LSN-sorted zero-transform Parquet, emits `cdc.oltp.bronze.ready.v1`, and records a row per flush in `event_store.cdc_checkpoint`.
+
 Planned for later phases:
-- Debezium
-- Fraud worker
 - Salesforce extractor
 - Curated promotion workers/DAGs
 
