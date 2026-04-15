@@ -27,7 +27,7 @@ from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, 
 
 TOPIC_ASSESSED = "cdc.oltp.assessed.v1"
 TOPIC_BRONZE_READY = "cdc.oltp.bronze.ready.v1"
-SOURCE_SYSTEM = "oltp_postgres"
+SOURCE_SYSTEM = "cdc"
 INITIATOR = "cdc_bronze_writer"
 TRIGGER_TYPE = "cdc_bronze_batch"
 

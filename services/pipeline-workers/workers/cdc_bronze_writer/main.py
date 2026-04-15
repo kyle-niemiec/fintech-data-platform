@@ -117,17 +117,17 @@ def _build() -> tuple[CdcBronzeWriter, Consumer, EventProducer, psycopg.Connecti
 
 def _persist_batch(conn: psycopg.Connection, emitted: EmittedBatch) -> None:
     """Open a run, append the bronze_ready event, record checkpoint, close run."""
-    run_id = open_run(
-        conn,
-        run_id=emitted.run_id,
-        pipeline_class=PipelineClass.ingestion,
-        pipeline_name=PipelineName.cdc_ingestion,
-        source_system=SOURCE_SYSTEM,
-        trigger_type=TRIGGER_TYPE,
-        trigger_event_ref=emitted.trigger_event_ref,
-        initiator=INITIATOR,
-    )
     with conn.transaction():
+        run_id = open_run(
+            conn,
+            run_id=emitted.run_id,
+            pipeline_class=PipelineClass.ingestion,
+            pipeline_name=PipelineName.cdc_ingestion,
+            source_system=SOURCE_SYSTEM,
+            trigger_type=TRIGGER_TYPE,
+            trigger_event_ref=emitted.trigger_event_ref,
+            initiator=INITIATOR,
+        )
         append_event(
             conn,
             emitted.envelope,

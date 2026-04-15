@@ -54,7 +54,7 @@ All source pipelines are event-driven and write audit events to the dedicated ev
 - Debezium Server (single container, `pgoutput` plugin) writes directly to Redpanda. A `ByLogicalTableRouter` SMT collapses per-table topics onto one canonical contract topic (`cdc.oltp.raw.v1`); Debezium offsets live on a named volume.
 - Fraud worker (`group.id=fraud-worker-v1`, 12-partition topic) consumes raw events, scores with pure functional rules, and emits `cdc.oltp.assessed.v1`.
 - CDC bronze writer batches assessed events, writes zero-transformation Parquet to `bronze/source=cdc/table=<table>/year=YYYY/month=MM/day=DD/hour=HH/run_id=<run_id>/...`, and emits `cdc.oltp.bronze.ready.v1`.
-- Internal load generator (container, 60s default cadence) is the only writer into the OLTP; a tunable fraction of inserts are high-value AAPL to fire the fraud rule.
+- Internal load generator (container, 10s default cadence) is the only writer into the OLTP; a tunable fraction of inserts are high-value AAPL to fire the fraud rule.
 
 ### Partition Keys and Run Boundary
 

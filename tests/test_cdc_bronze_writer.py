@@ -14,6 +14,7 @@ from libs.platform_events.envelope import Envelope
 from workers.cdc_bronze_writer.writer import (
     AssessedRecord,
     CdcBronzeWriter,
+    SOURCE_SYSTEM,
     TOPIC_BRONZE_READY,
     bronze_object_key,
     rows_to_parquet_bytes,
@@ -125,3 +126,7 @@ def test_parquet_columns_cover_contract_fields() -> None:
     }
     assert expected_cols.issubset(set(table.column_names))
     assert table.num_rows == 1
+
+
+def test_cdc_bronze_source_system_matches_event_store_domain_contract() -> None:
+    assert SOURCE_SYSTEM == "cdc"

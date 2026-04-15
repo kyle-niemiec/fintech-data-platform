@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from workers.fraud_worker.handler import RawMessage, parse_raw
+from workers.fraud_worker.handler import RawMessage, SOURCE_SYSTEM, parse_raw
 
 
 def _debezium_envelope(*, op: str = "c", instrument: str = "AAPL", amount: str = "15000",
@@ -72,3 +72,7 @@ def test_parse_raw_treats_snapshot_like_create() -> None:
     parsed = parse_raw(raw)
     assert parsed is not None
     assert parsed["op"] == "r"
+
+
+def test_cdc_source_system_matches_event_store_domain_contract() -> None:
+    assert SOURCE_SYSTEM == "cdc"

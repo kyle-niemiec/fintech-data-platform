@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 TOPIC_ASSESSED = "cdc.oltp.assessed.v1"
 TRIGGER_TYPE = "cdc_raw_event"
 INITIATOR = "fraud_worker"
-SOURCE_SYSTEM = "oltp_postgres"
+SOURCE_SYSTEM = "cdc"
 
 
 class EventEmitter(Protocol):
@@ -236,16 +236,17 @@ class FraudHandler:
             raise
 
         try:
-            with self.event_store_conn.transaction():
-                append_event(
-                    self.event_store_conn,
-                    envelope,
-                    topic=TOPIC_ASSESSED,
-                    partition=partition,
-                    kafka_offset=offset,
-                )
-                close_run(self.event_store_conn, effective_run_id, status="completed")
+            append_event(
+                self.event_store_conn,
+                envelope,
+                topic=TOPIC_ASSESSED,
+                partition=partition,
+                kafka_offset=offset,
+            )
+            close_run(self.event_store_conn, effective_run_id, status="completed")
+            self.event_store_conn.commit()
         except Exception:
+            self.event_store_conn.rollback()
             raise
 
         return True
