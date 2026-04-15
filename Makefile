@@ -5,6 +5,7 @@ COMPOSE_FILES := \
 	infra/compose/foundation.yaml \
 	infra/compose/orchestration.yaml \
 	infra/compose/excel-pipeline.yaml \
+	infra/compose/cdc-pipeline.yaml \
 	infra/compose/api.yaml \
 	infra/compose/ui.yaml
 COMPOSE_FILES_DEV := \
@@ -20,15 +21,15 @@ COMPOSE_DEV := docker compose $(foreach file,$(COMPOSE_FILES_DEV),-f $(file)) --
 
 include $(INFRA_ENV_FILE)
 
-INFRA_UP_STEPS := 1 2 3 4 5 6 7 8 9
+INFRA_UP_STEPS := 1 2 3 4 5 6 7 8 9 10
 INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))))
 
 .PHONY: help infra-up infra-up-dev infra-down infra-down-dev infra-ps infra-ps-dev infra-clean \
 	infra-tf-init infra-pg-up infra-kc-up infra-tf-bootstrap infra-tf-apply \
-	infra-excel-pipeline infra-api-up infra-ui-up infra-pgadmin-up \
+	infra-excel-pipeline infra-cdc-pipeline infra-api-up infra-ui-up infra-pgadmin-up \
 	terraform-plan terraform-plan-bootstrap terraform-plan-identity \
-	db-psql-core db-psql-event-store \
-	1 2 3 4 5 6 7 8 9
+	db-psql-core db-psql-event-store db-psql-oltp \
+	1 2 3 4 5 6 7 8 9 10
 
 help:
 	@printf "Available targets:\n"
@@ -42,6 +43,7 @@ help:
 	@printf "  infra-kc-up              Start Keycloak container\n"
 	@printf "  infra-tf-apply           Apply Terraform identity phase in Docker (Keycloak + Redpanda ACLs)\n"
 	@printf "  infra-excel-pipeline     Start and validate Airflow + ClamAV + Excel scanner/trigger/bronze services\n"
+	@printf "  infra-cdc-pipeline       Start and validate OLTP + Debezium + fraud worker + CDC bronze writer\n"
 	@printf "  infra-api-up             Start and validate read-only UI query API service\n"
 	@printf "  infra-ui-up              Build and start the React demo UI (nginx on :3000)\n"
 	@printf "  infra-pgadmin-up         Start dev-only pgAdmin overlay on :5050 (requires dev compose files)\n"
@@ -64,6 +66,7 @@ infra-up:
 		$(MAKE) infra-kc-up; \
 		$(MAKE) infra-tf-apply; \
 		$(MAKE) infra-excel-pipeline; \
+		$(MAKE) infra-cdc-pipeline; \
 		$(MAKE) infra-api-up; \
 		$(MAKE) infra-ui-up; \
 		$(MAKE) infra-ps; \
@@ -80,13 +83,15 @@ infra-up:
 	elif [ "$(INFRA_UP_STEP)" = "6" ]; then \
 		$(MAKE) infra-excel-pipeline; \
 	elif [ "$(INFRA_UP_STEP)" = "7" ]; then \
-		$(MAKE) infra-api-up; \
+		$(MAKE) infra-cdc-pipeline; \
 	elif [ "$(INFRA_UP_STEP)" = "8" ]; then \
-		$(MAKE) infra-ui-up; \
+		$(MAKE) infra-api-up; \
 	elif [ "$(INFRA_UP_STEP)" = "9" ]; then \
+		$(MAKE) infra-ui-up; \
+	elif [ "$(INFRA_UP_STEP)" = "10" ]; then \
 		$(MAKE) infra-ps; \
 	else \
-		printf "Invalid infra-up step '%s'. Use 1-9.\n" "$(INFRA_UP_STEP)" >&2; \
+		printf "Invalid infra-up step '%s'. Use 1-10.\n" "$(INFRA_UP_STEP)" >&2; \
 		exit 2; \
 	fi
 
@@ -94,7 +99,7 @@ infra-up-dev:
 	@$(MAKE) COMPOSE="$(COMPOSE_DEV)" infra-up
 	make infra-pgadmin-up
 
-1 2 3 4 5 6 7 8 9:
+1 2 3 4 5 6 7 8 9 10:
 	@:
 
 infra-tf-init:
@@ -149,6 +154,29 @@ infra-excel-pipeline:
 		fi; \
 	done
 
+infra-cdc-pipeline:
+	$(COMPOSE) up -d --build oltp_db oltp_load_generator debezium_server fraud_worker cdc_bronze_writer
+	@attempt=1; max_attempts=60; \
+	while true; do \
+		oltp_health=$$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' fintech_oltp_db 2>/dev/null || echo missing); \
+		if [ "$$oltp_health" = "healthy" ]; then \
+			break; \
+		fi; \
+		if [ $$attempt -ge $$max_attempts ]; then \
+			printf "infra-cdc-pipeline timed out waiting for oltp_db (status=%s).\n" "$$oltp_health" >&2; \
+			exit 1; \
+		fi; \
+		attempt=$$((attempt + 1)); \
+		sleep 5; \
+	done; \
+	for container in fintech_oltp_load_generator fintech_debezium_server fintech_fraud_worker fintech_cdc_bronze_writer; do \
+		state=$$(docker inspect -f '{{.State.Status}}' $$container 2>/dev/null || echo missing); \
+		if [ "$$state" != "running" ]; then \
+			printf "infra-cdc-pipeline service check failed: %s state=%s\n" "$$container" "$$state" >&2; \
+			exit 1; \
+		fi; \
+	done
+
 infra-api-up:
 	$(COMPOSE) up -d api
 	@state=$$(docker inspect -f '{{.State.Status}}' fintech_api 2>/dev/null || echo missing); \
@@ -184,6 +212,7 @@ infra-clean:
 	$(COMPOSE_DEV) down --volumes --remove-orphans
 	-docker volume rm postgres_data event_store_data minio_data redpanda_data kms_shared
 	-docker volume rm infra_postgres_data infra_event_store_data infra_minio_data infra_redpanda_data infra_kms_shared
+	-docker volume rm oltp_data debezium_offsets infra_oltp_data infra_debezium_offsets
 	rm -rf $(TERRAFORM_BOOTSTRAP_DIR)/.terraform
 	rm -f $(TERRAFORM_BOOTSTRAP_DIR)/.terraform.lock.hcl
 	rm -f $(TERRAFORM_BOOTSTRAP_DIR)/terraform.tfstate
@@ -206,3 +235,6 @@ db-psql-core:
 
 db-psql-event-store:
 	$(COMPOSE) exec event_store_db psql -U '$(value EVENT_STORE_DB_ROOT_USER)' -d '$(value EVENT_STORE_DB)' -p '$(value EVENT_STORE_DB_PORT)'
+
+db-psql-oltp:
+	$(COMPOSE) exec oltp_db psql -U '$(value OLTP_ROOT_USER)' -d '$(value OLTP_DB)' -p '$(value OLTP_DB_PORT)'

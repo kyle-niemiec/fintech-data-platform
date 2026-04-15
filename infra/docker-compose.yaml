@@ -6,6 +6,8 @@ volumes:
   kms_shared:
   clamav_data:
   airflow_postgres_data:
+  oltp_data:
+  debezium_offsets:
 
 networks:
   platform_public:
