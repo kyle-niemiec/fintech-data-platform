@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -59,6 +60,17 @@ class RunEventItem(BaseModel):
     run_id: UUID
     trace_id: UUID | None
     message: str
+
+
+class RecentTransactionItem(BaseModel):
+    transaction_id: UUID
+    account_id: UUID
+    instrument: str
+    amount: Decimal
+    executed_at: datetime
+    risk_score: Decimal | None
+    risk_flags: list[str] | None
+    fraud_rule_version: str | None
 
 
 class AlertItem(BaseModel):

@@ -1,14 +1,15 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.db import get_query_db
+from app.db import get_oltp_db, get_query_db
 from app.schemas.ui_query import (
     AlertItem,
     ArtifactTrailItem,
     LineageTrailItem,
+    RecentTransactionItem,
     RunDetail,
     RunEventItem,
     RunSummary,
@@ -32,10 +33,19 @@ def _assert_run_exists(db: Session, run_id: UUID) -> None:
 GET: A list of pipeline runs with their latest event status attached.
 """
 @router.get("/runs", response_model=list[RunSummary], status_code=status.HTTP_200_OK)
-def list_runs(db: Session = Depends(get_query_db)):
+def list_runs(
+    db: Session = Depends(get_query_db),
+    pipeline_name: list[str] | None = Query(default=None),
+):
+    params: dict = {}
+    filter_sql = ""
+    if pipeline_name:
+        filter_sql = "WHERE pr.pipeline_name = ANY(:pipeline_names)"
+        params["pipeline_names"] = pipeline_name
+
     rows = db.execute(
         text(
-            """
+            f"""
             SELECT
                 pr.run_id,
                 pr.pipeline_class,
@@ -53,13 +63,52 @@ def list_runs(db: Session = Depends(get_query_db)):
                     ORDER BY el.occurred_at DESC
                     LIMIT 1
                 ) AS le ON true
+            {filter_sql}
             ORDER BY pr.started_at DESC
             """
-        )
+        ),
+        params,
     ).mappings()
 
-    # Pass all row fields as parameters to the RunSummary model
     return [RunSummary(**row) for row in rows]
+
+
+@router.get(
+    "/oltp/transactions/recent",
+    response_model=list[RecentTransactionItem],
+    status_code=status.HTTP_200_OK,
+)
+def list_recent_transactions(
+    db: Session = Depends(get_oltp_db),
+    limit: int = Query(default=25, ge=1, le=100),
+):
+    rows = db.execute(
+        text(
+            """
+            SELECT
+                t.transaction_id,
+                t.account_id,
+                t.instrument,
+                t.amount,
+                t.executed_at,
+                rf.risk_score,
+                rf.risk_flags,
+                rf.fraud_rule_version
+            FROM trading.transaction AS t
+            LEFT JOIN LATERAL (
+                SELECT risk_score, risk_flags, fraud_rule_version
+                FROM trading.risk_flag r
+                WHERE r.transaction_id = t.transaction_id
+                ORDER BY r.flagged_at DESC
+                LIMIT 1
+            ) AS rf ON true
+            ORDER BY t.executed_at DESC
+            LIMIT :limit
+            """
+        ),
+        {"limit": limit},
+    ).mappings()
+    return [RecentTransactionItem(**row) for row in rows]
 
 """
 GET: A single pipeline run by ID along with the latest event status.

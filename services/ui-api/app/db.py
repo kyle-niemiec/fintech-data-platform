@@ -16,3 +16,28 @@ def get_query_db():
         yield db
     finally:
         db.close()
+
+
+# OLTP read-only engine (oltp_ui_reader role). Lazily constructed so that
+# the Excel-only stack does not require OLTP credentials at startup.
+_oltp_engine = None
+_OltpSession = None
+
+
+def _ensure_oltp_engine():
+    global _oltp_engine, _OltpSession
+    if _oltp_engine is None:
+        _oltp_engine = create_engine(settings.oltp_query_db_url, future=True)
+        _OltpSession = sessionmaker(
+            bind=_oltp_engine, autoflush=False, autocommit=False, future=True
+        )
+    return _OltpSession
+
+
+def get_oltp_db():
+    session_cls = _ensure_oltp_engine()
+    db = session_cls()
+    try:
+        yield db
+    finally:
+        db.close()

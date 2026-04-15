@@ -61,6 +61,17 @@ export interface ArtifactTrailItem {
   event_type: string;
 }
 
+export interface RecentTransactionItem {
+  transaction_id: string;
+  account_id: string;
+  instrument: string;
+  amount: string;
+  executed_at: string;
+  risk_score: string | null;
+  risk_flags: string[] | null;
+  fraud_rule_version: string | null;
+}
+
 export interface DemoUploadResponse {
   run_trigger_ref: string;
   object_key: string;

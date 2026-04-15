@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     event_query_db_user: str
     event_query_db_password: str
 
+    oltp_db: str = "fintech_oltp"
+    oltp_db_host: str = "oltp_db"
+    oltp_db_port: int = 5434
+    oltp_ui_reader_user: str = ""
+    oltp_ui_reader_password: str = ""
+
     minio_endpoint: str = "http://minio:9000"
     minio_ingest_user: str = ""
     minio_ingest_secret: str = ""
@@ -40,6 +46,17 @@ class Settings(BaseSettings):
             host=self.event_store_db_host,
             port=self.event_store_db_port,
             database=self.event_store_db,
+        )
+
+    @property
+    def oltp_query_db_url(self) -> URL:
+        return URL.create(
+            drivername="postgresql+psycopg",
+            username=self.oltp_ui_reader_user,
+            password=self.oltp_ui_reader_password,
+            host=self.oltp_db_host,
+            port=self.oltp_db_port,
+            database=self.oltp_db,
         )
 
     @property

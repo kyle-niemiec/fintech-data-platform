@@ -33,6 +33,18 @@ export default function TopNav() {
             Runs
           </NavLink>
           <NavLink
+            to="/oltp/transactions"
+            className={({ isActive }) =>
+              `${linkBase} ${
+                isActive
+                  ? "bg-white/10 text-white"
+                  : "text-navy-100 hover:bg-white/5 hover:text-white"
+              }`
+            }
+          >
+            Recent Transactions
+          </NavLink>
+          <NavLink
             to="/demo/upload"
             className={({ isActive }) =>
               `${linkBase} ${

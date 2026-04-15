@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import StatusPill from "../common/StatusPill";
 import MonoId from "../common/MonoId";
 import RelativeTime from "../common/RelativeTime";
+import PipelineBadge from "./PipelineBadge";
 import { formatDuration } from "../../lib/formatters";
 import type { RunSummary } from "../../types/api";
 
@@ -32,8 +33,13 @@ export default function RunsTable({ runs }: { runs: RunSummary[] }) {
                 <MonoId value={r.run_id} short />
               </td>
               <td>
-                <div className="font-medium">{r.pipeline_name}</div>
-                <div className="text-xs text-navy-500">{r.pipeline_class}</div>
+                <div className="flex items-center gap-2">
+                  <PipelineBadge pipelineName={r.pipeline_name} />
+                  <div>
+                    <div className="font-medium">{r.pipeline_name}</div>
+                    <div className="text-xs text-navy-500">{r.pipeline_class}</div>
+                  </div>
+                </div>
               </td>
               <td className="font-mono text-xs">{r.source_system}</td>
               <td>

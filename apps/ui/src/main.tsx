@@ -7,6 +7,7 @@ import App from "./App";
 import RunsPage from "./pages/RunsPage";
 import RunDetailPage from "./pages/RunDetailPage";
 import DemoUploadPage from "./pages/DemoUploadPage";
+import RecentTransactionsPage from "./pages/RecentTransactionsPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import "./index.css";
 
@@ -28,6 +29,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route index element={<RunsPage />} />
             <Route path="runs/:runId" element={<RunDetailPage />} />
             <Route path="demo/upload" element={<DemoUploadPage />} />
+            <Route path="oltp/transactions" element={<RecentTransactionsPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
