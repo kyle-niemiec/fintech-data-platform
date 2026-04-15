@@ -16,15 +16,16 @@ output "keycloak_finance_role_name" {
 output "redpanda_service_identities" {
   description = "Redpanda service identities managed in the identity phase"
   value = {
-    excel_upload  = var.redpanda_excel_service_user
-    excel_scanner = var.redpanda_excel_scanner_user
-    airflow       = var.redpanda_airflow_user
-    excel_bronze  = var.redpanda_excel_bronze_user
-    cdc           = var.redpanda_cdc_service_user
-    fraud         = var.redpanda_fraud_service_user
-    salesforce    = var.redpanda_salesforce_service_user
-    orchestrator  = var.redpanda_orchestrator_service_user
-    ui            = var.redpanda_ui_service_user
+    excel_upload      = var.redpanda_excel_service_user
+    excel_scanner     = var.redpanda_excel_scanner_user
+    airflow           = var.redpanda_airflow_user
+    excel_bronze      = var.redpanda_excel_bronze_user
+    cdc               = var.redpanda_cdc_service_user
+    fraud             = var.redpanda_fraud_service_user
+    salesforce        = var.redpanda_salesforce_service_user
+    salesforce_bronze = var.redpanda_salesforce_bronze_user
+    orchestrator      = var.redpanda_orchestrator_service_user
+    ui                = var.redpanda_ui_service_user
   }
 }
 

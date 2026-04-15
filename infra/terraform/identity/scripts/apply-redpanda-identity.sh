@@ -38,6 +38,8 @@ require_env REDPANDA_FRAUD_SERVICE_USER
 require_env REDPANDA_FRAUD_SERVICE_PASSWORD
 require_env REDPANDA_SALESFORCE_SERVICE_USER
 require_env REDPANDA_SALESFORCE_SERVICE_PASSWORD
+require_env REDPANDA_SALESFORCE_BRONZE_USER
+require_env REDPANDA_SALESFORCE_BRONZE_PASSWORD
 require_env REDPANDA_ORCHESTRATOR_SERVICE_USER
 require_env REDPANDA_ORCHESTRATOR_SERVICE_PASSWORD
 require_env REDPANDA_UI_SERVICE_USER
@@ -45,6 +47,7 @@ require_env REDPANDA_UI_SERVICE_PASSWORD
 require_env REDPANDA_EXCEL_SCANNER_CONSUMER_GROUP
 require_env REDPANDA_AIRFLOW_CONSUMER_GROUP
 require_env REDPANDA_EXCEL_BRONZE_CONSUMER_GROUP
+require_env REDPANDA_SALESFORCE_BRONZE_CONSUMER_GROUP
 require_env REDPANDA_FRAUD_CONSUMER_GROUP
 require_env REDPANDA_ORCHESTRATOR_CONSUMER_GROUP
 require_env REDPANDA_UI_ALERTS_CONSUMER_GROUP
@@ -180,6 +183,7 @@ ensure_user "${REDPANDA_EXCEL_BRONZE_USER}" "${REDPANDA_EXCEL_BRONZE_PASSWORD}"
 ensure_user "${REDPANDA_CDC_SERVICE_USER}" "${REDPANDA_CDC_SERVICE_PASSWORD}"
 ensure_user "${REDPANDA_FRAUD_SERVICE_USER}" "${REDPANDA_FRAUD_SERVICE_PASSWORD}"
 ensure_user "${REDPANDA_SALESFORCE_SERVICE_USER}" "${REDPANDA_SALESFORCE_SERVICE_PASSWORD}"
+ensure_user "${REDPANDA_SALESFORCE_BRONZE_USER}" "${REDPANDA_SALESFORCE_BRONZE_PASSWORD}"
 ensure_user "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "${REDPANDA_ORCHESTRATOR_SERVICE_PASSWORD}"
 ensure_user "${REDPANDA_UI_SERVICE_USER}" "${REDPANDA_UI_SERVICE_PASSWORD}"
 
@@ -212,16 +216,18 @@ ensure_acl "${REDPANDA_FRAUD_SERVICE_USER}" "read" "group" "${REDPANDA_FRAUD_CON
 ensure_acl "${REDPANDA_FRAUD_SERVICE_USER}" "write" "topic" "cdc.oltp.assessed.v1"
 ensure_acl "${REDPANDA_FRAUD_SERVICE_USER}" "write" "topic" "cdc.oltp.bronze.ready.v1"
 
-# Salesforce pull + bronze-ready emissions.
-ensure_acl "${REDPANDA_SALESFORCE_SERVICE_USER}" "write" "topic" "ingest.sf.pull.started.v1"
-ensure_acl "${REDPANDA_SALESFORCE_SERVICE_USER}" "write" "topic" "ingest.sf.pull.succeeded.v1"
-ensure_acl "${REDPANDA_SALESFORCE_SERVICE_USER}" "write" "topic" "ingest.sf.pull.failed.v1"
-ensure_acl "${REDPANDA_SALESFORCE_SERVICE_USER}" "write" "topic" "ingest.sf.bronze.ready.v1"
+# Salesforce incremental pull: Airflow DAG produces raw.ready; salesforce_bronze consumes
+# raw.ready and produces bronze.ready. The legacy rp_salesforce_service principal is
+# retained in the users map for the mock service identity but holds no topic ACLs today.
+ensure_acl "${REDPANDA_AIRFLOW_USER}" "write" "topic" "ingest.salesforce.raw.ready.v1"
+ensure_acl "${REDPANDA_SALESFORCE_BRONZE_USER}" "read" "topic" "ingest.salesforce.raw.ready.v1"
+ensure_acl "${REDPANDA_SALESFORCE_BRONZE_USER}" "read" "group" "${REDPANDA_SALESFORCE_BRONZE_CONSUMER_GROUP}"
+ensure_acl "${REDPANDA_SALESFORCE_BRONZE_USER}" "write" "topic" "ingest.salesforce.bronze.ready.v1"
 
 # Curated orchestrator consume bronze-ready and emit pipeline + alert events.
 ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "read" "topic" "ingest.excel.bronze.ready.v1"
 ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "read" "topic" "cdc.oltp.bronze.ready.v1"
-ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "read" "topic" "ingest.sf.bronze.ready.v1"
+ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "read" "topic" "ingest.salesforce.bronze.ready.v1"
 ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "read" "group" "${REDPANDA_ORCHESTRATOR_CONSUMER_GROUP}"
 ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "write" "topic" "pipeline.silver.completed.v1"
 ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "write" "topic" "pipeline.silver.failed.v1"

@@ -336,6 +336,30 @@ variable "redpanda_salesforce_service_password" {
   }
 }
 
+variable "redpanda_salesforce_bronze_user" {
+  description = "Redpanda service identity for the Salesforce bronze writer"
+  type        = string
+  default     = "rp_salesforce_bronze"
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]{3,64}$", var.redpanda_salesforce_bronze_user))
+    error_message = "redpanda_salesforce_bronze_user must be 3-64 chars using letters, numbers, '.', '_' or '-'."
+  }
+}
+
+variable "redpanda_salesforce_bronze_password" {
+  description = "Password for redpanda_salesforce_bronze_user"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.redpanda_salesforce_bronze_password)) >= 12
+    error_message = "redpanda_salesforce_bronze_password must be at least 12 characters."
+  }
+}
+
 variable "redpanda_orchestrator_service_user" {
   description = "Redpanda service identity for bronze->silver->gold orchestration events"
   type        = string
