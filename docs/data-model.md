@@ -18,7 +18,7 @@ All source and transformation records must carry:
 | --- | --- | --- |
 | `run_id` | UUID | Correlates all events/artifacts in one execution chain |
 | `pipeline_class` | TEXT | `ingestion` or `curated` |
-| `pipeline_name` | TEXT | `excel_ingestion`, `cdc_ingestion`, `salesforce_ingestion`, `curated_promotion` |
+| `pipeline_name` | TEXT | `excel_ingestion`, `cdc_ingestion`, `cdc_bronze_write`, `salesforce_ingestion`, `curated_promotion` |
 | `event_id` | UUID | Dedupe and immutable event identity |
 | `trace_id` | UUID | Cross-service trace correlation |
 | `source_system` | TEXT | `excel`, `cdc`, `salesforce`, `curated` |
@@ -62,7 +62,7 @@ The event store is separate from UI query-service persistence and source OLTP sy
 | --- | --- | --- |
 | `run_id` | UUID PK | Pipeline run identity |
 | `pipeline_class` | TEXT | `ingestion` or `curated` |
-| `pipeline_name` | TEXT | `excel_ingestion`, `cdc_ingestion`, `salesforce_ingestion`, `curated_promotion` |
+| `pipeline_name` | TEXT | `excel_ingestion`, `cdc_ingestion`, `cdc_bronze_write`, `salesforce_ingestion`, `curated_promotion` |
 | `source_system` | TEXT | `excel`, `cdc`, `salesforce`, `curated` |
 | `trigger_type` | TEXT | `bucket_event`, `cdc_event`, `schedule`, `bronze_ready_event`, `replay` |
 | `trigger_event_ref` | TEXT | External event reference that initiated the run |
@@ -80,6 +80,7 @@ Required invariants:
 - Domain mapping is strict:
   - `excel_ingestion` -> `source_system='excel'` and `parent_run_id IS NULL`
   - `cdc_ingestion` -> `source_system='cdc'` and `parent_run_id IS NULL`
+  - `cdc_bronze_write` -> `source_system='cdc'` and `parent_run_id IS NULL` (separate run boundary because the bronze writer fans many assessed events into one batched flush)
   - `salesforce_ingestion` -> `source_system='salesforce'` and `parent_run_id IS NULL`
   - `curated_promotion` -> `source_system='curated'` and `parent_run_id IS NOT NULL`
 - `trigger_event_ref` must be non-empty.

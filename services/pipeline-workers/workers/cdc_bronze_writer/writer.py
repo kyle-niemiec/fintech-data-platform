@@ -202,7 +202,7 @@ class CdcBronzeWriter:
                 source=EventSource.cdc,
                 run_id=run_id,
                 pipeline_class=PipelineClass.ingestion,
-                pipeline_name=PipelineName.cdc_ingestion,
+                pipeline_name=PipelineName.cdc_bronze_write,
                 trigger_event_ref=trigger_event_ref,
                 trace_id=trace_id,
                 payload={

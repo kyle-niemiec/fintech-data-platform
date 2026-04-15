@@ -122,7 +122,7 @@ def _persist_batch(conn: psycopg.Connection, emitted: EmittedBatch) -> None:
             conn,
             run_id=emitted.run_id,
             pipeline_class=PipelineClass.ingestion,
-            pipeline_name=PipelineName.cdc_ingestion,
+            pipeline_name=PipelineName.cdc_bronze_write,
             source_system=SOURCE_SYSTEM,
             trigger_type=TRIGGER_TYPE,
             trigger_event_ref=emitted.trigger_event_ref,

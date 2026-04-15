@@ -8,12 +8,17 @@ from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, 
 
 
 def _build(event_type: str, payload: dict) -> Envelope:
+    pipeline_name = (
+        PipelineName.cdc_bronze_write
+        if event_type == "cdc.oltp.bronze.ready.v1"
+        else PipelineName.cdc_ingestion
+    )
     return Envelope.build(
         event_type=event_type,
         source=EventSource.cdc,
         run_id=uuid4(),
         pipeline_class=PipelineClass.ingestion,
-        pipeline_name=PipelineName.cdc_ingestion,
+        pipeline_name=pipeline_name,
         trigger_event_ref="cdc.oltp.raw.v1:0:1",
         trace_id=uuid4(),
         payload=payload,

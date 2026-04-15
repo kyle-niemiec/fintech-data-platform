@@ -33,6 +33,7 @@ class PipelineClass(str, Enum):
 class PipelineName(str, Enum):
     excel_ingestion = "excel_ingestion"
     cdc_ingestion = "cdc_ingestion"
+    cdc_bronze_write = "cdc_bronze_write"
     salesforce_ingestion = "salesforce_ingestion"
     curated_promotion = "curated_promotion"
 

@@ -62,7 +62,7 @@ export const PIPELINE_ORDER: PipelineKind[] = [
 ];
 
 const EXCEL_NAMES = new Set(["excel_ingestion"]);
-const CDC_NAMES = new Set(["cdc_ingestion"]);
+const CDC_NAMES = new Set(["cdc_ingestion", "cdc_bronze_write"]);
 const SALESFORCE_NAMES = new Set(["salesforce_ingestion"]);
 const CURATED_NAMES = new Set(["silver_curation", "gold_curation"]);
 

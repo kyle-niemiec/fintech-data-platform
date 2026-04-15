@@ -13,7 +13,7 @@ Every event must conform to the required envelope:
   "source": "excel|cdc|salesforce|orchestration|notification",
   "run_id": "uuid",
   "pipeline_class": "ingestion|curated",
-  "pipeline_name": "excel_ingestion|cdc_ingestion|salesforce_ingestion|curated_promotion",
+  "pipeline_name": "excel_ingestion|cdc_ingestion|cdc_bronze_write|salesforce_ingestion|curated_promotion",
   "parent_run_id": "uuid|null",
   "trigger_event_ref": "string",
   "trace_id": "uuid",
@@ -138,13 +138,14 @@ Rules:
 
 - The three ingestion pipelines are independent:
   - `excel_ingestion`
-  - `cdc_ingestion`
+  - `cdc_ingestion` (fraud_worker — one run per consumed raw CDC event)
+    - `cdc_bronze_write` (cdc_bronze_writer — one run per batched flush; separate boundary because the writer fans many assessed events into a single Parquet object)
   - `salesforce_ingestion`
 - Curated promotion is a separate pipeline (`curated_promotion`) that begins only after `*.bronze.ready.v1`.
 - Curated runs may link back to the upstream ingestion run via `parent_run_id`, but execution policies remain separate.
 - Pipeline domain mapping is fixed:
   - `excel_ingestion` events use `source=excel` and `pipeline_class=ingestion`
-  - `cdc_ingestion` events use `source=cdc` and `pipeline_class=ingestion`
+  - `cdc_ingestion` and `cdc_bronze_write` events use `source=cdc` and `pipeline_class=ingestion`
   - `salesforce_ingestion` events use `source=salesforce` and `pipeline_class=ingestion`
   - `curated_promotion` events use `source=orchestration` and `pipeline_class=curated`
 

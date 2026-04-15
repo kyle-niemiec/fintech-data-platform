@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS event_store.pipeline_run (
         pipeline_name IN (
             'excel_ingestion',
             'cdc_ingestion',
+            'cdc_bronze_write',
             'salesforce_ingestion',
             'curated_promotion'
         )
@@ -39,6 +40,8 @@ CREATE TABLE IF NOT EXISTS event_store.pipeline_run (
         (pipeline_class = 'ingestion' AND pipeline_name = 'excel_ingestion' AND source_system = 'excel' AND parent_run_id IS NULL)
         OR
         (pipeline_class = 'ingestion' AND pipeline_name = 'cdc_ingestion' AND source_system = 'cdc' AND parent_run_id IS NULL)
+        OR
+        (pipeline_class = 'ingestion' AND pipeline_name = 'cdc_bronze_write' AND source_system = 'cdc' AND parent_run_id IS NULL)
         OR
         (pipeline_class = 'ingestion' AND pipeline_name = 'salesforce_ingestion' AND source_system = 'salesforce' AND parent_run_id IS NULL)
         OR
