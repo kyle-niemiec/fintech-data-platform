@@ -57,7 +57,7 @@ services:
       - platform_internal
 
   debezium_server:
-    image: debezium/server:2.7
+    image: debezium/server:2.7.3.Final
     container_name: fintech_debezium_server
     restart: unless-stopped
     environment:
