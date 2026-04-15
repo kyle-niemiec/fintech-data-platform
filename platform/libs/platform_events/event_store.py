@@ -210,4 +210,67 @@ def append_cdc_checkpoint(
         )
 
 
-__all__ = ["open_run", "append_event", "close_run", "raise_alert", "append_cdc_checkpoint"]
+def append_sf_cursor_checkpoint(
+    conn: psycopg.Connection,
+    *,
+    run_id: UUID,
+    sobject: str,
+    cursor_ts: datetime,
+    cursor_id: str,
+    kafka_partition: int,
+    offset_start: int,
+    offset_end: int,
+    record_count: int,
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO event_store.sf_cursor_checkpoint (
+                run_id, sobject, cursor_ts, cursor_id,
+                kafka_partition, offset_start, offset_end, record_count
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                str(run_id),
+                sobject,
+                cursor_ts,
+                cursor_id,
+                kafka_partition,
+                offset_start,
+                offset_end,
+                record_count,
+            ),
+        )
+
+
+def latest_sf_cursor(
+    conn: psycopg.Connection,
+    *,
+    sobject: str,
+) -> Optional[tuple[datetime, str]]:
+    """Return the most recent (cursor_ts, cursor_id) for an SObject, or None."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT cursor_ts, cursor_id
+            FROM event_store.sf_cursor_checkpoint
+            WHERE sobject = %s
+            ORDER BY recorded_at DESC
+            LIMIT 1
+            """,
+            (sobject,),
+        )
+        row = cur.fetchone()
+        return (row[0], row[1]) if row else None
+
+
+__all__ = [
+    "open_run",
+    "append_event",
+    "close_run",
+    "raise_alert",
+    "append_cdc_checkpoint",
+    "append_sf_cursor_checkpoint",
+    "latest_sf_cursor",
+]
