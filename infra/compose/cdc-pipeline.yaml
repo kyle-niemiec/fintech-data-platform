@@ -25,7 +25,7 @@ services:
       - max_wal_senders=4
     volumes:
       - oltp_data:/var/lib/postgresql/data
-      - ../db/oltp-migrations:/docker-entrypoint-initdb.d:ro
+      - ./db/oltp-migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${OLTP_ROOT_USER} -d ${OLTP_DB} -p ${OLTP_DB_PORT}"]
       interval: 5s
@@ -65,10 +65,11 @@ services:
       REDPANDA_CDC_SERVICE_USER: ${REDPANDA_CDC_SERVICE_USER}
       REDPANDA_CDC_SERVICE_PASSWORD: ${REDPANDA_CDC_SERVICE_PASSWORD}
       OLTP_DB: ${OLTP_DB}
+      OLTP_DB_PORT: ${OLTP_DB_PORT}
       OLTP_REPLICATION_USER: ${OLTP_REPLICATION_USER}
       OLTP_REPLICATION_PASSWORD: ${OLTP_REPLICATION_PASSWORD}
     volumes:
-      - ../debezium/application.properties:/debezium/config/application.properties:ro
+      - ./debezium/application.properties:/debezium/config/application.properties:ro
       - debezium_offsets:/debezium/data
     depends_on:
       oltp_db:
