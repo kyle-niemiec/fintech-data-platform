@@ -41,7 +41,10 @@ class MinioObjectStore:
 
     def stat(self, bucket: str, key: str) -> dict[str, Any]:
         obj = self._client.stat_object(bucket, key)
-        metadata = getattr(obj, "metadata", None) or {}
+        raw_metadata = getattr(obj, "metadata", None) or {}
+        # minio-py returns a urllib3 HTTPHeaderDict (not a dict subclass),
+        # so coerce to a plain dict for downstream isinstance(_, dict) checks.
+        metadata = {k: v for k, v in raw_metadata.items()}
         return {
             "size": obj.size,
             "etag": obj.etag,
