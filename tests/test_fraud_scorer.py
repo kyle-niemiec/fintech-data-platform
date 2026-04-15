@@ -6,52 +6,54 @@ import base64
 from decimal import Decimal
 
 from workers.fraud_worker.scorer import (
-    HIGH_VALUE_AAPL_FLAG,
-    HIGH_VALUE_AAPL_SCORE,
-    HIGH_VALUE_AAPL_THRESHOLD,
-    RULES_VERSION,
+    INSTRUMENT_RISK_AMOUNTS,
+    PLATFORM_RISK_THRESHOLD,
+    RISK_THRESHOLD_FLAG,
     score_transaction,
 )
 
 
-def test_high_value_aapl_flags_above_threshold() -> None:
-    result = score_transaction({"instrument": "AAPL", "amount": "10001.00"})
-    assert HIGH_VALUE_AAPL_FLAG in result.risk_flags
-    assert result.risk_score == HIGH_VALUE_AAPL_SCORE
-    assert result.fraud_rule_version == RULES_VERSION
+def _encode_scale2(amount: int) -> str:
+    unscaled_cents = amount * 100
+    return base64.b64encode(
+        unscaled_cents.to_bytes(4, byteorder="big", signed=True)
+    ).decode("ascii")
 
 
-def test_high_value_aapl_threshold_is_strict() -> None:
-    # Exactly threshold does NOT trip.
-    result = score_transaction({"instrument": "AAPL", "amount": HIGH_VALUE_AAPL_THRESHOLD})
+def test_all_instruments_have_threshold_amounts_in_expected_range() -> None:
+    assert INSTRUMENT_RISK_AMOUNTS
+    for amount in INSTRUMENT_RISK_AMOUNTS.values():
+        assert Decimal("1000") <= amount <= Decimal("30000")
+
+
+def test_each_instrument_crosses_platform_threshold_at_calibrated_amount() -> None:
+    for instrument, amount in INSTRUMENT_RISK_AMOUNTS.items():
+        result = score_transaction({"instrument": instrument, "amount": str(amount)})
+        assert result.risk_score == PLATFORM_RISK_THRESHOLD
+        assert RISK_THRESHOLD_FLAG in result.risk_flags
+
+
+def test_each_instrument_is_below_threshold_just_under_calibrated_amount() -> None:
+    for instrument, amount in INSTRUMENT_RISK_AMOUNTS.items():
+        result = score_transaction({"instrument": instrument, "amount": str(amount - 1)})
+        assert RISK_THRESHOLD_FLAG not in result.risk_flags
+
+
+def test_aapl_continuous_score_is_between_zero_and_threshold_midway() -> None:
+    result = score_transaction({"instrument": "AAPL", "amount": "5000"})
+    # With r_t=0.7 and X=10000 -> r_f=4285.714..., midpoint score is ~0.5385.
+    assert result.risk_score == Decimal("0.5385")
     assert result.risk_flags == []
-    assert result.risk_score == Decimal("0")
 
 
-def test_non_aapl_not_flagged() -> None:
-    result = score_transaction({"instrument": "MSFT", "amount": "50000"})
-    assert result.risk_flags == []
-    assert result.risk_score == Decimal("0")
-
-
-def test_small_aapl_not_flagged() -> None:
-    result = score_transaction({"instrument": "AAPL", "amount": "500"})
-    assert result.risk_flags == []
+def test_base64_kafka_connect_decimal_is_scored() -> None:
+    # 12,000 > AAPL calibrated threshold (10,000), so this must be flagged.
+    result = score_transaction({"instrument": "AAPL", "amount": _encode_scale2(12000)})
+    assert result.risk_score >= PLATFORM_RISK_THRESHOLD
+    assert RISK_THRESHOLD_FLAG in result.risk_flags
 
 
 def test_missing_fields_return_zero() -> None:
     result = score_transaction({})
     assert result.risk_flags == []
     assert result.risk_score == Decimal("0")
-    assert result.fraud_rule_version == RULES_VERSION
-
-
-def test_high_value_aapl_flags_when_amount_is_kafka_connect_decimal_base64() -> None:
-    # Debezium emits NUMERIC as base64 bytes when schema is included.
-    unscaled_cents = 10001 * 100
-    raw_amount = base64.b64encode(
-        unscaled_cents.to_bytes(4, byteorder="big", signed=True)
-    ).decode("ascii")
-    result = score_transaction({"instrument": "AAPL", "amount": raw_amount})
-    assert HIGH_VALUE_AAPL_FLAG in result.risk_flags
-    assert result.risk_score == HIGH_VALUE_AAPL_SCORE

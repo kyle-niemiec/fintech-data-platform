@@ -54,7 +54,7 @@ All source pipelines are event-driven and write audit events to the dedicated ev
 - Debezium Server (single container, `pgoutput` plugin) writes directly to Redpanda. A `ByLogicalTableRouter` SMT collapses per-table topics onto one canonical contract topic (`cdc.oltp.raw.v1`); Debezium offsets live on a named volume.
 - Fraud worker (`group.id=fraud-worker-v1`, 12-partition topic) consumes raw events, scores with pure functional rules, and emits `cdc.oltp.assessed.v1`.
 - CDC bronze writer batches assessed events, writes zero-transformation Parquet to `bronze/source=cdc/table=<table>/year=YYYY/month=MM/day=DD/hour=HH/run_id=<run_id>/...`, and emits `cdc.oltp.bronze.ready.v1`.
-- Internal load generator (container, 10s default cadence) is the only writer into the OLTP; a tunable fraction of inserts are high-value AAPL to fire the fraud rule.
+- Internal load generator (container, 10s default cadence) is the only writer into the OLTP.
 
 ### Partition Keys and Run Boundary
 
@@ -65,7 +65,23 @@ All source pipelines are event-driven and write audit events to the dedicated ev
 
 ### Rule Versioning
 
-- `fraud_rule_version` (currently `rules-v1`: `high_value_aapl` when instrument == AAPL and amount > 10000, score 0.9) is persisted on every `trading.risk_flag` row and on the assessed envelope payload so historical assessments are reproducible even as rules evolve.
+- `fraud_rule_version` is a static model label (`demo_continuous_risk`) in this demo, persisted on every `trading.risk_flag` row and assessed envelope payload for traceability only (not version governance).
+- Continuous risk model (bounded in `[0, 1)`) per instrument:
+  - Risk score function: `r(x) = -r_f/(x+r_f) + 1`
+  - Factor calibration at platform threshold `r_t=0.7`: `r_f(X) = X*(1-r_t)/r_t`
+  - A row is flagged when `r(x) >= r_t`.
+- Instrument calibration (`X` is dollar amount at which risk crosses `0.7`):
+
+| Instrument | `X` (USD) | `r_f` |
+| --- | ---: | ---: |
+| `AAPL` | 10000 | 4285.714 |
+| `MSFT` | 14000 | 6000.000 |
+| `GOOG` | 30000 | 12857.143 |
+| `AMZN` | 22000 | 9428.571 |
+| `TSLA` | 8000 | 3428.571 |
+| `JPM` | 5000 | 2142.857 |
+| `BAC` | 3000 | 1285.714 |
+| `NVDA` | 1000 | 428.571 |
 
 ### Idempotency and At-Least-Once
 

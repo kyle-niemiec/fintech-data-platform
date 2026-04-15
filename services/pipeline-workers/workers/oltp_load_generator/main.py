@@ -51,7 +51,7 @@ def _generate_row(fraud_fraction: float) -> tuple[str, str, str, Decimal, dateti
 def run() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
     interval_s = int(os.environ.get("OLTP_LOAD_GEN_INTERVAL_MS", "60000")) / 1000.0
-    fraud_fraction = float(os.environ.get("OLTP_LOAD_GEN_FRAUD_FRACTION", "0.25"))
+    fraud_fraction = float(os.environ.get("OLTP_LOAD_GEN_FRAUD_FRACTION", "0.1"))
 
     shutdown = {"stop": False}
 

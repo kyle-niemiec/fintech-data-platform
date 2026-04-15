@@ -26,7 +26,7 @@ def _assessed(lsn: str, offset: int, risk_flags: list[str] | None = None) -> Ass
     payload = {
         "risk_score": 0.9 if risk_flags else 0.0,
         "risk_flags": risk_flags or [],
-        "fraud_rule_version": "rules-v1",
+        "fraud_rule_version": "demo_continuous_risk",
         "transaction_id": f"txn-{offset}",
         "op": "c",
         "source_table": "trading.transaction",
@@ -92,7 +92,7 @@ def test_flush_sorts_by_lsn_and_preserves_record_count() -> None:
 
     records = [
         _assessed("0/16B5C30", offset=2),
-        _assessed("0/16B5C10", offset=0, risk_flags=["high_value_aapl"]),
+        _assessed("0/16B5C10", offset=0, risk_flags=["risk_threshold_exceeded"]),
         _assessed("0/16B5C20", offset=1),
     ]
     flush = writer.build_flush(records)
@@ -116,7 +116,7 @@ def test_flush_sorts_by_lsn_and_preserves_record_count() -> None:
 
 
 def test_parquet_columns_cover_contract_fields() -> None:
-    rows = [assessed_record_to_row(_assessed("0/16B5C10", offset=0, risk_flags=["high_value_aapl"]))]
+    rows = [assessed_record_to_row(_assessed("0/16B5C10", offset=0, risk_flags=["risk_threshold_exceeded"]))]
     data = rows_to_parquet_bytes(rows)
     table = pq.read_table(io.BytesIO(data))
     expected_cols = {

@@ -179,7 +179,7 @@ manual data writes are required.
    docker exec fintech_redpanda rpk topic consume cdc.oltp.raw.v1 -n 5
    ```
 
-3. Trigger a deterministic fraud path by inserting a high-value AAPL trade:
+3. Trigger a deterministic fraud path by inserting an AAPL trade above its calibrated threshold (10,000):
 
    ```bash
    make db-psql-oltp
@@ -188,7 +188,7 @@ manual data writes are required.
    VALUES (gen_random_uuid(), 'AAPL', 15000, now());
    ```
 
-4. Within seconds the assessed topic should carry `risk_flags=["high_value_aapl"]`:
+4. Within seconds the assessed topic should carry `risk_flags` including `risk_threshold_exceeded` (and the instrument-specific threshold flag):
 
    ```bash
    docker exec fintech_redpanda rpk topic consume cdc.oltp.assessed.v1 -n 1
@@ -234,9 +234,8 @@ Verify no duplicate `trading.risk_flag` rows (idempotency holds) and distinct
 
 - Replication slot growth: sustained Debezium downtime + active OLTP writes
   grow WAL. Monitor with `SELECT slot_name, active, pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) AS backlog FROM pg_replication_slots;`.
-- Rule evolution: historical `risk_flag` rows retain their
-  `fraud_rule_version`; downstream consumers must filter by version for
-  reproducibility.
+- Demo model label: `fraud_rule_version` is stored as a static label
+  (`demo_continuous_risk`) for traceability.
 
 ### Pending pipelines (later roadmap phases)
 

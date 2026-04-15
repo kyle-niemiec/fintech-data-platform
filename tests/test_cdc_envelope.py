@@ -23,8 +23,8 @@ def _build(event_type: str, payload: dict) -> Envelope:
 def test_assessed_payload_required_fields() -> None:
     payload = {
         "risk_score": 0.9,
-        "risk_flags": ["high_value_aapl"],
-        "fraud_rule_version": "rules-v1",
+        "risk_flags": ["risk_threshold_exceeded"],
+        "fraud_rule_version": "demo_continuous_risk",
         "original_topic_metadata": {
             "topic": "cdc.oltp.raw.v1",
             "partition": 0,

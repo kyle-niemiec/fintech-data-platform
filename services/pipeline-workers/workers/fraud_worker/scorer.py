@@ -3,9 +3,7 @@
 Pure-function rule engine; no IO, no Kafka, no DB. Handler layer drives
 row extraction from the Debezium envelope and persistence of the result.
 
-Rule evolution policy: bump `RULES_VERSION` whenever semantics change. The
-persisted `fraud_rule_version` on each `risk_flag` row makes historical
-assessments reproducible.
+Scoring is intentionally versionless for demo simplicity.
 """
 
 from __future__ import annotations
@@ -13,16 +11,26 @@ from __future__ import annotations
 import base64
 import binascii
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 
-RULES_VERSION = "rules-v1"
+PLATFORM_RISK_THRESHOLD = Decimal("0.7")
+RISK_SCORE_QUANT = Decimal("0.0001")
+RISK_THRESHOLD_FLAG = "risk_threshold_exceeded"
 
-HIGH_VALUE_AAPL_THRESHOLD = Decimal("10000")
-HIGH_VALUE_AAPL_INSTRUMENT = "AAPL"
-HIGH_VALUE_AAPL_SCORE = Decimal("0.9")
-HIGH_VALUE_AAPL_FLAG = "high_value_aapl"
+# Per-instrument dollar amount at which the continuous risk score reaches
+# PLATFORM_RISK_THRESHOLD.
+INSTRUMENT_RISK_AMOUNTS: dict[str, Decimal] = {
+    "AAPL": Decimal("20000"),
+    "MSFT": Decimal("24000"),
+    "GOOG": Decimal("40000"),
+    "AMZN": Decimal("32000"),
+    "TSLA": Decimal("19000"),
+    "JPM": Decimal("15000"),
+    "BAC": Decimal("10000"),
+    "NVDA": Decimal("8000"),
+}
 TRANSACTION_AMOUNT_SCALE = 2
 
 
@@ -30,7 +38,6 @@ TRANSACTION_AMOUNT_SCALE = 2
 class RiskAssessment:
     risk_score: Decimal
     risk_flags: list[str]
-    fraud_rule_version: str
 
 
 def score_transaction(row: dict[str, Any]) -> RiskAssessment:
@@ -43,22 +50,26 @@ def score_transaction(row: dict[str, Any]) -> RiskAssessment:
     amount_raw = row.get("amount")
 
     if instrument is None or amount_raw is None:
-        return RiskAssessment(Decimal("0"), [], RULES_VERSION)
+        return RiskAssessment(Decimal("0"), [])
 
     try:
         amount = _parse_amount(amount_raw)
     except (ArithmeticError, ValueError):
-        return RiskAssessment(Decimal("0"), [], RULES_VERSION)
+        return RiskAssessment(Decimal("0"), [])
 
+    threshold_amount = INSTRUMENT_RISK_AMOUNTS.get(str(instrument))
+    if threshold_amount is None:
+        return RiskAssessment(Decimal("0"), [])
+
+    risk_factor = _risk_factor_from_threshold_amount(threshold_amount)
+    risk_score_raw = _bounded_risk_score_raw(amount, risk_factor)
+    risk_score = risk_score_raw.quantize(RISK_SCORE_QUANT, rounding=ROUND_HALF_UP)
     flags: list[str] = []
-    score = Decimal("0")
+    if risk_score_raw >= PLATFORM_RISK_THRESHOLD:
+        flags.append(RISK_THRESHOLD_FLAG)
+        flags.append(f"{str(instrument).lower()}_risk_threshold_exceeded")
 
-    if instrument == HIGH_VALUE_AAPL_INSTRUMENT and amount > HIGH_VALUE_AAPL_THRESHOLD:
-        flags.append(HIGH_VALUE_AAPL_FLAG)
-        if HIGH_VALUE_AAPL_SCORE > score:
-            score = HIGH_VALUE_AAPL_SCORE
-
-    return RiskAssessment(score, flags, RULES_VERSION)
+    return RiskAssessment(risk_score, flags)
 
 
 def _parse_amount(raw: Any) -> Decimal:
@@ -86,3 +97,17 @@ def _parse_amount(raw: Any) -> Decimal:
         return Decimal(unscaled) / (Decimal(10) ** TRANSACTION_AMOUNT_SCALE)
 
     raise ValueError("unsupported amount type")
+
+
+def _risk_factor_from_threshold_amount(threshold_amount: Decimal) -> Decimal:
+    """r_f(X)=X*(1-r_t)/r_t."""
+    if threshold_amount <= 0:
+        raise ValueError("threshold amount must be > 0")
+    return threshold_amount * (Decimal("1") - PLATFORM_RISK_THRESHOLD) / PLATFORM_RISK_THRESHOLD
+
+
+def _bounded_risk_score_raw(amount: Decimal, risk_factor: Decimal) -> Decimal:
+    """r(x)=-r_f/(x+r_f)+1."""
+    if amount <= 0:
+        return Decimal("0")
+    return Decimal("1") - (risk_factor / (amount + risk_factor))
