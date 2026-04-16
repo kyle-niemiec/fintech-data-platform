@@ -7,6 +7,7 @@ COMPOSE_FILES := \
 	infra/compose/excel-pipeline.yaml \
 	infra/compose/cdc-pipeline.yaml \
 	infra/compose/salesforce-pipeline.yaml \
+	infra/compose/curated-pipeline.yaml \
 	infra/compose/api.yaml \
 	infra/compose/ui.yaml
 COMPOSE_FILES_DEV := \
@@ -31,21 +32,22 @@ define banner
 @printf "\n${F_BOLD}${C_HOTPINK}🭪 Fintech Demo 🭨${NO_FORMAT} ${F_BOLD}${C_AQUA}🭬%s🭮${NO_FORMAT}\n\n" "$(1)"
 endef
 
-INFRA_UP_STEPS := 1 2 3 4 5 6 7 8 9 10 11
+INFRA_UP_STEPS := 1 2 3 4 5 6 7 8 9 10 11 12
 INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))))
 
 .PHONY: help infra-up infra-up-dev infra-down infra-down-dev infra-ps infra-ps-dev infra-clean \
 	infra-tf-init infra-pg-up infra-kc-up infra-tf-bootstrap infra-tf-apply \
-	infra-excel-pipeline infra-cdc-pipeline infra-salesforce-pipeline infra-api-up infra-ui-up infra-pgadmin-up \
+	infra-excel-pipeline infra-cdc-pipeline infra-salesforce-pipeline infra-curated-pipeline \
+	infra-api-up infra-ui-up infra-pgadmin-up \
 	terraform-plan terraform-plan-bootstrap terraform-plan-identity \
 	db-psql-core db-psql-event-store db-psql-oltp \
-	1 2 3 4 5 6 7 8 9 10 11
+	1 2 3 4 5 6 7 8 9 10 11 12
 
 help:
 	@printf "Available targets:\n"
-	@printf "  infra-up                 Run staged startup steps 1-11\n"
-	@printf "  infra-up-dev             Run staged startup steps 1-11 with dev overlays (MinIO console :9000/:9001, pgAdmin :5050)\n"
-	@printf "  infra-up <1-11>          Run one startup step (e.g. make infra-up 3)\n"
+	@printf "  infra-up                 Run staged startup steps 1-12\n"
+	@printf "  infra-up-dev             Run staged startup steps 1-12 with dev overlays (MinIO console :9000/:9001, pgAdmin :5050)\n"
+	@printf "  infra-up <1-12>          Run one startup step (e.g. make infra-up 3)\n"
 	@printf "  compose stack            base + foundation + orchestration + excel-pipeline + api + ui\n"
 	@printf "  infra-tf-init            Initialize Terraform providers in Docker (bootstrap + identity)\n"
 	@printf "  infra-pg-up              Start Postgres + event-store DB + Vault/KES + MinIO + Redpanda containers\n"
@@ -55,6 +57,7 @@ help:
 	@printf "  infra-excel-pipeline     Start and validate Airflow + ClamAV + Excel scanner/trigger/bronze services\n"
 	@printf "  infra-cdc-pipeline       Start and validate OLTP + Debezium + fraud worker + CDC bronze writer\n"
 	@printf "  infra-salesforce-pipeline Start and validate Salesforce mock + bronze writer\n"
+	@printf "  infra-curated-pipeline   Start Iceberg REST catalog + Trino coordinator for silver/gold transforms\n"
 	@printf "  infra-api-up             Start and validate read-only UI query API service\n"
 	@printf "  infra-ui-up              Build and start the React demo UI (nginx on :3000)\n"
 	@printf "  infra-pgadmin-up         Start dev-only pgAdmin overlay on :5050 (requires dev compose files)\n"
@@ -79,6 +82,7 @@ infra-up:
 		$(MAKE) infra-excel-pipeline; \
 		$(MAKE) infra-cdc-pipeline; \
 		$(MAKE) infra-salesforce-pipeline; \
+		$(MAKE) infra-curated-pipeline; \
 		$(MAKE) infra-api-up; \
 		$(MAKE) infra-ui-up; \
 		$(MAKE) infra-ps; \
@@ -99,13 +103,15 @@ infra-up:
 	elif [ "$(INFRA_UP_STEP)" = "8" ]; then \
 		$(MAKE) infra-salesforce-pipeline; \
 	elif [ "$(INFRA_UP_STEP)" = "9" ]; then \
-		$(MAKE) infra-api-up; \
+		$(MAKE) infra-curated-pipeline; \
 	elif [ "$(INFRA_UP_STEP)" = "10" ]; then \
-		$(MAKE) infra-ui-up; \
+		$(MAKE) infra-api-up; \
 	elif [ "$(INFRA_UP_STEP)" = "11" ]; then \
+		$(MAKE) infra-ui-up; \
+	elif [ "$(INFRA_UP_STEP)" = "12" ]; then \
 		$(MAKE) infra-ps; \
 	else \
-		printf "Invalid infra-up step '%s'. Use 1-11.\n" "$(INFRA_UP_STEP)" >&2; \
+		printf "Invalid infra-up step '%s'. Use 1-12.\n" "$(INFRA_UP_STEP)" >&2; \
 		exit 2; \
 	fi
 
@@ -113,7 +119,7 @@ infra-up-dev:
 	@$(MAKE) COMPOSE="$(COMPOSE_DEV)" infra-up
 	make infra-pgadmin-up
 
-1 2 3 4 5 6 7 8 9 10 11:
+1 2 3 4 5 6 7 8 9 10 11 12:
 	@:
 
 infra-tf-init:
@@ -219,6 +225,24 @@ infra-salesforce-pipeline:
 		printf "infra-salesforce-pipeline service check failed: fintech_salesforce_bronze_writer state=%s\n" "$$state" >&2; \
 		exit 1; \
 	fi
+
+infra-curated-pipeline:
+	$(call banner,Starting Iceberg REST catalog + Trino coordinator for curated transforms...)
+	$(COMPOSE) up -d iceberg_rest trino
+	@attempt=1; max_attempts=60; \
+	while true; do \
+		iceberg_health=$$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' fintech_iceberg_rest 2>/dev/null || echo missing); \
+		trino_health=$$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' fintech_trino 2>/dev/null || echo missing); \
+		if [ "$$iceberg_health" = "healthy" ] && [ "$$trino_health" = "healthy" ]; then \
+			break; \
+		fi; \
+		if [ $$attempt -ge $$max_attempts ]; then \
+			printf "infra-curated-pipeline timed out waiting for health checks (iceberg_rest=%s trino=%s).\n" "$$iceberg_health" "$$trino_health" >&2; \
+			exit 1; \
+		fi; \
+		attempt=$$((attempt + 1)); \
+		sleep 5; \
+	done
 
 infra-api-up:
 	$(call banner,Starting read-only UI query API service...)
