@@ -50,6 +50,8 @@ require_env REDPANDA_EXCEL_BRONZE_CONSUMER_GROUP
 require_env REDPANDA_SALESFORCE_BRONZE_CONSUMER_GROUP
 require_env REDPANDA_FRAUD_CONSUMER_GROUP
 require_env REDPANDA_ORCHESTRATOR_CONSUMER_GROUP
+require_env REDPANDA_CURATED_SILVER_CONSUMER_GROUP
+require_env REDPANDA_CURATED_GOLD_CONSUMER_GROUP
 require_env REDPANDA_UI_ALERTS_CONSUMER_GROUP
 
 rpk_kafka() {
@@ -224,11 +226,15 @@ ensure_acl "${REDPANDA_SALESFORCE_BRONZE_USER}" "read" "topic" "ingest.salesforc
 ensure_acl "${REDPANDA_SALESFORCE_BRONZE_USER}" "read" "group" "${REDPANDA_SALESFORCE_BRONZE_CONSUMER_GROUP}"
 ensure_acl "${REDPANDA_SALESFORCE_BRONZE_USER}" "write" "topic" "ingest.salesforce.bronze.ready.v1"
 
-# Curated orchestrator consume bronze-ready and emit pipeline + alert events.
+# Curated orchestrator consume bronze-ready + silver-completed, emit pipeline + alert events.
+# Silver DAG subscribes via the silver consumer group; gold DAG via the gold consumer group.
 ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "read" "topic" "ingest.excel.bronze.ready.v1"
 ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "read" "topic" "cdc.oltp.bronze.ready.v1"
 ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "read" "topic" "ingest.salesforce.bronze.ready.v1"
+ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "read" "topic" "pipeline.silver.completed.v1"
 ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "read" "group" "${REDPANDA_ORCHESTRATOR_CONSUMER_GROUP}"
+ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "read" "group" "${REDPANDA_CURATED_SILVER_CONSUMER_GROUP}"
+ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "read" "group" "${REDPANDA_CURATED_GOLD_CONSUMER_GROUP}"
 ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "write" "topic" "pipeline.silver.completed.v1"
 ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "write" "topic" "pipeline.silver.failed.v1"
 ensure_acl "${REDPANDA_ORCHESTRATOR_SERVICE_USER}" "write" "topic" "pipeline.gold.completed.v1"

@@ -46,6 +46,8 @@ resource "terraform_data" "redpanda_identity_and_acls" {
         fraud             = "fraud-worker-v1"
         salesforce_bronze = "salesforce-bronze-writer-v1"
         orchestrator      = "curated-orchestrator-v1"
+        curated_silver    = "airflow-curated-silver-v1"
+        curated_gold      = "airflow-curated-gold-v1"
         ui_alerts         = "ui-alert-feed-v1"
       }
       users = {
@@ -117,6 +119,8 @@ resource "terraform_data" "redpanda_identity_and_acls" {
       REDPANDA_EXCEL_BRONZE_CONSUMER_GROUP      = "excel-bronze-writer-v1"
       REDPANDA_SALESFORCE_BRONZE_CONSUMER_GROUP = "salesforce-bronze-writer-v1"
       REDPANDA_ORCHESTRATOR_CONSUMER_GROUP      = "curated-orchestrator-v1"
+      REDPANDA_CURATED_SILVER_CONSUMER_GROUP    = "airflow-curated-silver-v1"
+      REDPANDA_CURATED_GOLD_CONSUMER_GROUP      = "airflow-curated-gold-v1"
       REDPANDA_UI_ALERTS_CONSUMER_GROUP         = "ui-alert-feed-v1"
     }
   }
