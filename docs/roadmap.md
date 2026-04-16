@@ -59,9 +59,17 @@ Completed:
 
 ## Phase 6 - Curated Layer Orchestration
 
-- Implement bronze-to-silver DAG with dedupe, masking, and SCD2 controls.
-- Implement silver-to-gold DAG with KPI aggregation.
-- Emit stage completion/failure events for all curated transitions.
+Completed (vertical slice - Salesforce Opportunity path only):
+- Trino coordinator (single node) with the Iceberg connector backs the curated transform engine; iceberg-rest REST catalog persists Iceberg metadata in a dedicated `iceberg` schema of the platform Postgres; S3 writes go through the existing `MINIO_TRINO_WRITE` identity with SSE-KMS enforced via KES + Vault Transit.
+- `lakehouse.silver.dim_opportunity` is an SCD2 Iceberg table at `s3://.../silver/domain=salesforce_opportunity/` partitioned by year/month/day on SystemModstamp. `lakehouse.gold.kpi_pipeline_conversion` is an append-style Iceberg table at `s3://.../gold/metric=pipeline_conversion/` partitioned by snapshot_date.
+- Airflow DAG pairs follow a listener/transform split: a `@continuous` listener DAG drives `AwaitMessageTriggerFunctionSensor` and fans out `TriggerDagRunOperator` runs per matching upstream event; the transform DAG is `schedule=None` with `max_active_runs>1` for parallelism.
+- `silver_curated_promotion` consumes `ingest.salesforce.bronze.ready.v1`, opens a `curated_promotion` run with `parent_run_id = bronze.run_id`, reads the bronze parquet into a staging parquet on MinIO with AccountId tokenized via the new `platform_masking` library, runs the SCD2 MERGE via Trino, records an `event_store.silver_checkpoint`, emits `pipeline.silver.completed.v1`, and closes the run in a single event-store transaction. Failure emits `pipeline.silver.failed.v1` and closes the run `failed`.
+- `gold_curated_aggregation` consumes `pipeline.silver.completed.v1`, opens a `curated_promotion` run with `parent_run_id = silver.run_id`, runs the KPI INSERT via Trino, records an `event_store.gold_checkpoint`, emits `pipeline.gold.completed.v1`, and closes the run in a single event-store transaction.
+- Event-store adds `event_store.silver_checkpoint` and `event_store.gold_checkpoint` with FK to `pipeline_run(run_id)` plus `append_silver_checkpoint` / `append_gold_checkpoint` helpers on the existing `platform_events.event_store` API.
+- `platform_masking` library provides deterministic HMAC-SHA256 masking (`tokenize`, `mask_email`, `hash_pii`, `redact`) with salt sourced from the `PLATFORM_MASKING_SALT` env var; used by the silver DAG and available for future curated transforms.
+- Redpanda identity extends the existing `rp_orchestrator_service` principal with READ on `pipeline.silver.completed.v1` and the two new curated consumer groups (`airflow-curated-silver-v1`, `airflow-curated-gold-v1`); `airflow_init` seeds `kafka_default` and `trino_default` Airflow connections idempotently on every bring-up.
+
+Deferred to Phase 6 follow-ups (outside the slice): `dim_account`, `dim_loan`, `fact_loan_payment`, `fact_commission_adjustment`, `loan_status_history`, and the remaining gold KPIs (`kpi_portfolio_health`, `kpi_payment_performance`, `kpi_commission_economics`). The CDC and Excel curated paths are also follow-ups - only the Salesforce path ships in the vertical slice.
 
 ## Phase 7 - Query Plane and UI
 

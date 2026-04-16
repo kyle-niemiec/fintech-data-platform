@@ -139,3 +139,28 @@ Salesforce pulls are internal-only. FastAPI/UI does not initiate pull execution.
 6. UI feed reads stage events from event-store read models.
 
 Curated runs are separate from ingestion runs; they may reference the upstream ingestion run for lineage but are orchestrated independently.
+
+### Curated Promotion Pipeline (Salesforce Opportunity slice)
+
+The Phase 6 vertical slice implements the Salesforce Opportunity curated path end-to-end. The same listener/transform DAG-pair pattern will be reused for every curated sub-path; this section documents what actually runs today.
+
+- Transform engine: Trino coordinator with the Iceberg connector, iceberg-rest REST catalog (JDBC-backed by the platform Postgres), SSE-KMS enforced on every S3 write.
+- Listener + transform split:
+  - `silver_curated_listener` (`@continuous`): `AwaitMessageTriggerFunctionSensor` on `ingest.salesforce.bronze.ready.v1`; fans out `TriggerDagRunOperator` per envelope.
+  - `silver_curated_promotion` (`schedule=None`, `max_active_runs>1`): one run per bronze event.
+  - `gold_curated_listener` (`@continuous`): same pattern on `pipeline.silver.completed.v1`.
+  - `gold_curated_aggregation` (`schedule=None`, `max_active_runs>1`): one run per silver envelope.
+- Silver transform (`lakehouse.silver.dim_opportunity`):
+  1. Open a `curated_promotion` run with `parent_run_id = bronze.run_id`.
+  2. Read the bronze parquet referenced by the envelope, tokenize AccountId via `platform_masking.tokenize(scope='salesforce_account_id')`, and write a staging parquet under `s3://.../warehouse/_staging/<curated_run_id>/` with SSE-KMS headers.
+  3. Execute SCD2 `MERGE INTO lakehouse.silver.dim_opportunity` via Trino, matched by `opportunity_id` on `is_current=true`, closing the current row on any source-faithful business-attribute change and inserting a new current version.
+  4. In a single event-store transaction: `append_silver_checkpoint` (with merge stats), `append_event` for `pipeline.silver.completed.v1`, `close_run(status='completed')`. The Kafka produce happens before the transaction so persistence is authoritative.
+- Gold transform (`lakehouse.gold.kpi_pipeline_conversion`):
+  1. Open a `curated_promotion` run with `parent_run_id = silver.run_id`.
+  2. Execute the aggregation INSERT from `lakehouse.silver.dim_opportunity` where `is_current=true`, grouped by `stage_name`, with counts (won/lost/open), $ totals, and closed-rate conversion per (snapshot_date, stage_name).
+  3. In a single event-store transaction: `append_gold_checkpoint` (metric=`pipeline_conversion`), `append_event` for `pipeline.gold.completed.v1`, `close_run(status='completed')`.
+- Failure paths: on any Airflow task failure the DAG-level `on_failure_callback` emits `pipeline.{silver,gold}.failed.v1` and closes the curated run `failed`.
+- Masking: `platform_masking` provides deterministic HMAC-SHA256 primitives (`tokenize`, `mask_email`, `hash_pii`, `redact`) with salt sourced from `PLATFORM_MASKING_SALT`. Determinism is load-bearing - re-runs must produce the same silver natural keys for the MERGE to behave as SCD2.
+- Identity: Trino and iceberg-rest both use the existing `MINIO_TRINO_WRITE` S3 identity scoped to `silver/*` and `gold/*` with KMS enforcement. DAG Kafka access uses the existing `rp_orchestrator_service` Redpanda principal, extended with READ on `pipeline.silver.completed.v1` and the two curated consumer groups (`airflow-curated-silver-v1`, `airflow-curated-gold-v1`).
+
+Out of scope for the slice (carried as Phase 6 follow-ups): `dim_account`, `dim_loan`, `fact_loan_payment`, `fact_commission_adjustment`, `loan_status_history`, and the remaining gold KPIs (`kpi_portfolio_health`, `kpi_payment_performance`, `kpi_commission_economics`). CDC and Excel curated paths also deferred.
