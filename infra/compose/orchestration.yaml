@@ -42,6 +42,36 @@ services:
             --email admin@meridian.local \
             --password "${AIRFLOW_ADMIN_PASSWORD}"
         fi
+
+        # Curated-pipeline listener connection (Kafka) + transform connection (Trino).
+        # Idempotent: delete-then-add so password rotations take effect.
+        airflow connections delete kafka_default >/dev/null 2>&1 || true
+        airflow connections add kafka_default \
+          --conn-type kafka \
+          --conn-extra "$(python - <<'PY'
+        import json, os
+        extra = {
+            "bootstrap.servers": os.environ["REDPANDA_BOOTSTRAP_SERVERS"],
+            "security.protocol": os.environ.get("REDPANDA_SECURITY_PROTOCOL", "PLAINTEXT"),
+            "group.id": "airflow-curated-silver-v1",
+            "auto.offset.reset": "earliest",
+            "enable.auto.commit": "false",
+        }
+        if extra["security.protocol"] != "PLAINTEXT":
+            extra["sasl.mechanism"] = os.environ.get("REDPANDA_SASL_MECHANISM", "SCRAM-SHA-256")
+            extra["sasl.username"] = os.environ["REDPANDA_ORCHESTRATOR_SERVICE_USER"]
+            extra["sasl.password"] = os.environ["REDPANDA_ORCHESTRATOR_SERVICE_PASSWORD"]
+        print(json.dumps(extra))
+        PY
+        )"
+
+        airflow connections delete trino_default >/dev/null 2>&1 || true
+        airflow connections add trino_default \
+          --conn-type trino \
+          --conn-host trino \
+          --conn-port 8080 \
+          --conn-login trino_etl \
+          --conn-schema silver
     environment: &airflow_env
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
@@ -54,14 +84,22 @@ services:
       REDPANDA_BOOTSTRAP_SERVERS: ${REDPANDA_BOOTSTRAP_SERVERS}
       REDPANDA_AIRFLOW_USER: ${REDPANDA_AIRFLOW_USER}
       REDPANDA_AIRFLOW_PASSWORD: ${REDPANDA_AIRFLOW_PASSWORD}
+      REDPANDA_ORCHESTRATOR_SERVICE_USER: ${REDPANDA_ORCHESTRATOR_SERVICE_USER}
+      REDPANDA_ORCHESTRATOR_SERVICE_PASSWORD: ${REDPANDA_ORCHESTRATOR_SERVICE_PASSWORD}
       REDPANDA_SECURITY_PROTOCOL: ${REDPANDA_SECURITY_PROTOCOL:-PLAINTEXT}
       REDPANDA_SASL_MECHANISM: ${REDPANDA_SASL_MECHANISM:-SCRAM-SHA-256}
       MINIO_ENDPOINT: minio:9000
       MINIO_SECURE: "false"
       MINIO_VALIDATION_USER: ${MINIO_VALIDATION_USER}
       MINIO_VALIDATION_SECRET: ${MINIO_VALIDATION_SECRET}
+      MINIO_TRINO_WRITE_USER: ${MINIO_TRINO_WRITE_USER}
+      MINIO_TRINO_WRITE_SECRET: ${MINIO_TRINO_WRITE_SECRET}
       MINIO_KMS_KEY_ID: ${MINIO_KMS_KEY_ID}
       MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
+      PLATFORM_MASKING_SALT: ${PLATFORM_MASKING_SALT}
+      TRINO_HOST: trino
+      TRINO_PORT: "8080"
+      TRINO_USER: trino_etl
       SALESFORCE_BASE_URL: ${SALESFORCE_BASE_URL:-http://salesforce_mock:8080}
       SALESFORCE_CLIENT_ID: ${SALESFORCE_CLIENT_ID}
       SALESFORCE_CLIENT_SECRET: ${SALESFORCE_CLIENT_SECRET}
