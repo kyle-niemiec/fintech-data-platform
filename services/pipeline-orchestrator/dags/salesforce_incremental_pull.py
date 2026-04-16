@@ -202,10 +202,10 @@ def _write_pages_to_minio(bucket: str, sobject: str, run_id: str, pages: list[di
 
 with DAG(
     dag_id="salesforce_incremental_pull",
-    description="Hourly incremental pull from (mock) Salesforce per SObject.",
+    description="Incremental pull from (mock) Salesforce per SObject every 15 minutes.",
     default_args=default_args,
     start_date=pendulum.datetime(2026, 1, 1, tz="UTC"),
-    schedule="0 * * * *",
+    schedule="*/15 * * * *",
     catchup=False,
     max_active_runs=1,
     is_paused_upon_creation=False,

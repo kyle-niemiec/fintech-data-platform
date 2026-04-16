@@ -6,6 +6,7 @@ COMPOSE_FILES := \
 	infra/compose/orchestration.yaml \
 	infra/compose/excel-pipeline.yaml \
 	infra/compose/cdc-pipeline.yaml \
+	infra/compose/salesforce-pipeline.yaml \
 	infra/compose/api.yaml \
 	infra/compose/ui.yaml
 COMPOSE_FILES_DEV := \
@@ -30,21 +31,21 @@ define banner
 @printf "\n${F_BOLD}${C_HOTPINK}🭪 Fintech Demo 🭨${NO_FORMAT} ${F_BOLD}${C_AQUA}🭬%s🭮${NO_FORMAT}\n\n" "$(1)"
 endef
 
-INFRA_UP_STEPS := 1 2 3 4 5 6 7 8 9 10
+INFRA_UP_STEPS := 1 2 3 4 5 6 7 8 9 10 11
 INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))))
 
 .PHONY: help infra-up infra-up-dev infra-down infra-down-dev infra-ps infra-ps-dev infra-clean \
 	infra-tf-init infra-pg-up infra-kc-up infra-tf-bootstrap infra-tf-apply \
-	infra-excel-pipeline infra-cdc-pipeline infra-api-up infra-ui-up infra-pgadmin-up \
+	infra-excel-pipeline infra-cdc-pipeline infra-salesforce-pipeline infra-api-up infra-ui-up infra-pgadmin-up \
 	terraform-plan terraform-plan-bootstrap terraform-plan-identity \
 	db-psql-core db-psql-event-store db-psql-oltp \
-	1 2 3 4 5 6 7 8 9 10
+	1 2 3 4 5 6 7 8 9 10 11
 
 help:
 	@printf "Available targets:\n"
-	@printf "  infra-up                 Run staged startup steps 1-9\n"
-	@printf "  infra-up-dev             Run staged startup steps 1-9 with dev overlays (MinIO console :9000/:9001, pgAdmin :5050)\n"
-	@printf "  infra-up <1-9>           Run one startup step (e.g. make infra-up 3)\n"
+	@printf "  infra-up                 Run staged startup steps 1-11\n"
+	@printf "  infra-up-dev             Run staged startup steps 1-11 with dev overlays (MinIO console :9000/:9001, pgAdmin :5050)\n"
+	@printf "  infra-up <1-11>          Run one startup step (e.g. make infra-up 3)\n"
 	@printf "  compose stack            base + foundation + orchestration + excel-pipeline + api + ui\n"
 	@printf "  infra-tf-init            Initialize Terraform providers in Docker (bootstrap + identity)\n"
 	@printf "  infra-pg-up              Start Postgres + event-store DB + Vault/KES + MinIO + Redpanda containers\n"
@@ -53,6 +54,7 @@ help:
 	@printf "  infra-tf-apply           Apply Terraform identity phase in Docker (Keycloak + Redpanda ACLs)\n"
 	@printf "  infra-excel-pipeline     Start and validate Airflow + ClamAV + Excel scanner/trigger/bronze services\n"
 	@printf "  infra-cdc-pipeline       Start and validate OLTP + Debezium + fraud worker + CDC bronze writer\n"
+	@printf "  infra-salesforce-pipeline Start and validate Salesforce mock + bronze writer\n"
 	@printf "  infra-api-up             Start and validate read-only UI query API service\n"
 	@printf "  infra-ui-up              Build and start the React demo UI (nginx on :3000)\n"
 	@printf "  infra-pgadmin-up         Start dev-only pgAdmin overlay on :5050 (requires dev compose files)\n"
@@ -76,6 +78,7 @@ infra-up:
 		$(MAKE) infra-tf-apply; \
 		$(MAKE) infra-excel-pipeline; \
 		$(MAKE) infra-cdc-pipeline; \
+		$(MAKE) infra-salesforce-pipeline; \
 		$(MAKE) infra-api-up; \
 		$(MAKE) infra-ui-up; \
 		$(MAKE) infra-ps; \
@@ -94,13 +97,15 @@ infra-up:
 	elif [ "$(INFRA_UP_STEP)" = "7" ]; then \
 		$(MAKE) infra-cdc-pipeline; \
 	elif [ "$(INFRA_UP_STEP)" = "8" ]; then \
-		$(MAKE) infra-api-up; \
+		$(MAKE) infra-salesforce-pipeline; \
 	elif [ "$(INFRA_UP_STEP)" = "9" ]; then \
-		$(MAKE) infra-ui-up; \
+		$(MAKE) infra-api-up; \
 	elif [ "$(INFRA_UP_STEP)" = "10" ]; then \
+		$(MAKE) infra-ui-up; \
+	elif [ "$(INFRA_UP_STEP)" = "11" ]; then \
 		$(MAKE) infra-ps; \
 	else \
-		printf "Invalid infra-up step '%s'. Use 1-10.\n" "$(INFRA_UP_STEP)" >&2; \
+		printf "Invalid infra-up step '%s'. Use 1-11.\n" "$(INFRA_UP_STEP)" >&2; \
 		exit 2; \
 	fi
 
@@ -108,7 +113,7 @@ infra-up-dev:
 	@$(MAKE) COMPOSE="$(COMPOSE_DEV)" infra-up
 	make infra-pgadmin-up
 
-1 2 3 4 5 6 7 8 9 10:
+1 2 3 4 5 6 7 8 9 10 11:
 	@:
 
 infra-tf-init:
@@ -192,6 +197,28 @@ infra-cdc-pipeline:
 			exit 1; \
 		fi; \
 	done
+
+infra-salesforce-pipeline:
+	$(call banner,Starting Salesforce mock + bronze writer services...)
+	$(COMPOSE) up -d --build salesforce_mock salesforce_bronze_writer
+	@attempt=1; max_attempts=60; \
+	while true; do \
+		mock_health=$$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' fintech_salesforce_mock 2>/dev/null || echo missing); \
+		if [ "$$mock_health" = "healthy" ]; then \
+			break; \
+		fi; \
+		if [ $$attempt -ge $$max_attempts ]; then \
+			printf "infra-salesforce-pipeline timed out waiting for salesforce_mock (status=%s).\n" "$$mock_health" >&2; \
+			exit 1; \
+		fi; \
+		attempt=$$((attempt + 1)); \
+		sleep 5; \
+	done; \
+	state=$$(docker inspect -f '{{.State.Status}}' fintech_salesforce_bronze_writer 2>/dev/null || echo missing); \
+	if [ "$$state" != "running" ]; then \
+		printf "infra-salesforce-pipeline service check failed: fintech_salesforce_bronze_writer state=%s\n" "$$state" >&2; \
+		exit 1; \
+	fi
 
 infra-api-up:
 	$(call banner,Starting read-only UI query API service...)
