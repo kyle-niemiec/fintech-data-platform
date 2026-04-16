@@ -1,0 +1,55 @@
+services:
+  iceberg_rest:
+    image: tabulario/iceberg-rest:1.5.0
+    container_name: fintech_iceberg_rest
+    restart: unless-stopped
+    environment:
+      CATALOG_WAREHOUSE: s3://${MINIO_BUCKET_NAME}/warehouse/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      CATALOG_S3_ACCESS__KEY__ID: ${MINIO_TRINO_WRITE_USER}
+      CATALOG_S3_SECRET__ACCESS__KEY: ${MINIO_TRINO_WRITE_SECRET}
+      CATALOG_S3_SSE__TYPE: kms
+      CATALOG_S3_SSE__KEY: ${MINIO_KMS_KEY_ID}
+      CATALOG_CATALOG__IMPL: org.apache.iceberg.jdbc.JdbcCatalog
+      CATALOG_URI: jdbc:postgresql://postgres:5432/${POSTGRES_DB}?currentSchema=iceberg
+      CATALOG_JDBC_USER: ${ICEBERG_CATALOG_OWNER_USER}
+      CATALOG_JDBC_PASSWORD: ${ICEBERG_CATALOG_OWNER_PASSWORD}
+      AWS_REGION: us-east-1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8181/v1/config || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - platform_internal
+
+  trino:
+    image: trinodb/trino:442
+    container_name: fintech_trino
+    restart: unless-stopped
+    environment:
+      MINIO_TRINO_WRITE_USER: ${MINIO_TRINO_WRITE_USER}
+      MINIO_TRINO_WRITE_SECRET: ${MINIO_TRINO_WRITE_SECRET}
+      MINIO_KMS_KEY_ID: ${MINIO_KMS_KEY_ID}
+    volumes:
+      - ./trino/etc:/etc/trino:ro
+      - ./trino/access-control:/etc/trino/access-control:ro
+    depends_on:
+      iceberg_rest:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/v1/info >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 20s
+    networks:
+      - platform_internal

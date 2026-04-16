@@ -25,3 +25,15 @@ resource "postgresql_schema" "keycloak" {
   name     = "keycloak"
   owner    = postgresql_role.keycloak_runtime.name
 }
+
+resource "postgresql_role" "iceberg_catalog_owner" {
+  name     = var.iceberg_catalog_owner_user
+  login    = true
+  password = var.iceberg_catalog_owner_password
+}
+
+resource "postgresql_schema" "iceberg_catalog" {
+  database = var.postgres_db
+  name     = "iceberg"
+  owner    = postgresql_role.iceberg_catalog_owner.name
+}

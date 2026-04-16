@@ -183,6 +183,30 @@ variable "kc_db_password" {
   }
 }
 
+variable "iceberg_catalog_owner_user" {
+  description = "DB login for the Iceberg REST catalog JDBC backend owner"
+  type        = string
+  default     = "iceberg_catalog_owner"
+  nullable    = false
+
+  validation {
+    condition     = trimspace(var.iceberg_catalog_owner_user) != ""
+    error_message = "iceberg_catalog_owner_user must be set."
+  }
+}
+
+variable "iceberg_catalog_owner_password" {
+  description = "DB password for the Iceberg REST catalog owner"
+  type        = string
+  sensitive   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.iceberg_catalog_owner_password)) >= 12
+    error_message = "iceberg_catalog_owner_password must be at least 12 characters."
+  }
+}
+
 variable "minio_server" {
   description = "MinIO endpoint in host:port format reachable from Terraform runner"
   type        = string
