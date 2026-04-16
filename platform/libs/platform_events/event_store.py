@@ -265,6 +265,77 @@ def latest_sf_cursor(
         return (row[0], row[1]) if row else None
 
 
+def append_silver_checkpoint(
+    conn: psycopg.Connection,
+    *,
+    run_id: UUID,
+    parent_run_id: UUID,
+    silver_domain: str,
+    input_uris: list[str],
+    output_table: str,
+    output_uris: list[str],
+    record_count: int,
+    merge_inserted: int = 0,
+    merge_updated: int = 0,
+    merge_closed: int = 0,
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO event_store.silver_checkpoint (
+                run_id, parent_run_id, silver_domain,
+                input_uris, output_table, output_uris,
+                record_count, merge_inserted, merge_updated, merge_closed
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                str(run_id),
+                str(parent_run_id),
+                silver_domain,
+                Jsonb(input_uris),
+                output_table,
+                Jsonb(output_uris),
+                record_count,
+                merge_inserted,
+                merge_updated,
+                merge_closed,
+            ),
+        )
+
+
+def append_gold_checkpoint(
+    conn: psycopg.Connection,
+    *,
+    run_id: UUID,
+    parent_run_id: UUID,
+    metric: str,
+    input_uris: list[str],
+    output_table: str,
+    output_uris: list[str],
+    record_count: int,
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO event_store.gold_checkpoint (
+                run_id, parent_run_id, metric,
+                input_uris, output_table, output_uris, record_count
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                str(run_id),
+                str(parent_run_id),
+                metric,
+                Jsonb(input_uris),
+                output_table,
+                Jsonb(output_uris),
+                record_count,
+            ),
+        )
+
+
 __all__ = [
     "open_run",
     "append_event",
@@ -273,4 +344,6 @@ __all__ = [
     "append_cdc_checkpoint",
     "append_sf_cursor_checkpoint",
     "latest_sf_cursor",
+    "append_silver_checkpoint",
+    "append_gold_checkpoint",
 ]
