@@ -4,3 +4,7 @@ minio
 pandas
 openpyxl
 pydantic
+apache-airflow-providers-apache-kafka==1.6.0
+apache-airflow-providers-trino==5.9.0
+pyarrow==16.1.0
+trino==0.328.0
