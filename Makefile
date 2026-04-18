@@ -157,7 +157,7 @@ infra-tf-apply:
 
 infra-excel-pipeline:
 	$(call banner,Starting Airflow + ClamAV + Excel scanner/trigger/bronze writer services...)
-	$(COMPOSE) up -d airflow_postgres airflow_init airflow_scheduler airflow_webserver clamav excel_scanner excel_validation_trigger excel_bronze_writer
+	$(COMPOSE) up -d --build airflow_postgres airflow_init airflow_scheduler airflow_webserver clamav excel_scanner excel_validation_trigger excel_bronze_writer
 	@attempt=1; max_attempts=60; \
 	while true; do \
 		airflow_health=$$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' fintech_airflow_webserver 2>/dev/null || echo missing); \
@@ -273,10 +273,10 @@ infra-down-dev:
 
 infra-ps:
 	$(call banner,Showing infrastructure container status...)
-	$(COMPOSE) ps
+	@$(COMPOSE) ps --format 'table {{.Name}}\t\t{{.Service}}\t\t{{.Status}}\t\t{{.Ports}}'
 
 infra-ps-dev:
-	$(COMPOSE_DEV) ps
+	@$(COMPOSE_DEV) ps --format 'table {{.Name}}\t{{.Service}}\t{{.CreatedAt}}\t{{.Status}}\t{{.Ports}}'
 
 infra-clean:
 	$(COMPOSE_DEV) down --volumes --remove-orphans

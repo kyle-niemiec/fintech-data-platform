@@ -68,8 +68,8 @@ def _get_minio_client():
 
     return Minio(
         os.environ["MINIO_ENDPOINT"],
-        access_key=os.environ["MINIO_VALIDATION_USER"],
-        secret_key=os.environ["MINIO_VALIDATION_SECRET"],
+        access_key=os.environ["MINIO_INGEST_USER"],
+        secret_key=os.environ["MINIO_INGEST_SECRET"],
         secure=os.environ.get("MINIO_SECURE", "false").lower() == "true",
         region=os.environ.get("MINIO_REGION", "us-east-1"),
     )

@@ -23,7 +23,10 @@ services:
       minio:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8181/v1/config || exit 1"]
+      test:
+        - "CMD-SHELL"
+        - >-
+          perl -MIO::Socket::INET -e 'my $$sock=IO::Socket::INET->new(PeerAddr=>"127.0.0.1",PeerPort=>8181,Proto=>"tcp",Timeout=>2) or exit 1; print $$sock "GET /v1/config HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"; my $$ok=0; while (my $$line=<$$sock>) { if ($$line =~ m{^HTTP/\d+\.\d+ 200\b}) { $$ok=1; last; } } exit($$ok ? 0 : 1);'
       interval: 10s
       timeout: 5s
       retries: 12
@@ -41,7 +44,6 @@ services:
       MINIO_KMS_KEY_ID: ${MINIO_KMS_KEY_ID}
     volumes:
       - ./trino/etc:/etc/trino:ro
-      - ./trino/access-control:/etc/trino/access-control:ro
     depends_on:
       iceberg_rest:
         condition: service_healthy
