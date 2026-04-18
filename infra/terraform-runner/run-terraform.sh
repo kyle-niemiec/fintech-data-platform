@@ -41,6 +41,8 @@ require_env EVENT_QUERY_DB_USER
 require_env EVENT_QUERY_DB_PASSWORD
 require_env EVENT_APPEND_DB_USER
 require_env EVENT_APPEND_DB_PASSWORD
+require_env ICEBERG_CATALOG_OWNER_USER
+require_env ICEBERG_CATALOG_OWNER_PASSWORD
 require_env KC_DB_USER
 require_env KC_DB_PASSWORD
 require_env KC_ADMIN_USER
@@ -79,6 +81,8 @@ export TF_VAR_event_query_db_user="$EVENT_QUERY_DB_USER"
 export TF_VAR_event_query_db_password="$EVENT_QUERY_DB_PASSWORD"
 export TF_VAR_event_append_db_user="$EVENT_APPEND_DB_USER"
 export TF_VAR_event_append_db_password="$EVENT_APPEND_DB_PASSWORD"
+export TF_VAR_iceberg_catalog_owner_user="$ICEBERG_CATALOG_OWNER_USER"
+export TF_VAR_iceberg_catalog_owner_password="$ICEBERG_CATALOG_OWNER_PASSWORD"
 
 export TF_VAR_kc_db_user="$KC_DB_USER"
 export TF_VAR_kc_db_password="$KC_DB_PASSWORD"
