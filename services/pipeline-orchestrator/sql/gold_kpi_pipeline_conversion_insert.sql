@@ -26,7 +26,7 @@ SELECT
                    CAST(0 AS DECIMAL(18, 2))))                         AS won_amount,
     CAST(COUNT_IF(is_won) AS DOUBLE) / NULLIF(COUNT_IF(is_closed), 0)  AS conversion_rate,
     CAST(:curated_run_id AS VARCHAR)                                   AS curated_run_id,
-    CAST(:computed_at AS TIMESTAMP(6) WITH TIME ZONE)                  AS computed_at,
+    CAST(from_iso8601_timestamp(:computed_at) AS TIMESTAMP(6) WITH TIME ZONE) AS computed_at,
     year(CAST(:snapshot_date AS DATE))                                 AS year,
     month(CAST(:snapshot_date AS DATE))                                AS month,
     day(CAST(:snapshot_date AS DATE))                                  AS day
