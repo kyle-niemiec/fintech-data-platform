@@ -1,12 +1,12 @@
 -- SCD2 MERGE for lakehouse.silver.dim_opportunity.
 --
 -- Parameters interpolated by the DAG before execution:
---   :staged_uri       s3:// location of the DAG-written staging parquet
+--   :source_rows_values SQL VALUES tuples built from DAG-staged rows
 --   :parent_run_id    UUID of the upstream salesforce_ingestion run
 --   :curated_run_id   UUID of this curated_promotion run
 --
 -- Logic:
---   * Read the masked+normalized staging parquet via Iceberg external table.
+--   * Read the masked+normalized rows from a DAG-built VALUES CTE.
 --   * Match current rows (is_current = true) by opportunity_id.
 --   * If any source-faithful business attribute changed, close the current row
 --     (valid_to = source_system_mod, is_current = false) and insert a new
@@ -17,6 +17,21 @@
 -- stats that the DAG captures after execution via cursor.stats().
 MERGE INTO lakehouse.silver.dim_opportunity AS tgt
 USING (
+    WITH staged_input (
+        opportunity_id,
+        account_id_token,
+        name,
+        stage_name,
+        amount,
+        close_date,
+        is_won,
+        is_closed,
+        source_system_mod
+    ) AS (
+        VALUES
+        :source_rows_values
+    )
+
     SELECT
         opportunity_id,
         account_id_token,
@@ -26,12 +41,13 @@ USING (
         CAST(close_date AS DATE) AS close_date,
         is_won,
         is_closed,
-        CAST(source_system_mod AS TIMESTAMP(6) WITH TIME ZONE) AS source_system_mod,
+        COALESCE(
+            TRY(CAST(source_system_mod AS TIMESTAMP(6) WITH TIME ZONE)),
+            CAST(from_iso8601_timestamp(source_system_mod) AS TIMESTAMP(6) WITH TIME ZONE)
+        ) AS source_system_mod,
         CAST(:parent_run_id AS VARCHAR) AS source_run_id,
         CAST(:curated_run_id AS VARCHAR) AS curated_run_id
-    FROM TABLE(
-        system.read_parquet(location => :staged_uri)
-    )
+    FROM staged_input
 ) AS src
 ON  tgt.opportunity_id = src.opportunity_id
 AND tgt.is_current = true

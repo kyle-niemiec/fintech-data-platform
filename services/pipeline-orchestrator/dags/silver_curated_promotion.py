@@ -342,6 +342,7 @@ with DAG(
             **state,
             "staged_uri": staged_uri,
             "staged_row_count": len(masked_rows),
+            "masked_rows": masked_rows,
         }
 
 
@@ -353,15 +354,60 @@ with DAG(
         """
         Execute the SCD2 MERGE against lakehouse.silver.dim_opportunity.
         """
+        def _sql_string_literal(value: Any) -> str:
+            if value is None:
+                return "NULL"
+            escaped = str(value).replace("'", "''")
+            return f"'{escaped}'"
+
+        def _sql_bool_literal(value: Any) -> str:
+            if value is None:
+                return "NULL"
+            if isinstance(value, bool):
+                return "TRUE" if value else "FALSE"
+            if isinstance(value, str):
+                normalized = value.strip().lower()
+                if normalized in {"true", "t", "1", "yes", "y"}:
+                    return "TRUE"
+                if normalized in {"false", "f", "0", "no", "n"}:
+                    return "FALSE"
+            raise AirflowException(f"unsupported boolean value in masked row: {value!r}")
+
         ddl_sql_template = SILVER_DDL_SQL_PATH.read_text()
         merge_sql_template = MERGE_SQL_PATH.read_text()
+        masked_rows = list(state.get("masked_rows") or [])
+
+        row_values_sql = []
+        for row in masked_rows:
+            row_values_sql.append(
+                "("
+                f"{_sql_string_literal(row.get('opportunity_id'))}, "
+                f"{_sql_string_literal(row.get('account_id_token'))}, "
+                f"{_sql_string_literal(row.get('name'))}, "
+                f"{_sql_string_literal(row.get('stage_name'))}, "
+                f"{_sql_string_literal(row.get('amount'))}, "
+                f"{_sql_string_literal(row.get('close_date'))}, "
+                f"{_sql_bool_literal(row.get('is_won'))}, "
+                f"{_sql_bool_literal(row.get('is_closed'))}, "
+                f"{_sql_string_literal(row.get('source_system_mod'))}"
+                ")"
+            )
 
         # Replace placeholders in the SQL templates with actual values from the state
         merge_sql = (
             merge_sql_template
-            .replace(":staged_uri", f"'{state['staged_uri']}'")
-            .replace(":parent_run_id", f"'{state['parent_run_id']}'")
-            .replace(":curated_run_id", f"'{state['curated_run_id']}'")
+            .replace(
+                "VALUES\n        :source_rows_values",
+                "VALUES\n        " + ",\n        ".join(row_values_sql),
+            )
+            .replace(
+                "CAST(:parent_run_id AS VARCHAR)",
+                f"CAST('{state['parent_run_id']}' AS VARCHAR)",
+            )
+            .replace(
+                "CAST(:curated_run_id AS VARCHAR)",
+                f"CAST('{state['curated_run_id']}' AS VARCHAR)",
+            )
         )
 
         # Create the Trino cursor
@@ -374,9 +420,13 @@ with DAG(
             for stmt in _iter_sql_statements(ddl_sql_template):
                 cur.execute(stmt)
                 cur.fetchall()
-            for stmt in _iter_sql_statements(merge_sql):
-                cur.execute(stmt)
-                cur.fetchall()
+            if not row_values_sql:
+                logger.info("no masked rows available for merge; skipping MERGE statement")
+                return {**state, "merge_stats": merge_stats}
+            # Execute MERGE as a single statement. Splitting on semicolons can
+            # corrupt dynamically-rendered VALUES payloads when data includes ';'.
+            cur.execute(merge_sql.strip().rstrip(";"))
+            cur.fetchall()
         finally:
             cur.close()
             conn.close()

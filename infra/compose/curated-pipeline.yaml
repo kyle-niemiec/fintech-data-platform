@@ -10,8 +10,8 @@ services:
       CATALOG_S3_PATH__STYLE__ACCESS: "true"
       CATALOG_S3_ACCESS__KEY__ID: ${MINIO_TRINO_WRITE_USER}
       CATALOG_S3_SECRET__ACCESS__KEY: ${MINIO_TRINO_WRITE_SECRET}
-      CATALOG_S3_SSE__TYPE: kms
-      CATALOG_S3_SSE__KEY: ${MINIO_KMS_KEY_ID}
+      CATALOG_S3_SSE_TYPE: kms
+      CATALOG_S3_SSE_KEY: ${MINIO_KMS_KEY_ID}
       CATALOG_CATALOG__IMPL: org.apache.iceberg.jdbc.JdbcCatalog
       CATALOG_URI: jdbc:postgresql://postgres:5432/${POSTGRES_DB}?currentSchema=iceberg
       CATALOG_JDBC_USER: ${ICEBERG_CATALOG_OWNER_USER}
