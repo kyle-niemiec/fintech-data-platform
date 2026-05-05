@@ -65,7 +65,7 @@ help:
 	@printf "  infra-down-dev           Stop infrastructure containers (dev UI access stack)\n"
 	@printf "  infra-ps                 Show infrastructure container status\n"
 	@printf "  infra-ps-dev             Show infrastructure container status (dev UI access stack)\n"
-	@printf "  infra-clean              Stop containers and remove local Postgres/Event Store/MinIO/Redpanda volumes and Terraform state\n"
+	@printf "  infra-clean              Stop containers, remove local data volumes (incl. Airflow metadata), and clear Terraform state\n"
 	@printf "  terraform-plan           Show Terraform plans for bootstrap + identity\n"
 	@printf "  terraform-plan-bootstrap Show Terraform plan for bootstrap phase\n"
 	@printf "  terraform-plan-identity  Show Terraform plan for identity phase\n"
@@ -157,7 +157,7 @@ infra-tf-apply:
 
 infra-excel-pipeline:
 	$(call banner,Starting Airflow + ClamAV + Excel scanner/trigger/bronze writer services...)
-	$(COMPOSE) up -d --build airflow_postgres airflow_init airflow_scheduler airflow_webserver clamav excel_scanner excel_validation_trigger excel_bronze_writer
+	$(COMPOSE) up -d --build airflow_postgres airflow_init airflow_scheduler airflow_triggerer airflow_webserver clamav excel_scanner excel_validation_trigger excel_bronze_writer
 	@attempt=1; max_attempts=60; \
 	while true; do \
 		airflow_health=$$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' fintech_airflow_webserver 2>/dev/null || echo missing); \
@@ -172,7 +172,7 @@ infra-excel-pipeline:
 		attempt=$$((attempt + 1)); \
 		sleep 5; \
 	done; \
-	for container in fintech_airflow_scheduler fintech_excel_scanner fintech_excel_validation_trigger fintech_excel_bronze_writer; do \
+	for container in fintech_airflow_scheduler fintech_airflow_triggerer fintech_excel_scanner fintech_excel_validation_trigger fintech_excel_bronze_writer; do \
 		state=$$(docker inspect -f '{{.State.Status}}' $$container 2>/dev/null || echo missing); \
 		if [ "$$state" != "running" ]; then \
 			printf "infra-excel-pipeline service check failed: %s state=%s\n" "$$container" "$$state" >&2; \
@@ -279,10 +279,14 @@ infra-ps-dev:
 	@$(COMPOSE_DEV) ps --format 'table {{.Name}}\t{{.Service}}\t{{.CreatedAt}}\t{{.Status}}\t{{.Ports}}'
 
 infra-clean:
-	$(COMPOSE_DEV) down --volumes --remove-orphans
-	-docker volume rm postgres_data event_store_data minio_data redpanda_data kms_shared
-	-docker volume rm infra_postgres_data infra_event_store_data infra_minio_data infra_redpanda_data infra_kms_shared
-	-docker volume rm oltp_data debezium_offsets infra_oltp_data infra_debezium_offsets
+	@$(COMPOSE_DEV) down --volumes --remove-orphans
+	@set -e; \
+	for suffix in postgres_data event_store_data minio_data redpanda_data kms_shared airflow_postgres_data oltp_data debezium_offsets; do \
+		volumes=$$(docker volume ls --format '{{.Name}}' | grep -E "(^|_)$${suffix}$$" || true); \
+		if [ -n "$$volumes" ]; then \
+			docker volume rm $$volumes >/dev/null; \
+		fi; \
+	done
 	rm -rf $(TERRAFORM_BOOTSTRAP_DIR)/.terraform
 	rm -f $(TERRAFORM_BOOTSTRAP_DIR)/.terraform.lock.hcl
 	rm -f $(TERRAFORM_BOOTSTRAP_DIR)/terraform.tfstate

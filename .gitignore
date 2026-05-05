@@ -1,5 +1,7 @@
 # User files
 /**/.env
+/db/
+/debezium/
 
 # Python
 /**/.venv/

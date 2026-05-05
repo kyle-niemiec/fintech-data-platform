@@ -1,0 +1,94 @@
+"""Silver curated listener DAG.
+
+Consumes bronze-ready events and triggers one silver_curated_promotion DAG run per
+matching Salesforce Opportunity event.
+"""
+
+from __future__ import annotations
+
+import json
+
+import pendulum
+from airflow import DAG
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.providers.apache.kafka.sensors.kafka import AwaitMessageTriggerFunctionSensor
+
+from silver_curated_common import TOPIC_BRONZE_READY, default_args
+
+
+def apply_bronze_event(message, **_):
+    """
+    Validate Kafka message and prepare TriggerDagRun payload.
+    """
+    try:
+        envelope = json.loads(message.value())
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+
+    if envelope.get("event_type") != TOPIC_BRONZE_READY:
+        return None
+
+    payload = envelope.get("payload") or {}
+    object_name = payload.get("object_name") or payload.get("sobject")
+
+    if object_name != "Opportunity":
+        return None
+    if payload.get("stage") != "bronze":
+        return None
+
+    run_id = envelope.get("run_id")
+
+    if not run_id:
+        return None
+
+    trigger_run_id = f"silver_curated_promotion__{run_id}"
+    envelope["_trigger_topic"] = message.topic()
+    envelope["_trigger_partition"] = int(message.partition())
+    envelope["_trigger_offset"] = int(message.offset())
+
+    return {
+        "trigger_run_id": trigger_run_id,
+        "conf": envelope,
+    }
+
+
+def trigger_promotion(event, **context):
+    """
+    Trigger silver_curated_promotion with the event conf.
+    """
+    trigger = TriggerDagRunOperator(
+        task_id=f"trigger_{event['trigger_run_id']}",
+        trigger_dag_id="silver_curated_promotion",
+        trigger_run_id=event["trigger_run_id"],
+        conf=event["conf"],
+        reset_dag_run=False,
+        wait_for_completion=False,
+    )
+
+    trigger.execute(context)
+
+
+"""
+Define the DAG that listens for bronze_ready events and triggers
+silver_curated_promotion runs.
+"""
+with DAG(
+    dag_id="silver_curated_listener",
+    description="Long-running Kafka listener that triggers silver_curated_promotion.",
+    default_args=default_args,
+    start_date=pendulum.datetime(2026, 1, 1, tz="UTC"),
+    schedule="@continuous",
+    catchup=False,
+    max_active_runs=1,
+    is_paused_upon_creation=False,
+    tags=["curated", "silver", "listener"],
+):
+    AwaitMessageTriggerFunctionSensor(
+        task_id="await_bronze_ready",
+        topics=[TOPIC_BRONZE_READY],
+        apply_function="silver_curated_listener.apply_bronze_event",
+        kafka_config_id="kafka_default",
+        event_triggered_function=trigger_promotion,
+        poll_interval=5,
+        poll_timeout=10,
+    )

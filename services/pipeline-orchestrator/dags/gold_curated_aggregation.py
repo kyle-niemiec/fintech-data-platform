@@ -29,7 +29,7 @@ from airflow import DAG
 from airflow.decorators import task
 from airflow.exceptions import AirflowException
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
-from airflow.providers.apache.kafka.sensors.await_message import (
+from airflow.providers.apache.kafka.sensors.kafka import (
     AwaitMessageTriggerFunctionSensor,
 )
 
@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 SOURCE_SYSTEM = "curated"
 TOPIC_SILVER_COMPLETED = "pipeline.silver.completed.v1"
+TOPIC_GOLD_STARTED = "pipeline.gold.started.v1"
 TOPIC_GOLD_COMPLETED = "pipeline.gold.completed.v1"
 TOPIC_GOLD_FAILED = "pipeline.gold.failed.v1"
 GOLD_METRIC = "pipeline_conversion"
@@ -45,6 +46,7 @@ TRIGGER_TYPE = "event"
 INITIATOR = "airflow"
 
 SQL_DIR = Path(__file__).resolve().parent.parent / "sql"
+GOLD_DDL_SQL_PATH = SQL_DIR / "gold_kpi_pipeline_conversion_ddl.sql"
 AGG_SQL_PATH = SQL_DIR / "gold_kpi_pipeline_conversion_insert.sql"
 
 default_args = {
@@ -59,6 +61,18 @@ default_args = {
 
 def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _iter_sql_statements(sql_text: str):
+    cleaned_lines = []
+    for line in sql_text.splitlines():
+        cleaned = line.split("--", 1)[0].strip()
+        if cleaned:
+            cleaned_lines.append(cleaned)
+    for stmt in "\n".join(cleaned_lines).split(";"):
+        normalized = stmt.strip()
+        if normalized:
+            yield normalized
 
 
 def _open_event_store_conn():
@@ -116,6 +130,9 @@ def apply_silver_event(message, **_):
         return None
 
     trigger_run_id = f"gold_curated_aggregation__{silver_run_id}"
+    envelope["_trigger_topic"] = message.topic()
+    envelope["_trigger_partition"] = int(message.partition())
+    envelope["_trigger_offset"] = int(message.offset())
     return {
         "trigger_run_id": trigger_run_id,
         "conf": envelope,
@@ -243,8 +260,13 @@ with DAG(
 
     @task(task_id="open_curated_run")
     def open_curated_run(**context) -> dict[str, Any]:
-        from libs.platform_events.envelope import PipelineClass, PipelineName
-        from libs.platform_events.event_store import open_run
+        from libs.platform_events.envelope import (
+            Envelope,
+            EventSource,
+            PipelineClass,
+            PipelineName,
+        )
+        from libs.platform_events.event_store import append_event, open_run
 
         dag_run = context["dag_run"]
         silver_envelope = dag_run.conf or {}
@@ -260,6 +282,7 @@ with DAG(
         trigger_event_ref = f"gold_curated_aggregation__{parent_run_id}"
 
         curated_run_id = uuid4()
+        trace_uuid = UUID(trace_id)
         with _open_event_store_conn() as conn:
             with conn.transaction():
                 effective_run_id = open_run(
@@ -273,6 +296,33 @@ with DAG(
                     initiator=INITIATOR,
                     status="running",
                     parent_run_id=UUID(parent_run_id),
+                )
+                started_envelope = Envelope.build(
+                    event_type=TOPIC_GOLD_STARTED,
+                    source=EventSource.orchestration,
+                    run_id=effective_run_id,
+                    pipeline_class=PipelineClass.curated,
+                    pipeline_name=PipelineName.curated_promotion,
+                    parent_run_id=UUID(parent_run_id),
+                    trigger_event_ref=trigger_event_ref,
+                    trace_id=trace_uuid,
+                    payload={
+                        "message": "Gold curated aggregation started.",
+                        "stage": "gold",
+                        "parent_run_id": parent_run_id,
+                        "input_table": (silver_envelope.get("payload") or {}).get(
+                            "output_table"
+                        ),
+                        "transform_id": "gold_curated_aggregation",
+                        "transform_version": "v1",
+                    },
+                )
+                append_event(
+                    conn,
+                    started_envelope,
+                    topic=TOPIC_GOLD_STARTED,
+                    partition=-1,
+                    kafka_offset=-1,
                 )
         silver_payload = silver_envelope.get("payload") or {}
         return {
@@ -290,6 +340,7 @@ with DAG(
         snapshot_date = computed_at.date().isoformat()
         computed_at_iso = computed_at.isoformat()
 
+        ddl_sql_template = GOLD_DDL_SQL_PATH.read_text()
         agg_sql_template = AGG_SQL_PATH.read_text()
         agg_sql = (
             agg_sql_template
@@ -301,9 +352,10 @@ with DAG(
         record_count = 0
         conn, cur = _trino_cursor()
         try:
-            for stmt in (s.strip() for s in agg_sql.split(";")):
-                if not stmt:
-                    continue
+            for stmt in _iter_sql_statements(ddl_sql_template):
+                cur.execute(stmt)
+                cur.fetchall()
+            for stmt in _iter_sql_statements(agg_sql):
                 cur.execute(stmt)
                 cur.fetchall()
             count_cur = conn.cursor()

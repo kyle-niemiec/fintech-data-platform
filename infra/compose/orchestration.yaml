@@ -140,6 +140,27 @@ services:
     networks:
       - platform_internal
 
+  airflow_triggerer:
+    build:
+      context: ..
+      dockerfile: services/pipeline-orchestrator/Dockerfile
+      network: host
+    container_name: fintech_airflow_triggerer
+    restart: unless-stopped
+    command: triggerer
+    environment: *airflow_env
+    depends_on:
+      airflow_init:
+        condition: service_completed_successfully
+      event_store_db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      redpanda:
+        condition: service_healthy
+    networks:
+      - platform_internal
+
   airflow_webserver:
     build:
       context: ..

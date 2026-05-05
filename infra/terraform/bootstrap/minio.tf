@@ -68,6 +68,14 @@ locals {
       local.gold_partition_paths
     ) : "${local.minio_bucket_arn}/${path}"
   ])
+  iceberg_table_object_paths = [
+    "silver/domain=*/*",
+    "gold/metric=*/*",
+    "warehouse/*"
+  ]
+  iceberg_table_object_resources = sort([
+    for path in local.iceberg_table_object_paths : "${local.minio_bucket_arn}/${path}"
+  ])
   trino_read_partition_resources = sort([
     for path in concat(local.silver_partition_paths, local.gold_partition_paths) : "${local.minio_bucket_arn}/${path}"
   ])
@@ -271,7 +279,8 @@ resource "minio_iam_policy" "transform" {
               "quarantine/source=*/*",
               "bronze/source=*/*",
               "silver/domain=*/*",
-              "gold/metric=*/*"
+              "gold/metric=*/*",
+              "warehouse/*"
             ]
           }
         }
@@ -325,22 +334,27 @@ resource "minio_iam_policy" "trino_write" {
               "quarantine/source=*/*",
               "bronze/source=*/*",
               "silver/domain=*/*",
-              "gold/metric=*/*"
+              "gold/metric=*/*",
+              "warehouse/*"
             ]
           }
         }
       },
       {
-        Sid      = "ReadAllCuratedLayers"
-        Effect   = "Allow"
-        Action   = ["s3:GetObject"]
-        Resource = sort(concat(local.raw_partition_resources, local.curated_partition_resources))
+        Sid    = "ReadAllCuratedLayers"
+        Effect = "Allow"
+        Action = ["s3:GetObject"]
+        Resource = sort(concat(
+          local.raw_partition_resources,
+          local.curated_partition_resources,
+          local.iceberg_table_object_resources
+        ))
       },
       {
-        Sid       = "WriteIcebergMetadata"
+        Sid       = "WriteIcebergObjects"
         Effect    = "Allow"
         Action    = ["s3:PutObject"]
-        Resource  = local.trino_write_partition_resources
+        Resource  = sort(concat(local.trino_write_partition_resources, local.iceberg_table_object_resources))
         Condition = local.kms_write_condition
       },
       {
@@ -350,7 +364,7 @@ resource "minio_iam_policy" "trino_write" {
           "s3:AbortMultipartUpload",
           "s3:ListMultipartUploadParts"
         ]
-        Resource = local.trino_write_partition_resources
+        Resource = sort(concat(local.trino_write_partition_resources, local.iceberg_table_object_resources))
       }
     ]
   })
@@ -368,7 +382,7 @@ resource "minio_iam_policy" "trino_read" {
         Resource = [local.minio_bucket_arn]
         Condition = {
           StringLike = {
-            "s3:prefix" = ["silver/domain=*/*", "gold/metric=*/*"]
+            "s3:prefix" = ["silver/domain=*/*", "gold/metric=*/*", "warehouse/*"]
           }
         }
       },
@@ -376,7 +390,7 @@ resource "minio_iam_policy" "trino_read" {
         Sid      = "ReadBILayers"
         Effect   = "Allow"
         Action   = ["s3:GetObject"]
-        Resource = local.trino_read_partition_resources
+        Resource = sort(concat(local.trino_read_partition_resources, local.iceberg_table_object_resources))
       }
     ]
   })

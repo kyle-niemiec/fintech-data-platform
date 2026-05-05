@@ -23,6 +23,11 @@
   ],
   "schemas": [
     {
+      "user": "trino_etl",
+      "schema": ".*",
+      "owner": true
+    },
+    {
       "user": "data_engineer",
       "schema": ".*",
       "owner": true
@@ -39,6 +44,12 @@
     }
   ],
   "tables": [
+    {
+      "user": "trino_etl",
+      "schema": ".*",
+      "table": ".*",
+      "privileges": ["SELECT", "INSERT", "DELETE", "UPDATE", "OWNERSHIP"]
+    },
     {
       "user": "data_engineer",
       "schema": ".*",

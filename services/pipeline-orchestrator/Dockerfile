@@ -16,3 +16,4 @@ COPY --chown=airflow:airflow platform/libs /opt/airflow/platform_libs/libs
 ENV PYTHONPATH=/opt/airflow/platform_libs:${PYTHONPATH}
 
 COPY --chown=airflow:airflow services/pipeline-orchestrator/dags /opt/airflow/dags
+COPY --chown=airflow:airflow services/pipeline-orchestrator/sql /opt/airflow/sql
