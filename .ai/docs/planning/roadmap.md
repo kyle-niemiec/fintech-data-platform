@@ -8,7 +8,6 @@ Terraform work is split into two phases applied via the in-network `terraform_ru
 
 ## Phase 1 - Event-Driven Foundation
 
-Completed:
 - Redpanda is the canonical broker (compose service on internal network).
 - Dedicated event-store database runs as an isolated Postgres instance.
 - Internal Docker network boundaries enforced (`platform_internal` is `internal: true`; data-plane services publish no host ports).
@@ -29,7 +28,6 @@ Network isolation is already in place via Phase 1, so this phase focuses on data
 
 ## Phase 3 - Excel Pipeline
 
-Completed:
 - ClamAV scanner worker consumes `ingest.excel.uploaded.v1` and enforces size/type/malware gates.
 - Dedicated trigger worker consumes `ingest.excel.scanned.pass.v1` and creates idempotent Airflow DAG runs (`dag_run_id=excel_validation__<run_id>`).
 - Airflow `excel_validation` DAG performs schema validation and emits:
@@ -41,7 +39,6 @@ Completed:
 
 ## Phase 4 - CDC and Fraud Pipeline
 
-Completed:
 - Dedicated OLTP Postgres (`wal_level=logical`) with `trading.transaction` and `trading.risk_flag` schema, per-role credentials (`oltp_app`, `cdc_replicator`, `oltp_ui_reader`), and a `cdc_pub` publication.
 - Synthetic load generator seeds transactions on a configurable cadence with varied instrument/amount mixes so continuous scoring behavior is observable in every run.
 - Debezium Server (single container, `pgoutput`) streams WAL changes to Redpanda with a `ByLogicalTableRouter` SMT collapsing all `trading.*` tables onto the canonical `cdc.oltp.raw.v1` topic.
@@ -59,7 +56,8 @@ Completed:
 
 ## Phase 6 - Curated Layer Orchestration
 
-Completed (vertical slice - Salesforce Opportunity path only):
+Roadmap focus in this phase is the Salesforce Opportunity vertical slice as the first curated path.
+
 - Trino coordinator (single node) with the Iceberg connector backs the curated transform engine; iceberg-rest REST catalog persists Iceberg metadata in a dedicated `iceberg` schema of the platform Postgres; S3 writes go through the existing `MINIO_TRINO_WRITE` identity with SSE-KMS enforced via KES + Vault Transit.
 - `lakehouse.silver.dim_opportunity` is an SCD2 Iceberg table at `s3://.../silver/domain=salesforce_opportunity/` partitioned by year/month/day on SystemModstamp. `lakehouse.gold.kpi_pipeline_conversion` is an append-style Iceberg table at `s3://.../gold/metric=pipeline_conversion/` partitioned by snapshot_date.
 - Airflow DAG pairs follow a listener/transform split: a `@continuous` listener DAG drives `AwaitMessageTriggerFunctionSensor` and fans out `TriggerDagRunOperator` runs per matching upstream event; the transform DAG is `schedule=None` with `max_active_runs>1` for parallelism.
@@ -69,7 +67,7 @@ Completed (vertical slice - Salesforce Opportunity path only):
 - `platform_masking` library provides deterministic HMAC-SHA256 masking (`tokenize`, `mask_email`, `hash_pii`, `redact`) with salt sourced from the `PLATFORM_MASKING_SALT` env var; used by the silver DAG and available for future curated transforms.
 - Redpanda identity extends the existing `rp_orchestrator_service` principal with READ on `pipeline.silver.completed.v1` and the two new curated consumer groups (`airflow-curated-silver-v1`, `airflow-curated-gold-v1`); `airflow_init` seeds `kafka_default` and `trino_default` Airflow connections idempotently on every bring-up.
 
-Deferred to Phase 6 follow-ups (outside the slice): `dim_account`, `dim_loan`, `fact_loan_payment`, `fact_commission_adjustment`, `loan_status_history`, and the remaining gold KPIs (`kpi_portfolio_health`, `kpi_payment_performance`, `kpi_commission_economics`). The CDC and Excel curated paths are also follow-ups - only the Salesforce path ships in the vertical slice.
+Phase 6 follow-on scope includes: `dim_account`, `dim_loan`, `fact_loan_payment`, `fact_commission_adjustment`, `loan_status_history`, and remaining gold KPIs (`kpi_portfolio_health`, `kpi_payment_performance`, `kpi_commission_economics`), plus curated CDC and Excel paths.
 
 ## Phase 7 - Query Plane and UI
 

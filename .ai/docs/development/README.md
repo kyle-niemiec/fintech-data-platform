@@ -12,6 +12,7 @@
 - `runtime-integrations.md`
 - `code-modularity.md`
 - `quality-assurance.md`
+- `roadmap.md`
 - `tech-debt.md`
 
 ## Update Expectations
