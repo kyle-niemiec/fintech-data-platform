@@ -11,9 +11,9 @@
 - Never introduce shortcuts that blur demo-only behavior with production-data controls.
 
 ## Tech-Debt Discipline
-- Every deferred compromise must be logged in `.ai/docs/development/tech-debt.md`.
-- Every resolved debt item must be marked resolved/removed in the same round it is fixed.
-- Debt notes in code and debt ledger entries must stay synchronized.
+- Track only unresolved debt in `.ai/docs/development/tech-debt.md`; do not keep completed-work history there.
+- Every deferred compromise must have both a `TECH-DEBT:` code comment and one matching ledger entry.
+- When debt is resolved, remove the `TECH-DEBT:` code comment and matching ledger entry in the same round.
 
 ## Readability And Whitespace
 - Use descriptive names and small, single-purpose units.

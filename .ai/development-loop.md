@@ -6,5 +6,6 @@ Use this loop for every task:
 2. Align the task with planning docs in `.ai/docs/planning/`.
 3. Implement the minimal change that satisfies the requirement.
 4. Verify with targeted checks/tests for impacted behavior.
-5. Update development tracking docs, including `.ai/docs/development/tech-debt.md`.
-6. Report what changed, what remains, and explicit risks/deltas versus plan.
+5. Reconcile tech debt tracking: every `TECH-DEBT:` code tag must map to one `.ai/docs/development/tech-debt.md` entry, and every ledger entry must map to an existing `TECH-DEBT:` code tag.
+6. Update development tracking docs, including `.ai/docs/development/tech-debt.md`.
+7. Report what changed, what remains, and explicit risks/deltas versus plan.

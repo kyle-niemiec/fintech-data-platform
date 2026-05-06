@@ -13,6 +13,4 @@ Purpose: bootstrap AI sessions with a consistent, operational context-loading fl
 ## Operating Rules
 - Before coding, read around the current prompt and inspect adjacent code/docs in the impacted area.
 - Reconcile implementation choices with planning source-of-truth docs in `.ai/docs/planning/`.
-- Treat `.ai/docs/development/` as active tracking and update it every work round.
-- Update `.ai/docs/development/tech-debt.md` for every deferred compromise, temporary workaround, or resolved debt item.
 - If docs conflict: planning docs define product intent; development docs define current execution status. Record reconciliation decisions in development docs.

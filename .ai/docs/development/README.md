@@ -16,5 +16,6 @@
 
 ## Update Expectations
 - Update relevant development-area files every implementation round.
-- Keep `tech-debt.md` in sync with code comments (`TODO`, `FIXME`, temporary guards, deferred cleanup notes).
-- When adding/removing debt-related comments in code, add/update/resolve the corresponding `tech-debt.md` entry in the same round.
+- Keep `tech-debt.md` as an outstanding-only list of unresolved implementation debt.
+- Every unresolved debt item must have one matching `TECH-DEBT:` code comment and one matching ledger entry.
+- When adding/removing `TECH-DEBT:` code comments, add/remove the corresponding `tech-debt.md` entry in the same round.
