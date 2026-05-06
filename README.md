@@ -17,7 +17,7 @@ Historical concept notes are preserved in [.ai/docs/00-human-descriptions.md](.a
 - Enforce least privilege, immutable event history, and replayable workflows.
 - Keep local development low-cost while preserving production-like boundaries.
 
-## Architecture At A Glance
+## Architecture at a Glance
 
 ```text
 Sources
