@@ -2,11 +2,13 @@
 
 Event-driven, compliance-aligned data engineering platform for local-first demos with infrastructure defined as code.
 
-This repository follows the architecture in [project-planning.md](project-planning.md):
+This repository follows the planning architecture docs in [.ai/docs/planning/](.ai/docs/planning/):
 - ETL is source-triggered and event-driven.
 - FastAPI serves the UI with read-only query endpoints.
 - UI access is anonymous for demo use (no human login dependency).
 - Pipeline execution remains independent if the API is offline.
+
+Historical concept notes are preserved in [.ai/docs/00-human-descriptions.md](.ai/docs/00-human-descriptions.md).
 
 ## Core Goals
 
@@ -69,7 +71,7 @@ This project standardizes a local event-driven stack:
 - Airflow orchestrates source and curated DAGs from event triggers.
 - Redpanda provides durable event routing, replay, and fan-out.
 
-See [docs/operations.md](docs/operations.md) for the canonical startup and validation sequence.
+See [.ai/docs/planning/operations.md](.ai/docs/planning/operations.md) for the canonical startup and validation sequence.
 
 ## Repository Structure
 
@@ -84,16 +86,16 @@ See [docs/operations.md](docs/operations.md) for the canonical startup and valid
 
 | Document | Purpose |
 | --- | --- |
-| [docs/architecture.md](docs/architecture.md) | End-to-end event-driven architecture and component boundaries |
-| [docs/source-pipelines.md](docs/source-pipelines.md) | Excel, CDC, and Salesforce source ingestion flows |
-| [docs/event-contracts.md](docs/event-contracts.md) | Kafka topic taxonomy, envelope requirements, ordering/idempotency rules |
-| [docs/partitioning-strategy.md](docs/partitioning-strategy.md) | Partitioning plan for event topics, event-store DB, and object storage paths |
-| [docs/data-model.md](docs/data-model.md) | Event store schema and bronze/silver/gold data model contract |
-| [docs/ui-query-api.md](docs/ui-query-api.md) | Read-only FastAPI contract for UI status, lineage, artifacts, and alerts |
-| [docs/security-access.md](docs/security-access.md) | IAM/RBAC model, encryption, network isolation, immutability controls |
-| [docs/operations.md](docs/operations.md) | Local runbook, environment, startup, replay, and trace validation |
-| [docs/roadmap.md](docs/roadmap.md) | Execution order for building the event-driven stack |
-| [docs/requirement-coverage.md](docs/requirement-coverage.md) | Mapping from `project-planning.md` requirements to concrete local components + IaC ownership |
+| [.ai/docs/planning/architecture.md](.ai/docs/planning/architecture.md) | End-to-end event-driven architecture and component boundaries |
+| [.ai/docs/planning/source-pipelines.md](.ai/docs/planning/source-pipelines.md) | Excel, CDC, and Salesforce source ingestion flows |
+| [.ai/docs/planning/event-contracts.md](.ai/docs/planning/event-contracts.md) | Kafka topic taxonomy, envelope requirements, ordering/idempotency rules |
+| [.ai/docs/planning/partitioning-strategy.md](.ai/docs/planning/partitioning-strategy.md) | Partitioning plan for event topics, event-store DB, and object storage paths |
+| [.ai/docs/planning/data-model.md](.ai/docs/planning/data-model.md) | Event store schema and bronze/silver/gold data model contract |
+| [.ai/docs/planning/ui-query-api.md](.ai/docs/planning/ui-query-api.md) | Read-only FastAPI contract for UI status, lineage, artifacts, and alerts |
+| [.ai/docs/planning/security-access.md](.ai/docs/planning/security-access.md) | IAM/RBAC model, encryption, network isolation, immutability controls |
+| [.ai/docs/planning/operations.md](.ai/docs/planning/operations.md) | Local runbook, environment, startup, replay, and trace validation |
+| [.ai/docs/planning/roadmap.md](.ai/docs/planning/roadmap.md) | Execution order for building the event-driven stack |
+| [.ai/docs/planning/requirement-coverage.md](.ai/docs/planning/requirement-coverage.md) | Mapping from historical concept notes in `.ai/docs/00-human-descriptions.md` to concrete local components + IaC ownership |
 
 ## Compliance Positioning
 

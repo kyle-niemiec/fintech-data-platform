@@ -1,6 +1,6 @@
 # Requirement Coverage Matrix
 
-This matrix maps `project-planning.md` requirements to local event-driven components, IaC ownership, and delivery status.
+This matrix maps historical requirements from `.ai/docs/00-human-descriptions.md` to local event-driven components, IaC ownership, and delivery status.
 
 | Requirement Theme | Local Implementation | IaC Owner | Delivery Phase |
 | --- | --- | --- | --- |

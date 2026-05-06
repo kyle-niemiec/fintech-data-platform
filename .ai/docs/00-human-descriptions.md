@@ -1,3 +1,11 @@
+# Original Human Concept Notes (Historical Reference)
+
+This document preserves the initial human-written project concept input.
+It is historical context only and is non-authoritative for active decisions.
+For current product intent and specifications, use `.ai/docs/planning/` first.
+
+---
+
 # Fintech Data Pipeline Project
 
 Ahaha. You're pretty good at guessing what I want to do. We're going to make a fintech data pipeline. The business problem poses 3 disparate sources of data that have to be normalized and aggregated:
