@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import os
 from datetime import timedelta
-from pathlib import Path
 
-from dag_runtime import build_event_producer, build_minio_client, now_utc, open_event_store_conn
+from dag_runtime import build_event_producer
 
 SOURCE_SYSTEM = "curated"
 TOPIC_BRONZE_READY = "ingest.salesforce.bronze.ready.v1"
@@ -19,10 +18,6 @@ STAGING_PREFIX = "bronze/source=salesforce/object=Opportunity"
 TRIGGER_TYPE = "event"
 INITIATOR = "airflow"
 
-SQL_DIR = Path(__file__).resolve().parent.parent / "sql"
-SILVER_DDL_SQL_PATH = SQL_DIR / "silver_dim_opportunity_ddl.sql"
-MERGE_SQL_PATH = SQL_DIR / "silver_dim_opportunity_merge.sql"
-
 default_args = {
     "owner": "curated_promotion",
     "depends_on_past": False,
@@ -31,35 +26,6 @@ default_args = {
     "email_on_failure": False,
     "email_on_retry": False,
 }
-
-
-def _now_utc():
-    return now_utc()
-
-
-def _iter_sql_statements(sql_text: str):
-    cleaned_lines = []
-
-    for line in sql_text.splitlines():
-        cleaned = line.split("--", 1)[0].strip()
-        if cleaned:
-            cleaned_lines.append(cleaned)
-
-    for stmt in "\n".join(cleaned_lines).split(";"):
-        normalized = stmt.strip()
-        if normalized:
-            yield normalized
-
-
-def _open_event_store_conn():
-    return open_event_store_conn()
-
-
-def _get_minio_client():
-    return build_minio_client(
-        access_key_var="MINIO_TRINO_WRITE_USER",
-        secret_key_var="MINIO_TRINO_WRITE_SECRET",
-    )
 
 
 def _build_producer():

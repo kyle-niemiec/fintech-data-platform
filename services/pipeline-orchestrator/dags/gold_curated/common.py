@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import os
 from datetime import timedelta
-from pathlib import Path
 
-from dag_runtime import build_event_producer, now_utc, open_event_store_conn
+from dag_runtime import build_event_producer
 
 SOURCE_SYSTEM = "curated"
 TOPIC_SILVER_COMPLETED = "pipeline.silver.completed.v1"
@@ -18,10 +17,6 @@ GOLD_TABLE = "lakehouse.gold.kpi_pipeline_conversion"
 TRIGGER_TYPE = "event"
 INITIATOR = "airflow"
 
-SQL_DIR = Path(__file__).resolve().parent.parent / "sql"
-GOLD_DDL_SQL_PATH = SQL_DIR / "gold_kpi_pipeline_conversion_ddl.sql"
-AGG_SQL_PATH = SQL_DIR / "gold_kpi_pipeline_conversion_insert.sql"
-
 default_args = {
     "owner": "curated_promotion",
     "depends_on_past": False,
@@ -30,26 +25,6 @@ default_args = {
     "email_on_failure": False,
     "email_on_retry": False,
 }
-
-
-def _now_utc():
-    return now_utc()
-
-
-def _iter_sql_statements(sql_text: str):
-    cleaned_lines = []
-    for line in sql_text.splitlines():
-        cleaned = line.split("--", 1)[0].strip()
-        if cleaned:
-            cleaned_lines.append(cleaned)
-    for stmt in "\n".join(cleaned_lines).split(";"):
-        normalized = stmt.strip()
-        if normalized:
-            yield normalized
-
-
-def _open_event_store_conn():
-    return open_event_store_conn()
 
 
 def _build_producer():

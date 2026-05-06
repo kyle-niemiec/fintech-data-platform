@@ -1,4 +1,5 @@
 services:
+  # The iceberg-rest service is used by Trino to interact with the Iceberg catalog
   iceberg_rest:
     image: tabulario/iceberg-rest:1.5.0
     container_name: fintech_iceberg_rest
@@ -25,8 +26,26 @@ services:
     healthcheck:
       test:
         - "CMD-SHELL"
-        - >-
-          perl -MIO::Socket::INET -e 'my $$sock=IO::Socket::INET->new(PeerAddr=>"127.0.0.1",PeerPort=>8181,Proto=>"tcp",Timeout=>2) or exit 1; print $$sock "GET /v1/config HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"; my $$ok=0; while (my $$line=<$$sock>) { if ($$line =~ m{^HTTP/\d+\.\d+ 200\b}) { $$ok=1; last; } } exit($$ok ? 0 : 1);'
+        - |
+          perl -MIO::Socket::INET -e '
+            my $$sock=IO::Socket::INET->new(
+              PeerAddr=>"127.0.0.1",
+              PeerPort=>8181,
+              Proto=>"tcp",
+              Timeout=>2
+            ) or exit 1;
+
+            print $$sock "GET /v1/config HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+            my $$ok=0;
+
+            while (my $$line=<$$sock>) {
+              if ($$line =~ m{^HTTP/\d+\.\d+ 200\b}) {
+                $$ok=1;
+                last;
+              }
+            }
+
+            exit($$ok ? 0 : 1);'
       interval: 10s
       timeout: 5s
       retries: 12
@@ -34,6 +53,7 @@ services:
     networks:
       - platform_internal
 
+  # The Trino service is used to query the Iceberg catalog and perform transformations
   trino:
     image: trinodb/trino:442
     container_name: fintech_trino
@@ -53,5 +73,33 @@ services:
       timeout: 5s
       retries: 18
       start_period: 20s
+    networks:
+      - platform_internal
+
+  # The trino_curated_init service runs initial SQL migrations to set up the curated layer in the Iceberg catalog.
+  trino_curated_init:
+    image: trinodb/trino:442
+    container_name: fintech_trino_curated_init
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+
+        set -- /lakehouse-migrations/[0-9][0-9]_*.sql
+        if [ "$$1" = "/lakehouse-migrations/[0-9][0-9]_*.sql" ]; then
+          echo "No lakehouse migration SQL files found under /lakehouse-migrations." >&2
+          exit 1
+        fi
+
+        for migration_file in "$$@"; do
+          echo "Applying migration $$migration_file"
+          /usr/bin/trino --server http://trino:8080 --catalog lakehouse --user trino_etl --file "$$migration_file"
+        done
+    volumes:
+      - ./db/lakehouse-migrations:/lakehouse-migrations:ro
+    depends_on:
+      trino:
+        condition: service_healthy
     networks:
       - platform_internal

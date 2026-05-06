@@ -34,7 +34,27 @@ TASKS_FILE = (
     / "dags"
     / "gold_curated"
     / "tasks"
-    / "aggregation_tasks.py"
+    / "open_curated_run.py"
+)
+
+RUN_AGGREGATION_SQL_FILE = (
+    Path(__file__).resolve().parents[1]
+    / "services"
+    / "pipeline-orchestrator"
+    / "dags"
+    / "gold_curated"
+    / "tasks"
+    / "run_aggregation_sql.py"
+)
+
+RECORD_CHECKPOINT_FILE = (
+    Path(__file__).resolve().parents[1]
+    / "services"
+    / "pipeline-orchestrator"
+    / "dags"
+    / "gold_curated"
+    / "tasks"
+    / "record_checkpoint_and_emit_event.py"
 )
 
 
@@ -42,6 +62,8 @@ def test_dag_file_parses():
     ast.parse(LISTENER_FILE.read_text())
     ast.parse(AGGREGATION_FILE.read_text())
     ast.parse(TASKS_FILE.read_text())
+    ast.parse(RUN_AGGREGATION_SQL_FILE.read_text())
+    ast.parse(RECORD_CHECKPOINT_FILE.read_text())
 
 
 def test_dag_declares_listener_and_aggregation_dag_ids():
@@ -74,7 +96,7 @@ def test_dag_has_required_aggregation_tasks():
 
 
 def test_dag_imports_shared_libs():
-    source = TASKS_FILE.read_text()
+    source = TASKS_FILE.read_text() + RECORD_CHECKPOINT_FILE.read_text()
     assert "libs.platform_events" in source
 
 

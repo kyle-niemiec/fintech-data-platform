@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 import pendulum
 from airflow import DAG
 from airflow.decorators import task
+from dag_runtime import open_event_store_conn
 
 from silver_curated.common import (
     SILVER_DOMAIN,
@@ -20,12 +21,13 @@ from silver_curated.common import (
     TOPIC_SILVER_FAILED,
     default_args,
     _build_producer,
-    _open_event_store_conn,
 )
-from silver_curated.tasks.promotion_tasks import (
-    merge_into_silver as merge_into_silver_task,
-    open_curated_run as open_curated_run_task,
+from silver_curated.tasks.merge_into_silver import merge_into_silver as merge_into_silver_task
+from silver_curated.tasks.open_curated_run import open_curated_run as open_curated_run_task
+from silver_curated.tasks.record_checkpoint_and_emit_event import (
     record_checkpoint_and_emit_event as record_checkpoint_and_emit_event_task,
+)
+from silver_curated.tasks.stage_and_mask_bronze import (
     stage_and_mask_bronze as stage_and_mask_bronze_task,
 )
 
@@ -88,7 +90,7 @@ def _emit_failure_event(context):
         producer.close()
 
     try:
-        with _open_event_store_conn() as conn:
+        with open_event_store_conn() as conn:
             with conn.transaction():
                 append_event(
                     conn,

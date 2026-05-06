@@ -10,10 +10,9 @@ USER airflow
 COPY services/pipeline-orchestrator/requirements.txt /tmp/worker-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/worker-requirements.txt
 
-# Place our shared libs on PYTHONPATH so DAGs can
+# Place shared lib files on PYTHONPATH so DAGs can use
 # `from libs.platform_events...` and `from libs.excel_validation...`.
 COPY --chown=airflow:airflow platform/libs /opt/airflow/platform_libs/libs
 ENV PYTHONPATH=/opt/airflow/platform_libs:${PYTHONPATH}
 
 COPY --chown=airflow:airflow services/pipeline-orchestrator/dags /opt/airflow/dags
-COPY --chown=airflow:airflow services/pipeline-orchestrator/sql /opt/airflow/sql

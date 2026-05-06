@@ -228,16 +228,22 @@ infra-salesforce-pipeline:
 
 infra-curated-pipeline:
 	$(call banner,Starting Iceberg REST catalog + Trino coordinator for curated transforms...)
-	$(COMPOSE) up -d iceberg_rest trino
+	$(COMPOSE) up -d iceberg_rest trino trino_curated_init
 	@attempt=1; max_attempts=60; \
 	while true; do \
 		iceberg_health=$$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' fintech_iceberg_rest 2>/dev/null || echo missing); \
 		trino_health=$$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' fintech_trino 2>/dev/null || echo missing); \
-		if [ "$$iceberg_health" = "healthy" ] && [ "$$trino_health" = "healthy" ]; then \
+		trino_init_status=$$(docker inspect -f '{{.State.Status}}' fintech_trino_curated_init 2>/dev/null || echo missing); \
+		trino_init_exit_code=$$(docker inspect -f '{{.State.ExitCode}}' fintech_trino_curated_init 2>/dev/null || echo -1); \
+		if [ "$$iceberg_health" = "healthy" ] && [ "$$trino_health" = "healthy" ] && [ "$$trino_init_status" = "exited" ] && [ "$$trino_init_exit_code" = "0" ]; then \
 			break; \
 		fi; \
+		if [ "$$trino_init_status" = "exited" ] && [ "$$trino_init_exit_code" != "0" ]; then \
+			printf "infra-curated-pipeline failed: trino_curated_init exited with code %s.\n" "$$trino_init_exit_code" >&2; \
+			exit 1; \
+		fi; \
 		if [ $$attempt -ge $$max_attempts ]; then \
-			printf "infra-curated-pipeline timed out waiting for health checks (iceberg_rest=%s trino=%s).\n" "$$iceberg_health" "$$trino_health" >&2; \
+			printf "infra-curated-pipeline timed out waiting for readiness (iceberg_rest=%s trino=%s trino_curated_init=%s exit=%s).\n" "$$iceberg_health" "$$trino_health" "$$trino_init_status" "$$trino_init_exit_code" >&2; \
 			exit 1; \
 		fi; \
 		attempt=$$((attempt + 1)); \
