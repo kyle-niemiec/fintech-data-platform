@@ -18,10 +18,13 @@ from gold_curated.common import (
     default_args,
     _build_producer,
 )
+
 from gold_curated.tasks.open_curated_run import open_curated_run as open_curated_run_task
+
 from gold_curated.tasks.record_checkpoint_and_emit_event import (
     record_checkpoint_and_emit_event as record_checkpoint_and_emit_event_task,
 )
+
 from gold_curated.tasks.run_aggregation_sql import run_aggregation_sql as run_aggregation_sql_task
 
 logger = logging.getLogger(__name__)
@@ -73,6 +76,7 @@ def _emit_failure_event(context):
         return
 
     producer = _build_producer()
+
     try:
         partition, offset = producer.produce(
             TOPIC_GOLD_FAILED, envelope, key=str(envelope.run_id)

@@ -49,6 +49,7 @@ Legend:
 
 - [x] Mock Salesforce service and incremental pull logic are implemented.
 - [x] Scheduled incremental pull DAG trigger is implemented.
+- [x] Airflow ingestion DAG code is modularized into package + task-module layout (`excel_validation/`, `salesforce_pull/`) with stable DAG/task identifiers.
 - [x] Pull cursor history and raw response artifacts are persisted.
 - [x] Bronze-ready events for CRM objects are emitted.
 
