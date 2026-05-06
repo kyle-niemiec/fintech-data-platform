@@ -13,7 +13,7 @@ from airflow import DAG
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.apache.kafka.sensors.kafka import AwaitMessageTriggerFunctionSensor
 
-from silver_curated_common import TOPIC_BRONZE_READY, default_args
+from silver_curated.common import TOPIC_BRONZE_READY, default_args
 
 
 def apply_bronze_event(message, **_):
@@ -86,7 +86,7 @@ with DAG(
     AwaitMessageTriggerFunctionSensor(
         task_id="await_bronze_ready",
         topics=[TOPIC_BRONZE_READY],
-        apply_function="silver_curated_listener.apply_bronze_event",
+        apply_function="silver_curated.listener.apply_bronze_event",
         kafka_config_id="kafka_default",
         event_triggered_function=trigger_promotion,
         poll_interval=5,

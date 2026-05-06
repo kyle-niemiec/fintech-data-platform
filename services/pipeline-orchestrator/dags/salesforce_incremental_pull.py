@@ -26,6 +26,12 @@ import pendulum
 from airflow import DAG
 from airflow.decorators import task
 from airflow.exceptions import AirflowException
+from dag_runtime import (
+    build_event_producer,
+    build_minio_client,
+    now_utc,
+    open_event_store_conn,
+)
 
 SOURCE_SYSTEM = "salesforce"
 TOPIC_RAW_READY = "ingest.salesforce.raw.ready.v1"
@@ -60,43 +66,25 @@ def _configured_sobjects() -> tuple[str, ...]:
 
 
 def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return now_utc()
 
 
 def _get_minio_client():
-    from minio import Minio
-
-    return Minio(
-        os.environ["MINIO_ENDPOINT"],
-        access_key=os.environ["MINIO_INGEST_USER"],
-        secret_key=os.environ["MINIO_INGEST_SECRET"],
-        secure=os.environ.get("MINIO_SECURE", "false").lower() == "true",
-        region=os.environ.get("MINIO_REGION", "us-east-1"),
+    return build_minio_client(
+        access_key_var="MINIO_INGEST_USER",
+        secret_key_var="MINIO_INGEST_SECRET",
     )
 
 
 def _open_db_conn():
-    import psycopg
-
-    return psycopg.connect(
-        host=os.environ["EVENT_STORE_DB_HOST"],
-        port=int(os.environ["EVENT_STORE_DB_PORT"]),
-        dbname=os.environ["EVENT_STORE_DB"],
-        user=os.environ["EVENT_APPEND_DB_USER"],
-        password=os.environ["EVENT_APPEND_DB_PASSWORD"],
-        autocommit=False,
-    )
+    return open_event_store_conn()
 
 
 def _build_producer():
-    from libs.platform_events.producer import EventProducer, ProducerConfig
-
-    return EventProducer(
-        ProducerConfig.from_env(
-            client_id="salesforce-incremental-pull-dag",
-            username_var="REDPANDA_AIRFLOW_USER",
-            password_var="REDPANDA_AIRFLOW_PASSWORD",
-        )
+    return build_event_producer(
+        client_id="salesforce-incremental-pull-dag",
+        username_var="REDPANDA_AIRFLOW_USER",
+        password_var="REDPANDA_AIRFLOW_PASSWORD",
     )
 
 

@@ -1,0 +1,1 @@
+"""Silver curated task callables."""
