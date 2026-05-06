@@ -1,6 +1,7 @@
 import StatusPill from "../common/StatusPill";
 import MonoId from "../common/MonoId";
 import { formatDuration, formatTimestamp } from "../../lib/formatters";
+import { pipelineDisplayNameFor } from "../../lib/pipelineColors";
 import type { RunDetail } from "../../types/api";
 
 function Field({
@@ -26,7 +27,7 @@ export default function RunSummaryHeader({ run }: { run: RunDetail }) {
       <div className="flex flex-wrap items-center gap-3">
         <StatusPill status={run.status} />
         <span className="font-mono text-sm text-navy-700">
-          {run.pipeline_name}
+          {pipelineDisplayNameFor(run.pipeline_name)}
         </span>
         <span className="text-slate-400">·</span>
         <MonoId value={run.run_id} />

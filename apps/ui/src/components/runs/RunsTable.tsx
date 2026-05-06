@@ -4,6 +4,7 @@ import MonoId from "../common/MonoId";
 import RelativeTime from "../common/RelativeTime";
 import PipelineBadge from "./PipelineBadge";
 import { formatDuration } from "../../lib/formatters";
+import { pipelineDisplayNameFor } from "../../lib/pipelineColors";
 import type { RunSummary } from "../../types/api";
 
 export default function RunsTable({ runs }: { runs: RunSummary[] }) {
@@ -36,7 +37,9 @@ export default function RunsTable({ runs }: { runs: RunSummary[] }) {
                 <div className="flex items-center gap-2">
                   <PipelineBadge pipelineName={r.pipeline_name} />
                   <div>
-                    <div className="font-medium">{r.pipeline_name}</div>
+                    <div className="font-medium">
+                      {pipelineDisplayNameFor(r.pipeline_name)}
+                    </div>
                     <div className="text-xs text-navy-500">{r.pipeline_class}</div>
                   </div>
                 </div>

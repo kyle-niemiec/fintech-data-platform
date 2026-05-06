@@ -64,7 +64,7 @@ export const PIPELINE_ORDER: PipelineKind[] = [
 const EXCEL_NAMES = new Set(["excel_ingestion"]);
 const CDC_NAMES = new Set(["cdc_ingestion", "cdc_bronze_write"]);
 const SALESFORCE_NAMES = new Set(["salesforce_ingestion"]);
-const CURATED_NAMES = new Set(["silver_curation", "gold_curation"]);
+const CURATED_NAMES = new Set(["curated_promotion"]);
 
 export function pipelineKindFor(pipelineName: string): PipelineKind | null {
   if (EXCEL_NAMES.has(pipelineName)) return "excel";
@@ -83,4 +83,9 @@ export function pipelineNamesFor(kinds: PipelineKind[]): string[] {
     if (k === "curated") names.push(...CURATED_NAMES);
   }
   return names;
+}
+
+export function pipelineDisplayNameFor(pipelineName: string): string {
+  const kind = pipelineKindFor(pipelineName);
+  return kind === "curated" ? "curated" : pipelineName;
 }
