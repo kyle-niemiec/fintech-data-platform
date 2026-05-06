@@ -15,3 +15,6 @@
   - `silver_curated.listener.apply_bronze_event`
   - `gold_curated.listener.apply_silver_event`
 - Airflow runtime startup is gated on curated Trino bootstrap completion (`trino_curated_init`) so curated DAGs do not start before required lakehouse tables exist.
+- Airflow API auth backend configuration now explicitly includes session auth plus basic auth in compose env to align with Airflow UI requirements ahead of Airflow 3.0.
+- Trino readiness gating now checks `/v1/info/state == ACTIVE` before marking the Trino service healthy, preventing `trino_curated_init` from running while the coordinator is still initializing.
+- `trino_curated_init` now retries each migration command up to 30 times (2s backoff) to tolerate transient Trino startup race conditions during fresh infra boot.

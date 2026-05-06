@@ -68,7 +68,7 @@ services:
       iceberg_rest:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/v1/info >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/v1/info/state | grep -q 'ACTIVE' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 18
@@ -94,7 +94,22 @@ services:
 
         for migration_file in "$$@"; do
           echo "Applying migration $$migration_file"
-          /usr/bin/trino --server http://trino:8080 --catalog lakehouse --user trino_etl --file "$$migration_file"
+          attempt=1
+          max_attempts=30
+          while true; do
+            if /usr/bin/trino --server http://trino:8080 --catalog lakehouse --user trino_etl --file "$$migration_file"; then
+              break
+            fi
+
+            if [ "$$attempt" -ge "$$max_attempts" ]; then
+              echo "Migration $$migration_file failed after $$attempt attempts." >&2
+              exit 1
+            fi
+
+            attempt=$$((attempt + 1))
+            echo "Migration $$migration_file failed (attempt $$attempt/$$max_attempts), retrying in 2s..." >&2
+            sleep 2
+          done
         done
     volumes:
       - ./db/lakehouse-migrations:/lakehouse-migrations:ro
