@@ -8,13 +8,17 @@ from datetime import timedelta
 from dag_runtime import build_event_producer
 
 SOURCE_SYSTEM = "curated"
-TOPIC_BRONZE_READY = "ingest.salesforce.bronze.ready.v1"
+TOPICS_BRONZE_READY = (
+    "ingest.salesforce.bronze.ready.v1",
+    "cdc.oltp.bronze.ready.v1",
+    "ingest.excel.bronze.ready.v1",
+)
 TOPIC_SILVER_STARTED = "pipeline.silver.started.v1"
 TOPIC_SILVER_COMPLETED = "pipeline.silver.completed.v1"
 TOPIC_SILVER_FAILED = "pipeline.silver.failed.v1"
 SILVER_DOMAIN = "salesforce_opportunity"
 SILVER_TABLE = "lakehouse.silver.dim_opportunity"
-STAGING_PREFIX = "bronze/source=salesforce/object=Opportunity"
+STAGING_PREFIX = "warehouse/_staging"
 TRIGGER_TYPE = "event"
 INITIATOR = "airflow"
 

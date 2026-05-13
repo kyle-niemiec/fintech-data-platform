@@ -16,8 +16,6 @@ from airflow.decorators import task
 from dag_runtime import open_event_store_conn
 
 from silver_curated.common import (
-    SILVER_DOMAIN,
-    SILVER_TABLE,
     TOPIC_SILVER_FAILED,
     default_args,
     _build_producer,
@@ -55,13 +53,13 @@ def _emit_failure_event(context):
     payload = {
         "message": "Silver curated promotion failed",
         "stage": "silver",
-        "silver_domain": SILVER_DOMAIN,
-        "output_table": SILVER_TABLE,
+        "silver_domain": conf.get("_curated_silver_domain") or "unknown",
+        "output_table": conf.get("_curated_silver_output_table") or "unknown",
         "parent_run_id": parent_run_id,
         "record_count": 0,
         "input_uris": (conf.get("payload") or {}).get("output_uris", []),
         "output_uris": [],
-        "transform_id": "silver_curated_promotion",
+        "transform_id": conf.get("_curated_silver_transform_id") or "silver_curated_promotion",
         "transform_version": "v1",
     }
 

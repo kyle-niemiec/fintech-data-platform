@@ -53,6 +53,7 @@ XLSX_MAGIC = b"PK\x03\x04"
 TOPIC_UPLOADED = "ingest.excel.uploaded.v1"
 TOPIC_SCAN_PASS = "ingest.excel.scanned.pass.v1"
 TOPIC_SCAN_FAIL = "ingest.excel.scanned.fail.v1"
+DEFAULT_SCHEMA_CONTRACT_ID = "payroll_v1"
 
 SCAN_ENGINE = "clamav"
 
@@ -350,6 +351,7 @@ class ExcelScanner:
             "failure_reason": verdict.reason,
             "bucket": obj.bucket,
             "object_key": obj.object_key,
+            "schema_contract_id": _infer_schema_contract_id(obj.object_key),
             "input_uris": [f"s3://{obj.bucket}/{obj.object_key}"],
         }
         return Envelope.build(
@@ -380,6 +382,13 @@ def _extract_uploader_from_stat(stat: dict[str, Any]) -> str | None:
         if isinstance(value, str) and value.strip():
             return value.strip()
     return None
+
+
+def _infer_schema_contract_id(object_key: str) -> str:
+    lowered = object_key.lower()
+    if "commission" in lowered:
+        return "commission_adjustment_v1"
+    return DEFAULT_SCHEMA_CONTRACT_ID
 
 
 __all__ = [

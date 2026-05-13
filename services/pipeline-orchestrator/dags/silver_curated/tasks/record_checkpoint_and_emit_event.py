@@ -5,12 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from dag_runtime import open_event_store_conn
-from silver_curated.common import (
-    SILVER_DOMAIN,
-    SILVER_TABLE,
-    TOPIC_SILVER_COMPLETED,
-    _build_producer,
-)
+from silver_curated.common import TOPIC_SILVER_COMPLETED, _build_producer
 
 
 def record_checkpoint_and_emit_event(state: dict[str, Any]) -> None:
@@ -36,14 +31,17 @@ def record_checkpoint_and_emit_event(state: dict[str, Any]) -> None:
     parent_run_id = UUID(state["parent_run_id"])
     trace_id = UUID(state["trace_id"])
     merge_stats = state.get("merge_stats") or {}
+    silver_domain = state["silver_domain"]
+    silver_table = state["silver_table"]
+    transform_id = state.get("silver_transform_id") or "silver_curated_promotion"
     record_count = int(state.get("staged_row_count") or 0)
-    output_uris = [f"s3://{os.environ['MINIO_BUCKET_NAME']}/silver/domain={SILVER_DOMAIN}/"]
+    output_uris = [f"s3://{os.environ['MINIO_BUCKET_NAME']}/silver/domain={silver_domain}/"]
 
     payload = {
-        "message": f"Promoted {record_count} Salesforce Opportunity rows to silver.",
+        "message": f"Promoted {record_count} rows to silver domain {silver_domain}.",
         "stage": "silver",
-        "silver_domain": SILVER_DOMAIN,
-        "output_table": SILVER_TABLE,
+        "silver_domain": silver_domain,
+        "output_table": silver_table,
         "parent_run_id": str(parent_run_id),
         "record_count": record_count,
         "merge_inserted": int(merge_stats.get("inserted") or 0),
@@ -51,7 +49,7 @@ def record_checkpoint_and_emit_event(state: dict[str, Any]) -> None:
         "merge_closed": int(merge_stats.get("closed") or 0),
         "input_uris": state.get("bronze_uris", []),
         "output_uris": output_uris,
-        "transform_id": "silver_curated_promotion",
+        "transform_id": transform_id,
         "transform_version": "v1",
     }
 
@@ -85,9 +83,9 @@ def record_checkpoint_and_emit_event(state: dict[str, Any]) -> None:
                 conn,
                 run_id=curated_run_id,
                 parent_run_id=parent_run_id,
-                silver_domain=SILVER_DOMAIN,
+                silver_domain=silver_domain,
                 input_uris=list(state.get("bronze_uris", [])),
-                output_table=SILVER_TABLE,
+                output_table=silver_table,
                 output_uris=output_uris,
                 record_count=record_count,
                 merge_inserted=int(merge_stats.get("inserted") or 0),

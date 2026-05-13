@@ -50,3 +50,34 @@ def generate_payroll_xlsx(rows: int, seed: int | None = None) -> tuple[bytes, in
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         frame.to_excel(writer, sheet_name=SHEET_NAME, index=False)
     return buffer.getvalue(), len(frame)
+
+
+COMMISSION_SHEET_NAME = "commission_adjustments"
+
+
+def build_commission_adjustment_frame(rows: int, seed: int | None = None) -> pd.DataFrame:
+    rng = random.Random(seed)
+    now = datetime.now(timezone.utc)
+    advisor_ids = [f"A{rng.randint(10_000, 99_999)}" for _ in range(rows)]
+    adjustment_date = [_random_period_end(rng, now) for _ in range(rows)]
+    adjustment_amount = [round(rng.uniform(-900.0, 2400.0), 2) for _ in range(rows)]
+    reasons = [rng.choice(("retro_credit", "chargeback", "manual_override")) for _ in range(rows)]
+    currency = [rng.choice(CURRENCIES) for _ in range(rows)]
+
+    return pd.DataFrame(
+        {
+            "advisor_id": advisor_ids,
+            "adjustment_date": pd.to_datetime(adjustment_date),
+            "adjustment_amount": adjustment_amount,
+            "adjustment_reason": reasons,
+            "currency": currency,
+        }
+    )
+
+
+def generate_commission_adjustment_xlsx(rows: int, seed: int | None = None) -> tuple[bytes, int]:
+    frame = build_commission_adjustment_frame(rows, seed=seed)
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        frame.to_excel(writer, sheet_name=COMMISSION_SHEET_NAME, index=False)
+    return buffer.getvalue(), len(frame)

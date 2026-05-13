@@ -35,15 +35,30 @@ END;
 
 GRANT USAGE ON SCHEMA trading TO ${OLTP_APP_USER};
 GRANT SELECT, INSERT, UPDATE ON trading.transaction TO ${OLTP_APP_USER};
+GRANT SELECT, INSERT, UPDATE ON trading.loan TO ${OLTP_APP_USER};
+GRANT SELECT, INSERT, UPDATE ON trading.loan_payment TO ${OLTP_APP_USER};
+GRANT SELECT, INSERT, UPDATE ON trading.loan_status_history TO ${OLTP_APP_USER};
 GRANT SELECT, INSERT ON trading.risk_flag TO ${OLTP_APP_USER};
 
 -- Debezium replication role needs SELECT on tables in the publication to
 -- emit snapshot reads; logical replication itself uses REPLICATION attribute.
 GRANT USAGE ON SCHEMA trading TO ${OLTP_REPLICATION_USER};
-GRANT SELECT ON trading.transaction, trading.risk_flag TO ${OLTP_REPLICATION_USER};
+GRANT SELECT ON
+    trading.transaction,
+    trading.loan,
+    trading.loan_payment,
+    trading.loan_status_history,
+    trading.risk_flag
+TO ${OLTP_REPLICATION_USER};
 
 -- UI reader is read-only and scoped to the two trading tables; no access to
 -- app/replication credentials or other schemas.
 GRANT USAGE ON SCHEMA trading TO ${OLTP_UI_READER_USER};
-GRANT SELECT ON trading.transaction, trading.risk_flag TO ${OLTP_UI_READER_USER};
+GRANT SELECT ON
+    trading.transaction,
+    trading.loan,
+    trading.loan_payment,
+    trading.loan_status_history,
+    trading.risk_flag
+TO ${OLTP_UI_READER_USER};
 SQL

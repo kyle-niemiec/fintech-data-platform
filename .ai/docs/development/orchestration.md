@@ -5,6 +5,7 @@
 - Curated DAG stacks are packaged under:
   - `services/pipeline-orchestrator/dags/gold_curated/`
   - `services/pipeline-orchestrator/dags/silver_curated/`
+- Curated route-selection is config-driven via `services/pipeline-orchestrator/dags/curated_specs.py`; silver routing resolves by bronze topic payload (`sobject`, `source_table`, `schema_contract_id`) and gold routing resolves by `silver_domain`.
 - Curated DAG tasks execute transform SQL only (`MERGE`/`INSERT`); Iceberg table/schema bootstrap is no longer performed in DAG runtime code.
 - Curated task callables are split into one module per task name under each DAG's `tasks/` package (e.g. `open_curated_run.py`, `merge_into_silver.py`) instead of one monolithic task module.
 - Task-scoped transform SQL is embedded directly in the task modules that execute it (`run_aggregation_sql.py`, `merge_into_silver.py`) rather than loaded from a shared orchestrator SQL directory.
@@ -19,6 +20,7 @@
 - Sensor apply-function bindings use packaged module paths for stage handoff:
   - `silver_curated.listener.apply_bronze_event`
   - `gold_curated.listener.apply_silver_event`
+- `silver_curated_listener` subscribes to Salesforce + CDC + Excel bronze-ready topics; `gold_curated_listener` remains keyed on `pipeline.silver.completed.v1`.
 - Airflow runtime startup is gated on curated Trino bootstrap completion (`trino_curated_init`) so curated DAGs do not start before required lakehouse tables exist.
 - Airflow API auth backend configuration now explicitly includes session auth plus basic auth in compose env to align with Airflow UI requirements ahead of Airflow 3.0.
 - Trino readiness gating checks `/v1/info/state == ACTIVE` before marking the Trino service healthy, preventing `trino_curated_init` from running while the coordinator is still initializing.

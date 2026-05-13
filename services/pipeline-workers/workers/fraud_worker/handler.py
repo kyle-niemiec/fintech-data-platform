@@ -75,8 +75,13 @@ def parse_raw(raw: RawMessage) -> dict[str, Any] | None:
 
     source = payload.get("source") or {}
     source_table = f"{source.get('schema', '')}.{source.get('table', '')}"
-    if source_table != "trading.transaction":
-        # risk_flag changes loop back through CDC; we only score transactions.
+    if source_table not in (
+        "trading.transaction",
+        "trading.loan",
+        "trading.loan_payment",
+        "trading.loan_status_history",
+    ):
+        # risk_flag and unrelated table changes loop back through CDC; skip them.
         return None
 
     after = payload.get("after")
@@ -143,35 +148,45 @@ class FraudHandler:
 
         row = parsed["row"]
         transaction_id = str(row.get("transaction_id"))
-        if not transaction_id or transaction_id == "None":
+        source_table = str(parsed["source_table"])
+        business_key = transaction_id
+        if source_table == "trading.loan":
+            business_key = str(row.get("loan_id"))
+        elif source_table == "trading.loan_payment":
+            business_key = str(row.get("payment_id"))
+        elif source_table == "trading.loan_status_history":
+            business_key = str(row.get("status_event_id"))
+
+        if not business_key or business_key == "None":
             logger.warning(
-                "skip raw without transaction_id topic=%s partition=%s offset=%s",
+                "skip raw without business key topic=%s partition=%s offset=%s",
                 raw.topic, raw.partition, raw.offset,
             )
             return False
 
-        assessment = score_transaction(row)
+        assessment = score_transaction(row) if source_table == "trading.transaction" else RiskAssessment(risk_score=0, risk_flags=[])
         event_id = uuid4()
         run_id = uuid4()
         trace_id = uuid4()
         trigger_event_ref = f"{raw.topic}:{raw.partition}:{raw.offset}"
 
-        # Idempotent OLTP write first; replays no-op here.
-        try:
-            self.oltp_conn.autocommit = True
-            _upsert_risk_flag(
-                self.oltp_conn,
-                transaction_id=transaction_id,
-                event_id=event_id,
-                assessment=assessment,
-                raw=raw,
-            )
-        except Exception:
-            logger.exception(
-                "risk_flag upsert failed topic=%s partition=%s offset=%s",
-                raw.topic, raw.partition, raw.offset,
-            )
-            raise
+        if source_table == "trading.transaction":
+            # Idempotent OLTP write first; replays no-op here.
+            try:
+                self.oltp_conn.autocommit = True
+                _upsert_risk_flag(
+                    self.oltp_conn,
+                    transaction_id=transaction_id,
+                    event_id=event_id,
+                    assessment=assessment,
+                    raw=raw,
+                )
+            except Exception:
+                logger.exception(
+                    "risk_flag upsert failed topic=%s partition=%s offset=%s",
+                    raw.topic, raw.partition, raw.offset,
+                )
+                raise
 
         # Open/append/close run on event-store in one transaction.
         try:
@@ -203,6 +218,18 @@ class FraudHandler:
                 "risk_flags": assessment.risk_flags,
                 "fraud_rule_version": FRAUD_RULE_LABEL,
                 "transaction_id": transaction_id,
+                "account_id": row.get("account_id"),
+                "loan_id": row.get("loan_id"),
+                "payment_id": row.get("payment_id"),
+                "payment_amount": _decimal_to_float(row.get("amount")) if source_table == "trading.loan_payment" else None,
+                "payment_due_date": str(row.get("due_date")) if row.get("due_date") is not None else None,
+                "payment_posted_at": str(row.get("posted_at")) if row.get("posted_at") is not None else None,
+                "status_code": row.get("status_code"),
+                "status_at": str(row.get("status_at")) if row.get("status_at") is not None else None,
+                "principal_balance": _decimal_to_float(row.get("principal_balance")) if row.get("principal_balance") is not None else None,
+                "days_past_due": int(row.get("days_past_due")) if row.get("days_past_due") is not None else None,
+                "commission_adjustment_amount": None,
+                "commission_reason": None,
                 "op": parsed["op"],
                 "source_table": parsed["source_table"],
                 "original_topic_metadata": {
@@ -217,7 +244,7 @@ class FraudHandler:
 
         try:
             partition, offset = self.producer.produce(
-                TOPIC_ASSESSED, envelope, key=f"{parsed['source_table']}:{transaction_id}"
+                TOPIC_ASSESSED, envelope, key=f"{parsed['source_table']}:{business_key}"
             )
         except Exception:
             try:

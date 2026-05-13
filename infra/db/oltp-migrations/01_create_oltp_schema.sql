@@ -14,6 +14,42 @@ CREATE TABLE IF NOT EXISTS trading.transaction (
 CREATE INDEX IF NOT EXISTS transaction_executed_at_idx
     ON trading.transaction (executed_at DESC);
 
+CREATE TABLE IF NOT EXISTS trading.loan (
+    loan_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id UUID NOT NULL,
+    status_code TEXT NOT NULL,
+    principal_balance NUMERIC(18, 2) NOT NULL,
+    days_past_due INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS loan_account_updated_idx
+    ON trading.loan (account_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS trading.loan_payment (
+    payment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    loan_id UUID NOT NULL REFERENCES trading.loan (loan_id),
+    amount NUMERIC(18, 2) NOT NULL,
+    due_date DATE NOT NULL,
+    posted_at DATE,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS loan_payment_loan_updated_idx
+    ON trading.loan_payment (loan_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS trading.loan_status_history (
+    status_event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    loan_id UUID NOT NULL REFERENCES trading.loan (loan_id),
+    status_code TEXT NOT NULL,
+    status_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS loan_status_history_loan_updated_idx
+    ON trading.loan_status_history (loan_id, updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS trading.risk_flag (
     risk_flag_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     transaction_id UUID NOT NULL REFERENCES trading.transaction (transaction_id),

@@ -13,7 +13,8 @@ from airflow import DAG
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.apache.kafka.sensors.kafka import AwaitMessageTriggerFunctionSensor
 
-from silver_curated.common import TOPIC_BRONZE_READY, default_args
+from curated_specs import resolve_silver_spec
+from silver_curated.common import TOPICS_BRONZE_READY, default_args
 
 
 def apply_bronze_event(message, **_):
@@ -25,15 +26,15 @@ def apply_bronze_event(message, **_):
     except (TypeError, ValueError, json.JSONDecodeError):
         return None
 
-    if envelope.get("event_type") != TOPIC_BRONZE_READY:
+    if envelope.get("event_type") not in TOPICS_BRONZE_READY:
         return None
 
     payload = envelope.get("payload") or {}
-    object_name = payload.get("object_name") or payload.get("sobject")
-
-    if object_name != "Opportunity":
-        return None
     if payload.get("stage") != "bronze":
+        return None
+
+    silver_spec = resolve_silver_spec(envelope)
+    if silver_spec is None:
         return None
 
     run_id = envelope.get("run_id")
@@ -45,6 +46,10 @@ def apply_bronze_event(message, **_):
     envelope["_trigger_topic"] = message.topic()
     envelope["_trigger_partition"] = int(message.partition())
     envelope["_trigger_offset"] = int(message.offset())
+
+    envelope["_curated_silver_domain"] = silver_spec.domain
+    envelope["_curated_silver_output_table"] = silver_spec.output_table
+    envelope["_curated_silver_transform_id"] = silver_spec.transform_id
 
     return {
         "trigger_run_id": trigger_run_id,
@@ -85,7 +90,7 @@ with DAG(
 ):
     AwaitMessageTriggerFunctionSensor(
         task_id="await_bronze_ready",
-        topics=[TOPIC_BRONZE_READY],
+        topics=list(TOPICS_BRONZE_READY),
         apply_function="silver_curated.listener.apply_bronze_event",
         kafka_config_id="kafka_default",
         event_triggered_function=trigger_promotion,

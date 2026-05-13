@@ -63,11 +63,11 @@ Legend:
 - [x] Event-store has `silver_checkpoint`/`gold_checkpoint` tables and `append_silver_checkpoint`/`append_gold_checkpoint` helpers.
 - [x] `platform_masking` deterministic HMAC-SHA256 library is implemented and used by silver curation.
 - [x] Redpanda curated consumer-group ACL extensions and Airflow connection seeding are implemented.
-- [ ] Follow-on silver entities: `dim_account`, `dim_loan`.
-- [ ] Follow-on facts: `fact_loan_payment`, `fact_commission_adjustment`, `loan_status_history`.
-- [ ] Remaining gold KPIs: `kpi_portfolio_health`, `kpi_payment_performance`, `kpi_commission_economics`.
-- [ ] Curated CDC path.
-- [ ] Curated Excel path.
+- [x] Follow-on silver entities: `dim_account`, `dim_loan`.
+- [x] Follow-on facts: `fact_loan_payment`, `fact_commission_adjustment`, `loan_status_history`.
+- [x] Remaining gold KPIs: `kpi_portfolio_health`, `kpi_payment_performance`, `kpi_commission_economics`.
+- [x] Curated CDC path.
+- [x] Curated Excel path.
 
 ## Phase 7 - Query Plane and UI
 

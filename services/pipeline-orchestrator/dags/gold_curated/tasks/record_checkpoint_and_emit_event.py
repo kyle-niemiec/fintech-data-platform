@@ -4,12 +4,7 @@ import os
 from uuid import UUID
 
 from dag_runtime import open_event_store_conn
-from gold_curated.common import (
-    GOLD_METRIC,
-    GOLD_TABLE,
-    TOPIC_GOLD_COMPLETED,
-    _build_producer,
-)
+from gold_curated.common import TOPIC_GOLD_COMPLETED, _build_producer
 
 
 def record_checkpoint_and_emit_event(state: dict[str, str]) -> None:
@@ -34,22 +29,26 @@ def record_checkpoint_and_emit_event(state: dict[str, str]) -> None:
     curated_run_id = UUID(state["curated_run_id"])
     parent_run_id = UUID(state["parent_run_id"])
     trace_id = UUID(state["trace_id"])
+    metric = state["gold_metric"]
+    output_table = state["gold_table"]
+    transform_id = state.get("gold_transform_id") or "gold_curated_aggregation"
     record_count = int(state.get("record_count") or 0)
-    output_uris = [f"s3://{os.environ['MINIO_BUCKET_NAME']}/gold/metric={GOLD_METRIC}/"]
+    output_uris = [f"s3://{os.environ['MINIO_BUCKET_NAME']}/gold/metric={metric}/"]
     input_uris = [state["silver_table"]] if state.get("silver_table") else []
 
     payload = {
-        "message": f"Computed {GOLD_METRIC} KPI with {record_count} rows.",
+        "message": f"Computed {metric} KPI with {record_count} rows.",
         "stage": "gold",
-        "metric": GOLD_METRIC,
-        "output_table": GOLD_TABLE,
+        "metric": metric,
+        "output_table": output_table,
         "parent_run_id": str(parent_run_id),
         "record_count": record_count,
         "snapshot_date": state["snapshot_date"],
         "computed_at": state["computed_at"],
+        "silver_domain": state.get("silver_domain"),
         "input_uris": input_uris,
         "output_uris": output_uris,
-        "transform_id": "gold_curated_aggregation",
+        "transform_id": transform_id,
         "transform_version": "v1",
     }
 
@@ -83,9 +82,9 @@ def record_checkpoint_and_emit_event(state: dict[str, str]) -> None:
                 conn,
                 run_id=curated_run_id,
                 parent_run_id=parent_run_id,
-                metric=GOLD_METRIC,
+                metric=metric,
                 input_uris=input_uris,
-                output_table=GOLD_TABLE,
+                output_table=output_table,
                 output_uris=output_uris,
                 record_count=record_count,
             )

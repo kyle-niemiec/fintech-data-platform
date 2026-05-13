@@ -57,6 +57,18 @@ class BatchRow:
     fraud_rule_version: str | None
     risk_score: float | None
     risk_flags: list[str]
+    account_id: str | None
+    loan_id: str | None
+    payment_id: str | None
+    payment_amount: float | None
+    payment_due_date: str | None
+    payment_posted_at: str | None
+    status_code: str | None
+    status_at: str | None
+    principal_balance: float | None
+    days_past_due: int | None
+    commission_adjustment_amount: float | None
+    commission_reason: str | None
     assessed_payload: str  # JSON blob preserves everything else verbatim
 
 
@@ -85,6 +97,18 @@ def assessed_record_to_row(rec: AssessedRecord) -> BatchRow:
         fraud_rule_version=payload.get("fraud_rule_version"),
         risk_score=_coerce_float(payload.get("risk_score")),
         risk_flags=list(payload.get("risk_flags") or []),
+        account_id=payload.get("account_id"),
+        loan_id=payload.get("loan_id"),
+        payment_id=payload.get("payment_id"),
+        payment_amount=_coerce_float(payload.get("payment_amount")),
+        payment_due_date=payload.get("payment_due_date"),
+        payment_posted_at=payload.get("payment_posted_at"),
+        status_code=payload.get("status_code"),
+        status_at=payload.get("status_at"),
+        principal_balance=_coerce_float(payload.get("principal_balance")),
+        days_past_due=_coerce_int(payload.get("days_past_due")),
+        commission_adjustment_amount=_coerce_float(payload.get("commission_adjustment_amount")),
+        commission_reason=payload.get("commission_reason"),
         assessed_payload=json.dumps(payload, sort_keys=True, separators=(",", ":")),
     )
 
@@ -94,6 +118,15 @@ def _coerce_float(value: Any) -> float | None:
         return None
     try:
         return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _coerce_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
     except (ValueError, TypeError):
         return None
 
@@ -112,6 +145,18 @@ def rows_to_parquet_bytes(rows: list[BatchRow]) -> bytes:
         "fraud_rule_version": [r.fraud_rule_version for r in rows],
         "risk_score": [r.risk_score for r in rows],
         "risk_flags": [r.risk_flags for r in rows],
+        "account_id": [r.account_id for r in rows],
+        "loan_id": [r.loan_id for r in rows],
+        "payment_id": [r.payment_id for r in rows],
+        "payment_amount": [r.payment_amount for r in rows],
+        "payment_due_date": [r.payment_due_date for r in rows],
+        "payment_posted_at": [r.payment_posted_at for r in rows],
+        "status_code": [r.status_code for r in rows],
+        "status_at": [r.status_at for r in rows],
+        "principal_balance": [r.principal_balance for r in rows],
+        "days_past_due": [r.days_past_due for r in rows],
+        "commission_adjustment_amount": [r.commission_adjustment_amount for r in rows],
+        "commission_reason": [r.commission_reason for r in rows],
         "assessed_payload": [r.assessed_payload for r in rows],
     })
     buf = io.BytesIO()

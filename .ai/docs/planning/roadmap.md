@@ -67,7 +67,10 @@ Roadmap focus in this phase is the Salesforce Opportunity vertical slice as the 
 - `platform_masking` library provides deterministic HMAC-SHA256 masking (`tokenize`, `mask_email`, `hash_pii`, `redact`) with salt sourced from the `PLATFORM_MASKING_SALT` env var; used by the silver DAG and available for future curated transforms.
 - Redpanda identity extends the existing `rp_orchestrator_service` principal with READ on `pipeline.silver.completed.v1` and the two new curated consumer groups (`airflow-curated-silver-v1`, `airflow-curated-gold-v1`); `airflow_init` seeds `kafka_default` and `trino_default` Airflow connections idempotently on every bring-up.
 
-Phase 6 follow-on scope includes: `dim_account`, `dim_loan`, `fact_loan_payment`, `fact_commission_adjustment`, `loan_status_history`, and remaining gold KPIs (`kpi_portfolio_health`, `kpi_payment_performance`, `kpi_commission_economics`), plus curated CDC and Excel paths.
+Phase 6 follow-on scope is implemented in the same contract family (`pipeline_name=curated_promotion`, existing `pipeline.silver.*.v1` and `pipeline.gold.*.v1` topics) via config-driven transform routing:
+- Additional silver entities: `lakehouse.silver.dim_account`, `lakehouse.silver.dim_loan`, `lakehouse.silver.fact_loan_payment`, `lakehouse.silver.loan_status_history`, `lakehouse.silver.fact_commission_adjustment`.
+- Additional gold KPIs: `lakehouse.gold.kpi_portfolio_health`, `lakehouse.gold.kpi_payment_performance`, `lakehouse.gold.kpi_commission_economics`.
+- Curated source coverage now includes Salesforce (`Account` + `Opportunity`), CDC (`trading.loan`, `trading.loan_payment`, `trading.loan_status_history`), and Excel (`commission_adjustment_v1` schema contract path).
 
 ## Phase 7 - Query Plane and UI
 

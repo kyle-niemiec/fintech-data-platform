@@ -18,18 +18,19 @@ from typing import Any
 PLATFORM_RISK_THRESHOLD = Decimal("0.7")
 RISK_SCORE_QUANT = Decimal("0.0001")
 RISK_THRESHOLD_FLAG = "risk_threshold_exceeded"
+RISK_THRESHOLD_EPSILON = Decimal("0.000000001")
 
 # Per-instrument dollar amount at which the continuous risk score reaches
 # PLATFORM_RISK_THRESHOLD.
 INSTRUMENT_RISK_AMOUNTS: dict[str, Decimal] = {
-    "AAPL": Decimal("20000"),
-    "MSFT": Decimal("24000"),
-    "GOOG": Decimal("40000"),
-    "AMZN": Decimal("32000"),
-    "TSLA": Decimal("19000"),
-    "JPM": Decimal("15000"),
-    "BAC": Decimal("10000"),
-    "NVDA": Decimal("8000"),
+    "AAPL": Decimal("10000"),
+    "MSFT": Decimal("14000"),
+    "GOOG": Decimal("30000"),
+    "AMZN": Decimal("22000"),
+    "TSLA": Decimal("8000"),
+    "JPM": Decimal("5000"),
+    "BAC": Decimal("3000"),
+    "NVDA": Decimal("1000"),
 }
 TRANSACTION_AMOUNT_SCALE = 2
 
@@ -65,7 +66,7 @@ def score_transaction(row: dict[str, Any]) -> RiskAssessment:
     risk_score_raw = _bounded_risk_score_raw(amount, risk_factor)
     risk_score = risk_score_raw.quantize(RISK_SCORE_QUANT, rounding=ROUND_HALF_UP)
     flags: list[str] = []
-    if risk_score_raw >= PLATFORM_RISK_THRESHOLD:
+    if risk_score_raw >= (PLATFORM_RISK_THRESHOLD - RISK_THRESHOLD_EPSILON):
         flags.append(RISK_THRESHOLD_FLAG)
         flags.append(f"{str(instrument).lower()}_risk_threshold_exceeded")
 

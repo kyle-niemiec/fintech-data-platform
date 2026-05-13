@@ -163,4 +163,28 @@ The Phase 6 vertical slice implements the Salesforce Opportunity curated path en
 - Masking: `platform_masking` provides deterministic HMAC-SHA256 primitives (`tokenize`, `mask_email`, `hash_pii`, `redact`) with salt sourced from `PLATFORM_MASKING_SALT`. Determinism is load-bearing - re-runs must produce the same silver natural keys for the MERGE to behave as SCD2.
 - Identity: Trino and iceberg-rest both use the existing `MINIO_TRINO_WRITE` S3 identity scoped to `silver/*` and `gold/*` with KMS enforcement. DAG Kafka access uses the existing `rp_orchestrator_service` Redpanda principal, extended with READ on `pipeline.silver.completed.v1` and the two curated consumer groups (`airflow-curated-silver-v1`, `airflow-curated-gold-v1`).
 
-Out of scope for the slice (carried as Phase 6 follow-ups): `dim_account`, `dim_loan`, `fact_loan_payment`, `fact_commission_adjustment`, `loan_status_history`, and the remaining gold KPIs (`kpi_portfolio_health`, `kpi_payment_performance`, `kpi_commission_economics`). CDC and Excel curated paths also deferred.
+### Curated Promotion Pipeline (Phase 6 follow-on completion)
+
+Phase 6 follow-on implementation keeps the same run contract (`pipeline_name=curated_promotion`) and stage topics while expanding routing/config:
+
+- `silver_curated_listener` subscribes to:
+  - `ingest.salesforce.bronze.ready.v1`
+  - `cdc.oltp.bronze.ready.v1`
+  - `ingest.excel.bronze.ready.v1`
+- Bronze envelope routing resolves to silver domains:
+  - Salesforce `Opportunity` -> `salesforce_opportunity` -> `lakehouse.silver.dim_opportunity` (SCD2)
+  - Salesforce `Account` -> `salesforce_account` -> `lakehouse.silver.dim_account` (SCD2)
+  - CDC `trading.loan` -> `loan` -> `lakehouse.silver.dim_loan` (SCD2)
+  - CDC `trading.loan_payment` -> `loan_payment` -> `lakehouse.silver.fact_loan_payment` (append)
+  - CDC `trading.loan_status_history` -> `loan_status_history` -> `lakehouse.silver.loan_status_history` (append)
+  - Excel `commission_adjustment_v1` -> `commission_adjustment` -> `lakehouse.silver.fact_commission_adjustment` (append)
+- `gold_curated_aggregation` metric routing:
+  - `salesforce_opportunity` -> `pipeline_conversion` -> `lakehouse.gold.kpi_pipeline_conversion`
+  - `loan` -> `portfolio_health` -> `lakehouse.gold.kpi_portfolio_health`
+  - `loan_payment` -> `payment_performance` -> `lakehouse.gold.kpi_payment_performance`
+  - `commission_adjustment` -> `commission_economics` -> `lakehouse.gold.kpi_commission_economics`
+
+KPI formula definitions used by the Phase 6 follow-on:
+- `portfolio_health`: grouped by `status_code` over current `dim_loan` rows with `loan_count`, `total_principal_balance`, `delinquent_loan_count` (`days_past_due > 0`), and `avg_days_past_due`.
+- `payment_performance`: daily aggregate over `fact_loan_payment` with `payment_count`, `total_payment_amount`, `on_time_payment_count` (`payment_posted_at <= payment_due_date`), and `late_payment_count` (`payment_posted_at > payment_due_date`).
+- `commission_economics`: grouped by `adjustment_reason` over `fact_commission_adjustment` with `adjustment_count` and `total_adjustment_amount`.

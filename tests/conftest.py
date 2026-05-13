@@ -15,6 +15,7 @@ _PYTHONPATH_ROOTS = (
     _REPO_ROOT / "platform",
     _REPO_ROOT / "services" / "pipeline-workers",
     _REPO_ROOT / "services" / "ui-api",
+    _REPO_ROOT / "services" / "pipeline-orchestrator" / "dags",
 )
 
 for path in _PYTHONPATH_ROOTS:

@@ -39,6 +39,15 @@ TASKS_FILE = (
     / "open_curated_run.py"
 )
 
+COMMON_FILE = (
+    Path(__file__).resolve().parents[1]
+    / "services"
+    / "pipeline-orchestrator"
+    / "dags"
+    / "silver_curated"
+    / "common.py"
+)
+
 STAGE_AND_MASK_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
@@ -87,12 +96,14 @@ def test_dag_declares_listener_and_promotion_dag_ids():
 
 
 def test_dag_subscribes_to_salesforce_bronze_ready():
-    source = LISTENER_FILE.read_text()
+    source = LISTENER_FILE.read_text() + COMMON_FILE.read_text()
     assert "ingest.salesforce.bronze.ready.v1" in source
+    assert "ingest.excel.bronze.ready.v1" in source
+    assert "cdc.oltp.bronze.ready.v1" in source
 
 
 def test_dag_emits_silver_completed_and_failed_events():
-    task_source = RECORD_CHECKPOINT_FILE.read_text()
+    task_source = RECORD_CHECKPOINT_FILE.read_text() + COMMON_FILE.read_text()
     dag_source = PROMOTION_FILE.read_text()
     assert "pipeline.silver.completed.v1" in task_source
     assert "pipeline.silver.failed.v1" in dag_source
@@ -117,6 +128,7 @@ def test_dag_imports_shared_libs():
     )
     assert "libs.platform_events" in source
     assert "libs.platform_masking" in source
+    assert "curated_specs" in source
 
 
 def test_dag_uses_curated_promotion_pipeline_name():
@@ -128,10 +140,11 @@ def test_dag_uses_curated_promotion_pipeline_name():
 def test_dag_records_silver_checkpoint():
     source = RECORD_CHECKPOINT_FILE.read_text()
     assert "append_silver_checkpoint" in source
+    assert "silver_domain" in source
 
 
 def test_dag_closes_run_on_failure():
-    source = TASKS_FILE.read_text()
+    source = TASKS_FILE.read_text() + PROMOTION_FILE.read_text() + RECORD_CHECKPOINT_FILE.read_text()
     assert "close_run" in source
     assert 'status="failed"' in source
     assert 'status="completed"' in source

@@ -30,6 +30,11 @@ def test_assessed_payload_required_fields() -> None:
         "risk_score": 0.9,
         "risk_flags": ["risk_threshold_exceeded"],
         "fraud_rule_version": "demo_continuous_risk",
+        "loan_id": "loan-123",
+        "payment_amount": 1250.25,
+        "payment_due_date": "2026-05-01",
+        "commission_adjustment_amount": 350.0,
+        "status_code": "current",
         "original_topic_metadata": {
             "topic": "cdc.oltp.raw.v1",
             "partition": 0,
@@ -39,7 +44,17 @@ def test_assessed_payload_required_fields() -> None:
         },
     }
     env = _build("cdc.oltp.assessed.v1", payload)
-    for field in ("risk_score", "risk_flags", "fraud_rule_version", "original_topic_metadata"):
+    for field in (
+        "risk_score",
+        "risk_flags",
+        "fraud_rule_version",
+        "loan_id",
+        "payment_amount",
+        "payment_due_date",
+        "commission_adjustment_amount",
+        "status_code",
+        "original_topic_metadata",
+    ):
         assert field in env.payload
 
 

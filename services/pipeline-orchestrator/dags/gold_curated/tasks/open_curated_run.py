@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from airflow.exceptions import AirflowException
 from dag_runtime import open_event_store_conn
 
+from curated_specs import resolve_gold_metric
 from gold_curated.common import (
     INITIATOR,
     SOURCE_SYSTEM,
@@ -40,6 +41,13 @@ def open_curated_run(context: dict[str, Any]) -> dict[str, Any]:
 
     if not parent_run_id:
         raise AirflowException("silver envelope missing run_id")
+
+    silver_payload = silver_envelope.get("payload") or {}
+    silver_domain = str(silver_payload.get("silver_domain") or "")
+    metric_spec = resolve_gold_metric(silver_domain)
+
+    if metric_spec is None:
+        raise AirflowException(f"no gold metric mapping for silver domain {silver_domain!r}")
 
     # Create an event reference for this gold run
     trace_id = silver_envelope.get("trace_id") or str(uuid4())
@@ -78,9 +86,11 @@ def open_curated_run(context: dict[str, Any]) -> dict[str, Any]:
                 payload={
                     "message": "Gold curated aggregation started.",
                     "stage": "gold",
+                    "metric": metric_spec.metric,
+                    "silver_domain": silver_domain,
                     "parent_run_id": parent_run_id,
                     "input_table": (silver_envelope.get("payload") or {}).get("output_table"),
-                    "transform_id": "gold_curated_aggregation",
+                    "transform_id": metric_spec.transform_id,
                     "transform_version": "v1",
                 },
             )
@@ -95,12 +105,14 @@ def open_curated_run(context: dict[str, Any]) -> dict[str, Any]:
             )
 
     # Extract the output table name from the silver envelope to pass to downstream tasks
-    silver_payload = silver_envelope.get("payload") or {}
-
     return {
         "curated_run_id": str(effective_run_id),
         "parent_run_id": parent_run_id,
         "trace_id": trace_id,
         "trigger_event_ref": trigger_event_ref,
+        "silver_domain": silver_domain,
         "silver_table": silver_payload.get("output_table"),
+        "gold_metric": metric_spec.metric,
+        "gold_table": metric_spec.output_table,
+        "gold_transform_id": metric_spec.transform_id,
     }

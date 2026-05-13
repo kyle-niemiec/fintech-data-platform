@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from airflow.exceptions import AirflowException
 from dag_runtime import open_event_store_conn
 
+from curated_specs import resolve_silver_spec
 from silver_curated.common import (
     INITIATOR,
     SOURCE_SYSTEM,
@@ -47,6 +48,10 @@ def open_curated_run(context: dict[str, Any]) -> dict[str, Any]:
     if not bronze_uris:
         raise AirflowException("bronze envelope payload missing output_uris")
 
+    silver_spec = resolve_silver_spec(bronze_envelope)
+    if silver_spec is None:
+        raise AirflowException("bronze envelope did not resolve to a supported silver domain")
+
     # Create an event reference for this silver run
     trace_id = bronze_envelope.get("trace_id") or str(uuid4())
     trigger_event_ref = f"silver_curated_promotion__{parent_run_id}"
@@ -84,9 +89,11 @@ def open_curated_run(context: dict[str, Any]) -> dict[str, Any]:
                 payload={
                     "message": "Silver curated promotion started.",
                     "stage": "silver",
+                    "silver_domain": silver_spec.domain,
+                    "output_table": silver_spec.output_table,
                     "parent_run_id": parent_run_id,
                     "input_uris": bronze_uris,
-                    "transform_id": "silver_curated_promotion",
+                    "transform_id": silver_spec.transform_id,
                     "transform_version": "v1",
                 },
             )
@@ -108,4 +115,8 @@ def open_curated_run(context: dict[str, Any]) -> dict[str, Any]:
         "trigger_event_ref": trigger_event_ref,
         "bronze_uris": bronze_uris,
         "bronze_record_count": int(bronze_payload.get("record_count") or 0),
+        "silver_domain": silver_spec.domain,
+        "silver_table": silver_spec.output_table,
+        "silver_transform_id": silver_spec.transform_id,
+        "bronze_envelope": bronze_envelope,
     }

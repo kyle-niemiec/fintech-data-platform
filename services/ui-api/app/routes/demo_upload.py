@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import random
 from datetime import datetime, timezone
+from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.services.demo_xlsx import generate_payroll_xlsx
+from app.services.demo_xlsx import (
+    generate_commission_adjustment_xlsx,
+    generate_payroll_xlsx,
+)
 from app.services.minio_upload import MinioUploadError, put_xlsx
 
 router = APIRouter(prefix="/ui/demo", tags=["ui-demo"])
@@ -18,6 +22,7 @@ router = APIRouter(prefix="/ui/demo", tags=["ui-demo"])
 
 class DemoUploadRequest(BaseModel):
     rows: int = Field(default=25, ge=1, le=500)
+    dataset: Literal["payroll", "commission_adjustment"] = "payroll"
 
 
 class DemoUploadResponse(BaseModel):
@@ -28,6 +33,7 @@ class DemoUploadResponse(BaseModel):
     rows: int
     size_bytes: int
     generated_at: datetime
+    schema_contract_id: str
 
 
 def _local_part(email: str) -> str:
@@ -46,14 +52,21 @@ def post_demo_upload(payload: DemoUploadRequest | None = None) -> DemoUploadResp
         )
     demo_user = random.choice(users)
 
-    xlsx_bytes, rows = generate_payroll_xlsx(req.rows)
+    if req.dataset == "commission_adjustment":
+        xlsx_bytes, rows = generate_commission_adjustment_xlsx(req.rows)
+        contract_id = "commission_adjustment_v1"
+        file_prefix = "commission_adjustment"
+    else:
+        xlsx_bytes, rows = generate_payroll_xlsx(req.rows)
+        contract_id = "payroll_v1"
+        file_prefix = "payroll"
 
     now = datetime.now(timezone.utc)
     uploader_segment = _local_part(demo_user)
     object_run_id = uuid4()
     key = (
         f"landing/source=excel/year={now:%Y}/month={now:%m}/day={now:%d}/"
-        f"run_id={object_run_id}/payroll_{uploader_segment}_{now:%Y%m%d}_{object_run_id}.xlsx"
+        f"run_id={object_run_id}/{file_prefix}_{uploader_segment}_{now:%Y%m%d}_{object_run_id}.xlsx"
     )
 
     try:
@@ -74,4 +87,5 @@ def post_demo_upload(payload: DemoUploadRequest | None = None) -> DemoUploadResp
         rows=rows,
         size_bytes=result.size_bytes,
         generated_at=now,
+        schema_contract_id=contract_id,
     )
