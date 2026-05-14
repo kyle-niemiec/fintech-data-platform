@@ -37,7 +37,7 @@ services:
   oltp_load_generator:
     build:
       context: ..
-      dockerfile: services/pipeline-workers/workers/oltp_load_generator/Dockerfile
+      dockerfile: infra/docker/oltp-load-generator/Dockerfile
       network: host
     container_name: fintech_oltp_load_generator
     restart: unless-stopped
@@ -82,7 +82,7 @@ services:
   fraud_worker:
     build:
       context: ..
-      dockerfile: services/pipeline-workers/workers/fraud_worker/Dockerfile
+      dockerfile: infra/docker/fraud-worker/Dockerfile
       network: host
     container_name: fintech_fraud_worker
     restart: unless-stopped
@@ -116,7 +116,7 @@ services:
   cdc_bronze_writer:
     build:
       context: ..
-      dockerfile: services/pipeline-workers/workers/cdc_bronze_writer/Dockerfile
+      dockerfile: infra/docker/cdc-bronze-writer/Dockerfile
       network: host
     container_name: fintech_cdc_bronze_writer
     restart: unless-stopped

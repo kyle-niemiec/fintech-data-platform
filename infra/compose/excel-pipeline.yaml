@@ -20,7 +20,7 @@ services:
   excel_scanner:
     build:
       context: ..
-      dockerfile: services/pipeline-workers/workers/excel_scanner/Dockerfile
+      dockerfile: infra/docker/excel-scanner/Dockerfile
       network: host
     container_name: fintech_excel_scanner
     restart: unless-stopped
@@ -58,7 +58,7 @@ services:
   excel_validation_trigger:
     build:
       context: ..
-      dockerfile: services/pipeline-workers/workers/excel_validation_trigger/Dockerfile
+      dockerfile: infra/docker/excel-validation-trigger/Dockerfile
       network: host
     container_name: fintech_excel_validation_trigger
     restart: unless-stopped
@@ -83,7 +83,7 @@ services:
   excel_bronze_writer:
     build:
       context: ..
-      dockerfile: services/pipeline-workers/workers/excel_bronze_writer/Dockerfile
+      dockerfile: infra/docker/excel-bronze-writer/Dockerfile
       network: host
     container_name: fintech_excel_bronze_writer
     restart: unless-stopped

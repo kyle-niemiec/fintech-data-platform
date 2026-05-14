@@ -2,7 +2,7 @@ services:
   ui:
     build:
       context: ..
-      dockerfile: apps/ui/Dockerfile
+      dockerfile: infra/docker/ui/Dockerfile
       network: host
       args:
         VITE_API_URL: ${UI_API_URL:-http://localhost:8000}

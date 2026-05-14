@@ -2,7 +2,7 @@ services:
   salesforce_mock:
     build:
       context: ..
-      dockerfile: services/salesforce-mock/Dockerfile
+      dockerfile: infra/docker/salesforce-mock/Dockerfile
       network: host
     container_name: fintech_salesforce_mock
     restart: unless-stopped
@@ -30,7 +30,7 @@ services:
   salesforce_bronze_writer:
     build:
       context: ..
-      dockerfile: services/pipeline-workers/workers/salesforce_bronze_writer/Dockerfile
+      dockerfile: infra/docker/salesforce-bronze-writer/Dockerfile
       network: host
     container_name: fintech_salesforce_bronze_writer
     restart: unless-stopped

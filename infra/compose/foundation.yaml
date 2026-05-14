@@ -20,7 +20,7 @@ services:
   event_store_db:
     build:
       context: ..
-      dockerfile: infra/db/event-store-image/Dockerfile
+      dockerfile: infra/docker/event-store-db/Dockerfile
       network: host
     container_name: fintech_event_store
     restart: unless-stopped
@@ -198,12 +198,12 @@ services:
   terraform_runner:
     build:
       context: ..
-      dockerfile: infra/terraform-runner/Dockerfile
+      dockerfile: infra/docker/terraform-runner/Dockerfile
     user: "1000:1000"
     working_dir: /workspace
     volumes:
       - ../:/workspace
-    entrypoint: ["/workspace/infra/terraform-runner/run-terraform.sh"]
+    entrypoint: ["/workspace/infra/docker/terraform-runner/run-terraform.sh"]
     env_file:
       - ./.env
     environment:
