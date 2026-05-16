@@ -1,4 +1,5 @@
-"""Silver curated promotion DAG.
+"""
+Silver curated promotion DAG.
 
 Processes one bronze event and promotes Opportunity data into
 lakehouse.silver.dim_opportunity.
@@ -33,7 +34,9 @@ logger = logging.getLogger(__name__)
 
 
 def _emit_failure_event(context):
-    """DAG-level failure callback: emit pipeline.silver.failed.v1 + close run."""
+    """
+    DAG-level failure callback: emit pipeline.silver.failed.v1 + close run.
+    """
     from libs.platform_events.envelope import (
         Envelope,
         EventSource,

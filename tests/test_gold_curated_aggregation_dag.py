@@ -87,6 +87,12 @@ def test_dag_subscribes_to_silver_completed():
     assert "pipeline.silver.completed.v1" in source
 
 
+def test_listener_filters_unmapped_silver_domains():
+    source = LISTENER_FILE.read_text()
+    assert "resolve_gold_metric" in source
+    assert "silver_domain" in source
+
+
 def test_dag_emits_gold_completed_and_failed_events():
     task_source = TASKS_FILE.read_text() + RECORD_CHECKPOINT_FILE.read_text() + COMMON_FILE.read_text()
     dag_source = AGGREGATION_FILE.read_text() + COMMON_FILE.read_text()

@@ -11,7 +11,8 @@ from excel_validation.common import _b64
 
 def download_object(parsed: dict[str, Any]) -> dict[str, Any]:
     """
-    Download the object from MinIO and return its payload as bytes along with the original parsed conf.
+    Download the object from MinIO and return its payload as bytes along with
+    the original parsed conf.
     """
     client = build_minio_client(
         access_key_var="MINIO_VALIDATION_USER",

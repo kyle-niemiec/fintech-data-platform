@@ -1,4 +1,6 @@
-"""Shared utilities for gold curated DAGs."""
+"""
+Shared utilities for gold curated DAGs.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +10,6 @@ from datetime import timedelta
 from dag_runtime import build_event_producer
 
 SOURCE_SYSTEM = "curated"
-TOPIC_SILVER_COMPLETED = "pipeline.silver.completed.v1"
 TOPIC_GOLD_STARTED = "pipeline.gold.started.v1"
 TOPIC_GOLD_COMPLETED = "pipeline.gold.completed.v1"
 TOPIC_GOLD_FAILED = "pipeline.gold.failed.v1"
@@ -28,6 +29,9 @@ default_args = {
 
 
 def _build_producer():
+    """
+    Build a RedPanda event producer using credentials from environment variables.
+    """
     return build_event_producer(
         client_id="gold-curated-aggregation-dag",
         username_var="REDPANDA_ORCHESTRATOR_SERVICE_USER",
@@ -36,6 +40,9 @@ def _build_producer():
 
 
 def _trino_cursor():
+    """
+    Build a Trino cursor using credentials from environment variables.
+    """
     from trino.dbapi import connect
 
     conn = connect(

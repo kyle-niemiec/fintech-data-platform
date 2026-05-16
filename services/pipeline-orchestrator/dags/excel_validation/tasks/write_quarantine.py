@@ -1,5 +1,3 @@
-"""Task callable for excel_validation.write_quarantine."""
-
 from __future__ import annotations
 
 import os

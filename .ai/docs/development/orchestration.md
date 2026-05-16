@@ -21,6 +21,8 @@
   - `silver_curated.listener.apply_bronze_event`
   - `gold_curated.listener.apply_silver_event`
 - `silver_curated_listener` subscribes to Salesforce + CDC + Excel bronze-ready topics; `gold_curated_listener` remains keyed on `pipeline.silver.completed.v1`.
+- `gold_curated.listener.apply_silver_event` now drops unsupported `silver_domain` values (no `resolve_gold_metric` match) so non-routable silver completions do not open failing gold DAG runs.
+- `cdc_bronze_writer` persists parent `pipeline_run` visibility before publishing `cdc.oltp.bronze.ready.v1`, then records publish metadata/checkpoint and closes the run; publish/finalize failures explicitly alert and mark the run `failed`.
 - Airflow runtime startup is gated on curated Trino bootstrap completion (`trino_curated_init`) so curated DAGs do not start before required lakehouse tables exist.
 - Airflow API auth backend configuration now explicitly includes session auth plus basic auth in compose env to align with Airflow UI requirements ahead of Airflow 3.0.
 - Trino readiness gating checks `/v1/info/state == ACTIVE` before marking the Trino service healthy, preventing `trino_curated_init` from running while the coordinator is still initializing.

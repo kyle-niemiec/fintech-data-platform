@@ -1,4 +1,6 @@
-"""Shared SQL literal helpers for curated DAG tasks."""
+"""
+Shared SQL literal helpers for curated DAG tasks.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +10,11 @@ from airflow.exceptions import AirflowException
 
 
 def sql_string_literal(value: Any) -> str:
-    """Return a SQL string literal with single-quote escaping."""
+    """
+    Return a SQL string literal with single-quote escaping. This function is used
+    in the construction of SQL queries in the `merge_into_silver` and `run_aggregation`
+    tasks to safely include various dates and IDs in the queries.
+    """
     if value is None:
         return "NULL"
 
@@ -17,7 +23,11 @@ def sql_string_literal(value: Any) -> str:
 
 
 def sql_bool_literal(value: Any) -> str:
-    """Return a SQL boolean literal (or NULL) from bool/string inputs."""
+    """
+    Return a SQL boolean literal (or NULL) from bool/string inputs. This function
+    is used in the construction of SQL queries in the `merge_into_silver` task
+    to safely include boolean values in the construction of VALUES clauses.
+    """
     if value is None:
         return "NULL"
 

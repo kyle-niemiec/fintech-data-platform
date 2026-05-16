@@ -282,6 +282,7 @@ infra-ps:
 	@$(COMPOSE) ps --format 'table {{.Name}}\t\t{{.Service}}\t\t{{.Status}}\t\t{{.Ports}}'
 
 infra-ps-dev:
+	$(call banner,Showing infrastructure container status...)
 	@$(COMPOSE_DEV) ps --format 'table {{.Name}}\t{{.Service}}\t{{.CreatedAt}}\t{{.Status}}\t{{.Ports}}'
 
 infra-clean:

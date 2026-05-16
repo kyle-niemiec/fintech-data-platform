@@ -1,5 +1,3 @@
-"""Gold curated aggregation DAG."""
-
 from __future__ import annotations
 
 import logging
@@ -25,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 def _emit_failure_event(context):
     """
-    This function is an Airflow failure callback that emits a "gold.failed" event to the event store.
+    This function is an Airflow failure callback that emits a "gold.failed" event
+    to the event store.
     """
     from libs.platform_events.envelope import (
         Envelope,

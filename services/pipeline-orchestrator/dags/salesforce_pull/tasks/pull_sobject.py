@@ -1,5 +1,3 @@
-"""Task callable for salesforce_incremental_pull.pull_sobject."""
-
 from __future__ import annotations
 
 import os

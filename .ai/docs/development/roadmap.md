@@ -1,6 +1,6 @@
 # Roadmap Progress Tracker
 
-Last audited against repository state: **May 6, 2026**.
+Last audited against repository state: **May 14, 2026**.
 
 Legend:
 - `[x]` complete
@@ -68,6 +68,8 @@ Legend:
 - [x] Remaining gold KPIs: `kpi_portfolio_health`, `kpi_payment_performance`, `kpi_commission_economics`.
 - [x] Curated CDC path.
 - [x] Curated Excel path.
+- [x] Gold listener ignores unsupported silver-domain completions instead of triggering unmapped gold runs.
+- [x] CDC bronze-ready handoff persists parent run visibility before Kafka publish and records explicit failed status/alerts when publish/finalize steps fail.
 
 ## Phase 7 - Query Plane and UI
 

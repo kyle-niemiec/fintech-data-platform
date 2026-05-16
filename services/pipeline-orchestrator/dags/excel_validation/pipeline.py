@@ -1,17 +1,3 @@
-"""Excel validation DAG.
-
-Triggered per-scanned upload via ``dag_run.conf``. The expected conf shape
-is the ``ingest.excel.scanned.pass.v1`` envelope's ``payload`` plus the
-originating ``run_id``, ``trigger_event_ref`` and ``trace_id`` fields.
-
-Flow:
-    download -> validate -> branch -> write_raw | write_quarantine -> emit
-
-The DAG emits ``ingest.excel.raw.ready.v1`` or ``ingest.excel.quarantined.v1``
-to Redpanda and persists both the copy event and any stage_failed retries
-to the event store. Airflow's retry policy drives stage_failed emissions.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -35,6 +21,19 @@ from excel_validation.tasks.validate import validate as validate_task
 from excel_validation.tasks.write_quarantine import write_quarantine as write_quarantine_task
 from excel_validation.tasks.write_raw import write_raw as write_raw_task
 
+"""Excel validation DAG.
+
+Triggered per-scanned upload via ``dag_run.conf``. The expected conf shape
+is the ``ingest.excel.scanned.pass.v1`` envelope's ``payload`` plus the
+originating ``run_id``, ``trigger_event_ref`` and ``trace_id`` fields.
+
+Flow:
+    download -> validate -> branch -> write_raw | write_quarantine -> emit
+
+The DAG emits ``ingest.excel.raw.ready.v1`` or ``ingest.excel.quarantined.v1``
+to Redpanda and persists both the copy event and any stage_failed retries
+to the event store. Airflow's retry policy drives stage_failed emissions.
+"""
 with DAG(
     dag_id="excel_validation",
     description="Schema-validate a scanned Excel upload and branch raw vs quarantine.",

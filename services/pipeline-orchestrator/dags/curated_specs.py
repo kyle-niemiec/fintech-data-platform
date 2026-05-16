@@ -1,4 +1,7 @@
-"""Config-driven curated routing and transform metadata."""
+"""
+This file contains mappings of RedPanda event envelopes to their respective silver
+specifications, and also mapping silver domains to gold metric specifications.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +23,7 @@ class GoldMetricSpec:
     transform_id: str
 
 
+# Map Salesforce objects to their corresponding silver lakehouse domain
 _SILVER_BY_SALESFORCE_OBJECT: dict[str, SilverSpec] = {
     "Opportunity": SilverSpec(
         domain="salesforce_opportunity",
@@ -33,6 +37,7 @@ _SILVER_BY_SALESFORCE_OBJECT: dict[str, SilverSpec] = {
     ),
 }
 
+# Map CDC source tables to their corresponding silver lakehouse domain
 _SILVER_BY_CDC_TABLE: dict[str, SilverSpec] = {
     "trading.loan": SilverSpec(
         domain="loan",
@@ -51,12 +56,14 @@ _SILVER_BY_CDC_TABLE: dict[str, SilverSpec] = {
     ),
 }
 
+# Only one Excel schema contract for now for the silver domain
 _SILVER_EXCEL_COMMISSION = SilverSpec(
     domain="commission_adjustment",
     output_table="lakehouse.silver.fact_commission_adjustment",
     transform_id="silver_curated_promotion_fact_commission_adjustment",
 )
 
+# Map silver domains to their corresponding gold lakehouse domain
 _GOLD_BY_DOMAIN: dict[str, GoldMetricSpec] = {
     "salesforce_opportunity": GoldMetricSpec(
         metric="pipeline_conversion",
@@ -83,27 +90,32 @@ _GOLD_BY_DOMAIN: dict[str, GoldMetricSpec] = {
 
 def resolve_silver_spec(envelope: dict[str, Any]) -> SilverSpec | None:
     """
-    Resolve the SilverSpec for a given event envelope.
-    This function inspects the event type and payload of the envelope to determine which SilverSpec applies.
-    It supports multiple event types and payload structures to accommodate different data sources.
+    Map RedPanda event envelopes to SilverSpecs based on the event type contained
+    in the payload.
     """
     event_type = str(envelope.get("event_type") or "")
     payload = envelope.get("payload") or {}
 
+    # Map the ingest.salesforce.bronze.ready.v1 event to a SilverSpec based on the Salesforce object name in the payload
     if event_type == "ingest.salesforce.bronze.ready.v1":
         object_name = str(payload.get("object_name") or payload.get("sobject") or "")
         return _SILVER_BY_SALESFORCE_OBJECT.get(object_name)
 
+    # Map the cdc.oltp.bronze.ready.v1 event to a SilverSpec based on the source table name in the payload
     if event_type == "cdc.oltp.bronze.ready.v1":
         source_table = str(payload.get("source_table") or "")
         return _SILVER_BY_CDC_TABLE.get(source_table)
 
+    # Map the ingest.excel.bronze.ready.v1 event to a SilverSpec based on the schema contract ID in the payload
     if event_type == "ingest.excel.bronze.ready.v1":
         schema_contract_id = str(payload.get("schema_contract_id") or "")
+
         if schema_contract_id in ("commission_adjustment_v1", "payroll_v1", ""):
             return _SILVER_EXCEL_COMMISSION
+
         return None
 
+    # Else return None to indicate that the message does not correspond to a silver run that should trigger a gold run
     return None
 
 

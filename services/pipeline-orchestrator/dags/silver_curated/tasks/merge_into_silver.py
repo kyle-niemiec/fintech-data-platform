@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 
 
 def _ts_expr(value_col: str) -> str:
+    """
+    Return a SQL expression that attempts to parse the given value column as a timestamp with timezone.
+    """
     return (
         "COALESCE("
         f"TRY(CAST({value_col} AS TIMESTAMP(6) WITH TIME ZONE)), "
@@ -20,7 +23,11 @@ def _ts_expr(value_col: str) -> str:
 
 
 def _run_sql(sql: str) -> None:
+    """
+    Run the given SQL statement using a Trino cursor.
+    """
     conn, cur = _trino_cursor()
+
     try:
         cur.execute(sql.strip().rstrip(";"))
         cur.fetchall()
@@ -30,20 +37,37 @@ def _run_sql(sql: str) -> None:
 
 
 def _build_values(rows: list[dict[str, Any]], columns: list[tuple[str, str]]) -> str:
+    """
+    Build a SQL VALUES clause from the given rows and columns. The columns parameter
+    is a list of tuples where each tuple contains the column name and its data type.
+    """
     values_sql: list[str] = []
+
+    # Iterate over the rows and construct a SQL literal for each column based on its data type.
     for row in rows:
         row_values: list[str] = []
+
+        # Iterate over the columns and construct a SQL literal for each column based on its data type.
         for key, kind in columns:
             value = row.get(key)
+
             if kind == "bool":
                 row_values.append(sql_bool_literal(value))
             else:
                 row_values.append(sql_string_literal(value))
+
+        # Join the row values into a single SQL literal with enclosing parentheses and append it to the list of values.
         values_sql.append("(" + ", ".join(row_values) + ")")
+
+    # Return the constructed VALUES clause with indentation.
     return ",\n        ".join(values_sql)
 
 
 def _merge_opportunity(*, rows_sql: str, parent_run_id: str, curated_run_id: str) -> str:
+    """
+    Return the SQL statement responsible for merging Salesforce opportunities
+    into the `dim_opportunity` silver table. 
+    """
     return f"""
 MERGE INTO lakehouse.silver.dim_opportunity AS tgt
 USING (
@@ -104,6 +128,10 @@ VALUES (
 
 
 def _merge_account(*, rows_sql: str, parent_run_id: str, curated_run_id: str) -> str:
+    """
+    Return the SQL statement responsible for merging Salesforce accounts into
+    the `dim_account` silver table.
+    """
     return f"""
 MERGE INTO lakehouse.silver.dim_account AS tgt
 USING (
@@ -155,6 +183,10 @@ VALUES (
 
 
 def _merge_dim_loan(*, rows_sql: str, parent_run_id: str, curated_run_id: str) -> str:
+    """
+    Return the SQL statement responsible for merging loan records into the `dim_loan`
+    silver table.
+    """
     return f"""
 MERGE INTO lakehouse.silver.dim_loan AS tgt
 USING (
@@ -200,6 +232,10 @@ VALUES (
 
 
 def _insert_fact_loan_payment(*, rows_sql: str, parent_run_id: str, curated_run_id: str) -> str:
+    """
+    Return the SQL statement responsible for inserting loan payment records into
+    the `fact_loan_payment` silver table.
+    """
     return f"""
 INSERT INTO lakehouse.silver.fact_loan_payment
 SELECT
@@ -221,6 +257,10 @@ FROM (
 
 
 def _insert_loan_status_history(*, rows_sql: str, parent_run_id: str, curated_run_id: str) -> str:
+    """
+    Return the SQL statement responsible for inserting loan status history records
+    into the `loan_status_history` silver table.
+    """
     return f"""
 INSERT INTO lakehouse.silver.loan_status_history
 SELECT
@@ -241,6 +281,10 @@ FROM (
 
 
 def _insert_fact_commission_adjustment(*, rows_sql: str, parent_run_id: str, curated_run_id: str) -> str:
+    """
+    Return the SQL statement responsible for inserting Excel commission adjustments
+    into the `fact_commission_adjustment` silver table.
+    """
     return f"""
 INSERT INTO lakehouse.silver.fact_commission_adjustment
 SELECT
@@ -263,14 +307,22 @@ FROM (
 
 
 def merge_into_silver(state: dict[str, Any]) -> dict[str, Any]:
+    """
+    This function performs the merge/insert operations to update the silver tables
+    based on the masked rows produced in the previous masking step. It constructs
+    the appropriate SQL statements based on the silver domain and executes them
+    using a Trino cursor.
+    """
     silver_domain = str(state.get("silver_domain") or "")
     masked_rows = list(state.get("masked_rows") or [])
     merge_stats: dict[str, int] = {"inserted": 0, "updated": 0, "closed": 0}
 
+    # Check if there are any masked rows to process. If not, log a message and return early with the current state and empty merge stats.
     if not masked_rows:
         logger.info("no rows available for domain=%s; skipping merge/insert", silver_domain)
         return {**state, "merge_stats": merge_stats}
 
+    # Merge Salesforce opportunities into the silver `dim_opportunity` table
     if silver_domain == "salesforce_opportunity":
         rows_sql = _build_values(
             masked_rows,
@@ -286,11 +338,14 @@ def merge_into_silver(state: dict[str, Any]) -> dict[str, Any]:
                 ("source_system_mod", "str"),
             ],
         )
+
         sql = _merge_opportunity(
             rows_sql=rows_sql,
             parent_run_id=state["parent_run_id"],
             curated_run_id=state["curated_run_id"],
         )
+
+    # Merge Salesforce accounts into the silver `dim_account` table
     elif silver_domain == "salesforce_account":
         rows_sql = _build_values(
             masked_rows,
@@ -303,11 +358,14 @@ def merge_into_silver(state: dict[str, Any]) -> dict[str, Any]:
                 ("source_system_mod", "str"),
             ],
         )
+
         sql = _merge_account(
             rows_sql=rows_sql,
             parent_run_id=state["parent_run_id"],
             curated_run_id=state["curated_run_id"],
         )
+
+    # Merge CDC loan records into the silver `dim_loan` table
     elif silver_domain == "loan":
         rows_sql = _build_values(
             masked_rows,
@@ -320,11 +378,14 @@ def merge_into_silver(state: dict[str, Any]) -> dict[str, Any]:
                 ("source_system_mod", "str"),
             ],
         )
+
         sql = _merge_dim_loan(
             rows_sql=rows_sql,
             parent_run_id=state["parent_run_id"],
             curated_run_id=state["curated_run_id"],
         )
+
+    # Merge CDC loan records into the silver `loan_payment` table
     elif silver_domain == "loan_payment":
         rows_sql = _build_values(
             masked_rows,
@@ -336,12 +397,16 @@ def merge_into_silver(state: dict[str, Any]) -> dict[str, Any]:
                 ("source_system_mod", "str"),
             ],
         )
+
         sql = _insert_fact_loan_payment(
             rows_sql=rows_sql,
             parent_run_id=state["parent_run_id"],
             curated_run_id=state["curated_run_id"],
         )
+
         merge_stats["inserted"] = len(masked_rows)
+
+    # Insert CDC loan status history records into the silver `loan_status_history` table
     elif silver_domain == "loan_status_history":
         rows_sql = _build_values(
             masked_rows,
@@ -352,12 +417,16 @@ def merge_into_silver(state: dict[str, Any]) -> dict[str, Any]:
                 ("source_system_mod", "str"),
             ],
         )
+
         sql = _insert_loan_status_history(
             rows_sql=rows_sql,
             parent_run_id=state["parent_run_id"],
             curated_run_id=state["curated_run_id"],
         )
+
         merge_stats["inserted"] = len(masked_rows)
+
+    # Insert Excel commission adjustments into the silver `fact_commission_adjustment` table
     elif silver_domain == "commission_adjustment":
         rows_sql = _build_values(
             masked_rows,
@@ -369,12 +438,16 @@ def merge_into_silver(state: dict[str, Any]) -> dict[str, Any]:
                 ("currency", "str"),
             ],
         )
+
         sql = _insert_fact_commission_adjustment(
             rows_sql=rows_sql,
             parent_run_id=state["parent_run_id"],
             curated_run_id=state["curated_run_id"],
         )
+
         merge_stats["inserted"] = len(masked_rows)
+
+    # Else raise an error since the silver domain is not supported
     else:
         raise ValueError(f"unsupported silver domain {silver_domain!r}")
 

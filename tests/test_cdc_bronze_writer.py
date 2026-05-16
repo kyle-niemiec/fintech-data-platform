@@ -5,12 +5,10 @@ from __future__ import annotations
 import io
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
 from uuid import UUID
 
 import pyarrow.parquet as pq
 
-from libs.platform_events.envelope import Envelope
 from workers.cdc_bronze_writer.writer import (
     AssessedRecord,
     CdcBronzeWriter,
@@ -59,15 +57,6 @@ class _FakeStore:
         self.writes.append((uri, data, content_type, kms_key_id))
 
 
-@dataclass
-class _FakeProducer:
-    produced: list[tuple[str, Envelope, str]] = field(default_factory=list)
-
-    def produce(self, topic: str, envelope: Envelope, *, key: str) -> tuple[int, int]:
-        self.produced.append((topic, envelope, key))
-        return 7, 99
-
-
 def test_bronze_object_key_template() -> None:
     key = bronze_object_key(
         bucket="fintech-lakehouse",
@@ -84,9 +73,8 @@ def test_bronze_object_key_template() -> None:
 
 def test_flush_sorts_by_lsn_and_preserves_record_count() -> None:
     store = _FakeStore()
-    producer = _FakeProducer()
     writer = CdcBronzeWriter(
-        store=store, producer=producer,
+        store=store,
         kms_key_id="k", bucket="fintech-lakehouse",
     )
 
@@ -100,9 +88,9 @@ def test_flush_sorts_by_lsn_and_preserves_record_count() -> None:
     rows = flush.by_table["trading.transaction"]
     assert [r.source_lsn for r in rows] == ["0/16B5C10", "0/16B5C20", "0/16B5C30"]
 
-    emitted = writer.write_and_emit(flush, now=datetime(2026, 4, 14, 15, 30, tzinfo=timezone.utc))
-    assert len(emitted) == 1
-    batch = emitted[0]
+    prepared = writer.write_batches(flush, now=datetime(2026, 4, 14, 15, 30, tzinfo=timezone.utc))
+    assert len(prepared) == 1
+    batch = prepared[0]
     assert batch.record_count == 3
     assert batch.first_lsn == "0/16B5C10"
     assert batch.last_lsn == "0/16B5C30"

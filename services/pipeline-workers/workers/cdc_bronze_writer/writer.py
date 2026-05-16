@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import io
 import json
-import logging
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
@@ -74,10 +73,6 @@ class BatchRow:
 
 class ObjectStore(Protocol):
     def write_uri(self, uri: str, data: bytes, *, content_type: str, kms_key_id: str) -> None: ...
-
-
-class EventEmitter(Protocol):
-    def produce(self, topic: str, envelope: Envelope, *, key: str) -> tuple[int, int]: ...
 
 
 def assessed_record_to_row(rec: AssessedRecord) -> BatchRow:
@@ -189,7 +184,6 @@ def _sort_key(row: BatchRow) -> tuple:
 @dataclass
 class CdcBronzeWriter:
     store: ObjectStore
-    producer: EventEmitter
     kms_key_id: str
     bucket: str
 
@@ -204,11 +198,11 @@ class CdcBronzeWriter:
             table_rows.sort(key=_sort_key)
         return FlushResult(by_table=by_table, records=records)
 
-    def write_and_emit(
+    def write_batches(
         self, flush: "FlushResult", *, now: datetime | None = None
-    ) -> list["EmittedBatch"]:
+    ) -> list["PreparedBatch"]:
         moment = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-        emitted: list[EmittedBatch] = []
+        prepared: list[PreparedBatch] = []
 
         for source_table, rows in flush.by_table.items():
             parquet_bytes = rows_to_parquet_bytes(rows)
@@ -261,12 +255,8 @@ class CdcBronzeWriter:
                     "source_table": source_table,
                 },
             )
-            partition, offset = self.producer.produce(
-                TOPIC_BRONZE_READY, envelope, key=f"{source_table}:{run_id}"
-            )
-
-            emitted.append(
-                EmittedBatch(
+            prepared.append(
+                PreparedBatch(
                     run_id=run_id,
                     source_table=source_table,
                     first_lsn=first_lsn,
@@ -277,13 +267,11 @@ class CdcBronzeWriter:
                     record_count=len(rows),
                     bronze_uri=uri,
                     envelope=envelope,
-                    produce_partition=partition,
-                    produce_offset=offset,
                     trigger_event_ref=trigger_event_ref,
                 )
             )
 
-        return emitted
+        return prepared
 
 
 @dataclass
@@ -297,7 +285,7 @@ class FlushResult:
 
 
 @dataclass
-class EmittedBatch:
+class PreparedBatch:
     run_id: UUID
     source_table: str
     first_lsn: str | None
@@ -308,6 +296,4 @@ class EmittedBatch:
     record_count: int
     bronze_uri: str
     envelope: Envelope
-    produce_partition: int
-    produce_offset: int
     trigger_event_ref: str

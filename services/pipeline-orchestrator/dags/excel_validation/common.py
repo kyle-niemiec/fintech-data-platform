@@ -1,4 +1,6 @@
-"""Shared utilities for the excel validation DAG."""
+"""
+Shared utilities for the excel validation DAG.
+"""
 
 from __future__ import annotations
 
@@ -37,6 +39,9 @@ default_args = {
 
 
 def _build_producer():
+    """
+    Build a RedPanda event producer using credentials from environment variables.
+    """
     return build_event_producer(
         client_id="excel-validation-dag",
         username_var="REDPANDA_AIRFLOW_USER",
@@ -45,8 +50,16 @@ def _build_producer():
 
 
 def _raw_key(object_key: str, run_id: str) -> str:
+    """
+    Build an S3 key for a raw Excel file based on the original object key and the
+    current date. The key is partitioned by year, month, and day, and includes
+    the run ID for traceability.
+    
+    E.G.: raw/source=excel/year=2024/month=06/day=20/run_id=abc123/filename.xlsx
+    """
     now = now_utc()
     filename = object_key.rsplit("/", 1)[-1]
+
     return (
         f"{RAW_PREFIX}/year={now:%Y}/month={now:%m}/day={now:%d}"
         f"/run_id={run_id}/{filename}"
@@ -54,8 +67,13 @@ def _raw_key(object_key: str, run_id: str) -> str:
 
 
 def _quarantine_key(object_key: str, run_id: str) -> str:
+    """
+    Build an S3 key for a quarantined Excel file based on the original object
+    key and the current date.
+    """
     now = now_utc()
     filename = object_key.rsplit("/", 1)[-1]
+
     return (
         f"{QUARANTINE_PREFIX}/year={now:%Y}/month={now:%m}/day={now:%d}"
         f"/run_id={run_id}/{filename}"
@@ -63,12 +81,17 @@ def _quarantine_key(object_key: str, run_id: str) -> str:
 
 
 def _b64(data: bytes) -> str:
+    """
+    A helper function to base64-encode bytes data and return it as an ASCII string.
+    """
     import base64
-
     return base64.b64encode(data).decode("ascii")
 
 
 def _b64_decode(data: str) -> bytes:
+    """
+    A helper function to decode a base64-encoded ASCII string back into bytes.
+    """
     import base64
 
     return base64.b64decode(data.encode("ascii"))

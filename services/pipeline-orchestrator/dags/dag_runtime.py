@@ -1,4 +1,6 @@
-"""Shared runtime helpers for Airflow DAG modules."""
+"""
+Shared runtime helpers for Airflow DAG modules.
+"""
 
 from __future__ import annotations
 
