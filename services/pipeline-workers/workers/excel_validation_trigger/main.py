@@ -10,6 +10,7 @@ import sys
 
 from confluent_kafka import Consumer, KafkaException
 import requests
+from libs.platform_worker_runtime import build_consumer_config
 
 from .trigger import build_dag_run_id, build_dag_run_payload, trigger_dag_run
 
@@ -21,20 +22,12 @@ DAG_ID = "excel_validation"
 
 
 def _consumer_config() -> dict[str, str]:
-    config: dict[str, str] = {
-        "bootstrap.servers": os.environ["REDPANDA_BOOTSTRAP_SERVERS"],
-        "group.id": CONSUMER_GROUP,
-        "auto.offset.reset": "earliest",
-        "enable.auto.commit": False,
-        "client.id": "excel-validation-trigger-consumer",
-    }
-    security_protocol = os.environ.get("REDPANDA_SECURITY_PROTOCOL", "PLAINTEXT")
-    if security_protocol != "PLAINTEXT":
-        config["security.protocol"] = security_protocol
-        config["sasl.mechanism"] = os.environ.get("REDPANDA_SASL_MECHANISM", "SCRAM-SHA-256")
-        config["sasl.username"] = os.environ["REDPANDA_AIRFLOW_USER"]
-        config["sasl.password"] = os.environ["REDPANDA_AIRFLOW_PASSWORD"]
-    return config
+    return build_consumer_config(
+        consumer_group=CONSUMER_GROUP,
+        client_id="excel-validation-trigger-consumer",
+        username_var="REDPANDA_AIRFLOW_USER",
+        password_var="REDPANDA_AIRFLOW_PASSWORD",
+    )
 
 
 def run() -> None:
@@ -121,4 +114,3 @@ if __name__ == "__main__":
     except Exception:
         logger.exception("excel_validation_trigger crashed")
         sys.exit(1)
-

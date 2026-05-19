@@ -32,7 +32,7 @@ def _emit_failure_event(context):
         PipelineClass,
         PipelineName,
     )
-    from libs.platform_events.event_store import append_event, close_run
+    from libs.platform_events.event_store import PgEventStore
 
     # Extract relevant information from the DAG run context to include in the failure event payload and metadata.
     dag_run = context["dag_run"]
@@ -85,7 +85,7 @@ def _emit_failure_event(context):
     try:
         with open_event_store_conn() as conn:
             with conn.transaction():
-                append_event(
+                PgEventStore.append_event(
                     conn,
                     envelope,
                     topic=TOPIC_GOLD_FAILED,
@@ -93,7 +93,7 @@ def _emit_failure_event(context):
                     kafka_offset=offset,
                 )
 
-                close_run(conn, UUID(curated_run_id), status="failed")
+                PgEventStore.close_run(conn, UUID(curated_run_id), status="failed")
     except Exception:
         logger.exception("failed to persist gold.failed event/close run")
 

@@ -149,10 +149,10 @@ def fake_event_store(monkeypatch):
     def fake_raise_alert(conn, **kwargs):
         calls.append(RecordedCall("raise_alert", (), kwargs))
 
-    monkeypatch.setattr(scanner_mod, "open_run", fake_open_run)
-    monkeypatch.setattr(scanner_mod, "append_event", fake_append_event)
-    monkeypatch.setattr(scanner_mod, "close_run", fake_close_run)
-    monkeypatch.setattr(scanner_mod, "raise_alert", fake_raise_alert)
+    monkeypatch.setattr(scanner_mod.PgEventStore, "open_run", fake_open_run)
+    monkeypatch.setattr(scanner_mod.PgEventStore, "append_event", fake_append_event)
+    monkeypatch.setattr(scanner_mod.PgEventStore, "close_run", fake_close_run)
+    monkeypatch.setattr(scanner_mod.PgEventStore, "raise_alert", fake_raise_alert)
     return calls
 
 
@@ -352,7 +352,7 @@ def test_handle_record_run_id_returned_by_open_run_is_used(monkeypatch, fake_eve
         fake_event_store.append(RecordedCall("open_run", (), kwargs))
         return forced_run_id
 
-    monkeypatch.setattr(scanner_mod, "open_run", forced_open_run)
+    monkeypatch.setattr(scanner_mod.PgEventStore, "open_run", forced_open_run)
 
     scanner, _store, _clamd, producer = _build_scanner(
         payload=XLSX_MAGIC + b"ok", clamd_verdict=("OK", None)

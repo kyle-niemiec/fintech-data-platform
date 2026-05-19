@@ -32,12 +32,7 @@ from libs.platform_events.envelope import (
     PipelineClass,
     PipelineName,
 )
-from libs.platform_events.event_store import (
-    append_event,
-    close_run,
-    open_run,
-    raise_alert,
-)
+from libs.platform_events.event_store import PgEventStore
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +221,7 @@ class ExcelScanner:
         trace_id = uuid4()
 
         with self._db.transaction():
-            run_id = open_run(
+            run_id = PgEventStore.open_run(
                 self._db,
                 run_id=run_id,
                 pipeline_class=PipelineClass.ingestion,
@@ -237,7 +232,7 @@ class ExcelScanner:
                 initiator=obj.uploader_principal,
             )
             uploaded_env = self._build_uploaded_envelope(obj, run_id, trace_id)
-            append_event(
+            PgEventStore.append_event(
                 self._db,
                 uploaded_env,
                 topic=source_topic,
@@ -251,7 +246,7 @@ class ExcelScanner:
         partition, offset = self._producer.produce(topic, scanned_env, key=str(run_id))
 
         with self._db.transaction():
-            append_event(
+            PgEventStore.append_event(
                 self._db,
                 scanned_env,
                 topic=topic,
@@ -259,7 +254,7 @@ class ExcelScanner:
                 kafka_offset=offset,
             )
             if not verdict.passed:
-                raise_alert(
+                PgEventStore.raise_alert(
                     self._db,
                     run_id=run_id,
                     severity="high" if verdict.reason == "malware" else "medium",
@@ -271,7 +266,7 @@ class ExcelScanner:
                         "detail": verdict.detail,
                     },
                 )
-                close_run(self._db, run_id, status="scan_failed")
+                PgEventStore.close_run(self._db, run_id, status="scan_failed")
 
         logger.info(
             "scanned object_key=%s verdict=%s reason=%s run_id=%s",

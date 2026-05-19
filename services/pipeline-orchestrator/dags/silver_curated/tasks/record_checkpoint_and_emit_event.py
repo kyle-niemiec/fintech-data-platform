@@ -20,11 +20,7 @@ def record_checkpoint_and_emit_event(state: dict[str, Any]) -> None:
         PipelineClass,
         PipelineName,
     )
-    from libs.platform_events.event_store import (
-        append_event,
-        append_silver_checkpoint,
-        close_run,
-    )
+    from libs.platform_events.event_store import PgEventStore
 
     # Extract necessary information from the state to construct the event and checkpoint
     curated_run_id = UUID(state["curated_run_id"])
@@ -79,7 +75,7 @@ def record_checkpoint_and_emit_event(state: dict[str, Any]) -> None:
     with open_event_store_conn() as conn:
         with conn.transaction():
             # Append the silver checkpoint to the event store with details about the completed promotion.
-            append_silver_checkpoint(
+            PgEventStore.append_silver_checkpoint(
                 conn,
                 run_id=curated_run_id,
                 parent_run_id=parent_run_id,
@@ -94,7 +90,7 @@ def record_checkpoint_and_emit_event(state: dict[str, Any]) -> None:
             )
 
             # Append the "silver completed" event to the event store with the partition and offset from Kafka.
-            append_event(
+            PgEventStore.append_event(
                 conn,
                 envelope,
                 topic=TOPIC_SILVER_COMPLETED,
@@ -103,4 +99,4 @@ def record_checkpoint_and_emit_event(state: dict[str, Any]) -> None:
             )
 
             # Close the event store run for the silver curated promotion pipeline.
-            close_run(conn, curated_run_id, status="completed")
+            PgEventStore.close_run(conn, curated_run_id, status="completed")

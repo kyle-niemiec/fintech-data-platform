@@ -125,9 +125,9 @@ def test_handle_raw_ready_success(monkeypatch):
     def _raise_alert(conn, **kwargs):  # noqa: ANN001
         calls.append(_Call("raise_alert", kwargs))
 
-    monkeypatch.setattr("workers.excel_bronze_writer.writer.append_event", _append_event)
-    monkeypatch.setattr("workers.excel_bronze_writer.writer.close_run", _close_run)
-    monkeypatch.setattr("workers.excel_bronze_writer.writer.raise_alert", _raise_alert)
+    monkeypatch.setattr("workers.excel_bronze_writer.writer.PgEventStore.append_event", _append_event)
+    monkeypatch.setattr("workers.excel_bronze_writer.writer.PgEventStore.close_run", _close_run)
+    monkeypatch.setattr("workers.excel_bronze_writer.writer.PgEventStore.raise_alert", _raise_alert)
 
     store = _FakeStore()
     converter = _FakeConverter()
@@ -166,9 +166,9 @@ def test_handle_raw_ready_failure_closes_failed_and_alerts(monkeypatch):
         def to_parquet(self, xlsx_bytes: bytes):  # type: ignore[override]
             raise RuntimeError("bad sheet")
 
-    monkeypatch.setattr("workers.excel_bronze_writer.writer.append_event", _append_event)
-    monkeypatch.setattr("workers.excel_bronze_writer.writer.close_run", _close_run)
-    monkeypatch.setattr("workers.excel_bronze_writer.writer.raise_alert", _raise_alert)
+    monkeypatch.setattr("workers.excel_bronze_writer.writer.PgEventStore.append_event", _append_event)
+    monkeypatch.setattr("workers.excel_bronze_writer.writer.PgEventStore.close_run", _close_run)
+    monkeypatch.setattr("workers.excel_bronze_writer.writer.PgEventStore.raise_alert", _raise_alert)
 
     writer = ExcelBronzeWriter(
         store=_FakeStore(),

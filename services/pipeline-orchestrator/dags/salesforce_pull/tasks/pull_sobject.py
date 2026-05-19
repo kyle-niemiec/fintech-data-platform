@@ -34,7 +34,7 @@ def pull_sobject(sobject: str, context: dict[str, Any]) -> dict[str, Any]:
         PipelineClass,
         PipelineName,
     )
-    from libs.platform_events.event_store import append_event, open_run
+    from libs.platform_events.event_store import PgEventStore
 
     if sobject not in SOBJECT_FIELDS:
         raise AirflowException(f"unknown SObject: {sobject}")
@@ -124,7 +124,7 @@ def pull_sobject(sobject: str, context: dict[str, Any]) -> dict[str, Any]:
     # Persist the event to the event store within the context of the run
     with open_event_store_conn() as conn:
         with conn.transaction():
-            effective_run_id = open_run(
+            effective_run_id = PgEventStore.open_run(
                 conn,
                 run_id=run_id,
                 pipeline_class=PipelineClass.ingestion,
@@ -135,7 +135,7 @@ def pull_sobject(sobject: str, context: dict[str, Any]) -> dict[str, Any]:
                 initiator=INITIATOR,
             )
 
-            append_event(
+            PgEventStore.append_event(
                 conn,
                 envelope,
                 topic=TOPIC_RAW_READY,

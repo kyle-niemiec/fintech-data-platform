@@ -33,7 +33,9 @@ TRIGGER_TYPE = "cdc_bronze_batch"
 
 @dataclass
 class AssessedRecord:
-    """Normalized view of a consumed assessed event plus its Kafka coords."""
+    """
+    Normalized view of a consumed assessed event plus its Kafka coords.
+    """
     envelope: dict[str, Any]
     kafka_topic: str
     kafka_partition: int
@@ -42,8 +44,10 @@ class AssessedRecord:
 
 @dataclass
 class BatchRow:
-    """One row as it lands in bronze Parquet. Mirrors the assessed payload
-    plus Kafka coordinates and the upstream Debezium op/before/after."""
+    """
+    One row as it lands in bronze Parquet. Mirrors the assessed payload
+    plus Kafka coordinates and the upstream Debezium op/before/after.
+    """
     op: str | None
     transaction_id: str | None
     source_table: str | None
@@ -72,13 +76,22 @@ class BatchRow:
 
 
 class ObjectStore(Protocol):
+    """
+    Abstraction for writing objects to a storage system (e.g. S3).
+    """
     def write_uri(self, uri: str, data: bytes, *, content_type: str, kms_key_id: str) -> None: ...
 
 
 def assessed_record_to_row(rec: AssessedRecord) -> BatchRow:
+    """
+    Extracts fields from the assessed record's envelope and payload to populate
+    the BatchRow. The entire payload is also serialized as JSON and included
+    in the assessed_payload field for completeness.
+    """
     env = rec.envelope
     payload = env.get("payload") or {}
     orig = payload.get("original_topic_metadata") or {}
+
     return BatchRow(
         op=payload.get("op"),
         transaction_id=payload.get("transaction_id"),
@@ -109,8 +122,12 @@ def assessed_record_to_row(rec: AssessedRecord) -> BatchRow:
 
 
 def _coerce_float(value: Any) -> float | None:
+    """
+    Attempt to coerce the value to a float, returning None if it's not possible.
+    """
     if value is None:
         return None
+
     try:
         return float(value)
     except (ValueError, TypeError):
@@ -118,8 +135,12 @@ def _coerce_float(value: Any) -> float | None:
 
 
 def _coerce_int(value: Any) -> int | None:
+    """
+    Attempt to coerce the value to an int, returning None if it's not possible.
+    """
     if value is None:
         return None
+
     try:
         return int(value)
     except (ValueError, TypeError):
@@ -127,6 +148,9 @@ def _coerce_int(value: Any) -> int | None:
 
 
 def rows_to_parquet_bytes(rows: list[BatchRow]) -> bytes:
+    """
+    Convert the list of BatchRow objects into a Parquet file in memory and return its bytes.
+    """
     table = pa.table({
         "op": [r.op for r in rows],
         "transaction_id": [r.transaction_id for r in rows],
@@ -154,15 +178,25 @@ def rows_to_parquet_bytes(rows: list[BatchRow]) -> bytes:
         "commission_reason": [r.commission_reason for r in rows],
         "assessed_payload": [r.assessed_payload for r in rows],
     })
+
     buf = io.BytesIO()
     pq.write_table(table, buf)
     return buf.getvalue()
 
 
 def bronze_object_key(
-    *, bucket: str, source_table: str, run_id: UUID, written_at: datetime
+    *,
+    bucket: str,
+    source_table: str,
+    run_id: UUID,
+    written_at: datetime
 ) -> str:
+    """
+    Construct the S3 object key for the bronze Parquet file based on the source table,
+    run ID, and the timestamp of when it was written.
+    """
     dt = written_at.astimezone(timezone.utc)
+
     return (
         f"bronze/source=cdc/table={source_table}"
         f"/year={dt.year:04d}/month={dt.month:02d}/day={dt.day:02d}/hour={dt.hour:02d}"
@@ -171,10 +205,16 @@ def bronze_object_key(
 
 
 def bronze_uri(*, bucket: str, key: str) -> str:
+    """
+    Construct the full S3 URI for the bronze Parquet file based on the bucket and object key.
+    """
     return f"s3://{bucket}/{key}"
 
 
 def _sort_key(row: BatchRow) -> tuple:
+    """
+    Sorting key for BatchRow to ensure deterministic order in Parquet output.
+    """
     # LSN is a hex-ish string (e.g. "0/16B5C10"); compare lexicographically
     # with a None-safe prefix, then fall back to Kafka offset for ordering
     # within the same LSN or when LSN is missing.
@@ -183,39 +223,62 @@ def _sort_key(row: BatchRow) -> tuple:
 
 @dataclass
 class CdcBronzeWriter:
+    """
+    Core logic for flushing assessed records to bronze Parquet and emitting ready events.
+    """
     store: ObjectStore
     kms_key_id: str
     bucket: str
 
     def build_flush(self, records: list[AssessedRecord]) -> "FlushResult":
+        """
+        Convert the list of assessed records into BatchRows, group them by source
+        table, and sort each table's rows by source LSN and Kafka offset to ensure
+        deterministic order.
+        """
         rows = [assessed_record_to_row(r) for r in records]
-        # Group by source_table. Each table gets its own Parquet object.
         by_table: dict[str, list[BatchRow]] = {}
+
+        # Group by source_table. Each table gets its own Parquet object.
         for row in rows:
             key = row.source_table or "unknown"
             by_table.setdefault(key, []).append(row)
+
+        # Sort each table's rows by source LSN (with None last) and then Kafka offset to ensure deterministic order in the Parquet output.
         for table_rows in by_table.values():
             table_rows.sort(key=_sort_key)
+
         return FlushResult(by_table=by_table, records=records)
+
 
     def write_batches(
         self, flush: "FlushResult", *, now: datetime | None = None
     ) -> list["PreparedBatch"]:
+        """
+        For each source table in the flush result, write the corresponding BatchRows
+        to a Parquet file in the object store, and construct an Envelope for the
+        bronze ready event.
+        """
         moment = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
         prepared: list[PreparedBatch] = []
 
+        # Iterate over each source table and its associated rows
         for source_table, rows in flush.by_table.items():
+            # Convert the rows to Parquet bytes
             parquet_bytes = rows_to_parquet_bytes(rows)
             run_id = uuid4()
             trace_id = uuid4()
+
             key = bronze_object_key(
                 bucket=self.bucket,
                 source_table=source_table,
                 run_id=run_id,
                 written_at=moment,
             )
+
             uri = bronze_uri(bucket=self.bucket, key=key)
 
+            # Write the Parquet bytes to the object store at the constructed URI
             self.store.write_uri(
                 uri,
                 parquet_bytes,
@@ -227,15 +290,18 @@ class CdcBronzeWriter:
             last_lsn = rows[-1].source_lsn
             kafka_offsets = [r.kafka_offset for r in rows]
             kafka_partitions = sorted({r.kafka_partition for r in rows})
+
             input_uris = sorted({
                 f"kafka://{r.kafka_topic}/{r.kafka_partition}/{r.kafka_offset}"
                 for r in rows
             })
+
             trigger_event_ref = (
                 f"cdc_bronze_batch:{source_table}:"
                 f"{kafka_partitions[0]}:{kafka_offsets[0]}-{kafka_offsets[-1]}"
             )
 
+            # Construct the Envelope for the bronze ready event, including metadata and payload
             envelope = Envelope.build(
                 event_type=TOPIC_BRONZE_READY,
                 source=EventSource.cdc,
@@ -255,6 +321,8 @@ class CdcBronzeWriter:
                     "source_table": source_table,
                 },
             )
+
+            # Write the prepared batch to the returned output
             prepared.append(
                 PreparedBatch(
                     run_id=run_id,
@@ -271,11 +339,16 @@ class CdcBronzeWriter:
                 )
             )
 
+        # Return the list of prepared batches of envelopes
         return prepared
 
 
 @dataclass
 class FlushResult:
+    """
+    Represents the result of a flush operation, containing the grouped batch rows
+    and the original assessed records.
+    """
     by_table: dict[str, list[BatchRow]] = field(default_factory=dict)
     records: list[AssessedRecord] = field(default_factory=list)
 
@@ -286,6 +359,9 @@ class FlushResult:
 
 @dataclass
 class PreparedBatch:
+    """
+    Represents a prepared batch of records to be written to the bronze layer.
+    """
     run_id: UUID
     source_table: str
     first_lsn: str | None

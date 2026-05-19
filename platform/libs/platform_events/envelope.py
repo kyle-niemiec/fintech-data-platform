@@ -1,4 +1,5 @@
-"""Envelope model for all platform events.
+"""
+Envelope model for all Redpanda platform events.
 
 Conforms to docs/event-contracts.md. The envelope is the wire shape written
 to Redpanda and persisted (as `event_log.payload` is the `payload` field only)

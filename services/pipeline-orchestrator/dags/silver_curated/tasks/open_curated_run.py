@@ -28,7 +28,7 @@ def open_curated_run(context: dict[str, Any]) -> dict[str, Any]:
         PipelineClass,
         PipelineName,
     )
-    from libs.platform_events.event_store import append_event, open_run
+    from libs.platform_events.event_store import PgEventStore
 
     # Extract the bronze envelope from the DAG run configuration
     dag_run = context["dag_run"]
@@ -63,7 +63,7 @@ def open_curated_run(context: dict[str, Any]) -> dict[str, Any]:
     with open_event_store_conn() as conn:
         with conn.transaction():
             # Open the event store run for the silver curated promotion pipeline
-            effective_run_id = open_run(
+            effective_run_id = PgEventStore.open_run(
                 conn,
                 run_id=curated_run_id,
                 pipeline_class=PipelineClass.curated,
@@ -99,7 +99,7 @@ def open_curated_run(context: dict[str, Any]) -> dict[str, Any]:
             )
 
             # Append the "silver started" event to the event store
-            append_event(
+            PgEventStore.append_event(
                 conn,
                 started_envelope,
                 topic=TOPIC_SILVER_STARTED,

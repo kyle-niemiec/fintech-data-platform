@@ -1,4 +1,5 @@
-"""Deterministic PII masking for curated-layer transforms.
+"""
+Deterministic PII masking for curated-layer transforms.
 
 Callers must provide the salt via the ``PLATFORM_MASKING_SALT`` env var.
 A missing salt is a fatal configuration error; this module never falls

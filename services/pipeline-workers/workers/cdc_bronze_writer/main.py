@@ -6,7 +6,6 @@ emits cdc.oltp.bronze.ready.v1, and records a row in event_store.cdc_checkpoint.
 
 from __future__ import annotations
 
-import io
 import json
 import logging
 import os
@@ -17,19 +16,18 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from confluent_kafka import Consumer, KafkaException
-from minio import Minio  # type: ignore[import-untyped]
-from minio.sse import SseKMS  # type: ignore[import-untyped]
 import psycopg
 
-from libs.platform_events.event_store import (
-    append_cdc_checkpoint,
-    append_event,
-    close_run,
-    open_run,
-    raise_alert,
-)
+from libs.platform_events.event_store import PgEventStore
 from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
-from libs.platform_events.producer import EventProducer, ProducerConfig
+from libs.platform_events.producer import EventProducer
+from libs.platform_storage import MinioObjectStore
+from libs.platform_worker_runtime import (
+    build_consumer_config,
+    build_event_producer,
+    build_event_store_conn,
+    build_minio_client,
+)
 
 from .writer import (
     AssessedRecord,
@@ -50,69 +48,45 @@ TOPIC_BRONZE_PREPARED = "cdc.oltp.bronze.prepared.v1"
 
 
 def _consumer_config() -> dict[str, str]:
-    config: dict[str, str] = {
-        "bootstrap.servers": os.environ["REDPANDA_BOOTSTRAP_SERVERS"],
-        "group.id": CONSUMER_GROUP,
-        "auto.offset.reset": "earliest",
-        "enable.auto.commit": False,
-        "client.id": "cdc-bronze-writer-consumer",
-    }
-    security_protocol = os.environ.get("REDPANDA_SECURITY_PROTOCOL", "PLAINTEXT")
-    if security_protocol != "PLAINTEXT":
-        config["security.protocol"] = security_protocol
-        config["sasl.mechanism"] = os.environ.get("REDPANDA_SASL_MECHANISM", "SCRAM-SHA-256")
-        config["sasl.username"] = os.environ["REDPANDA_FRAUD_SERVICE_USER"]
-        config["sasl.password"] = os.environ["REDPANDA_FRAUD_SERVICE_PASSWORD"]
-    return config
-
-
-class MinioObjectStore:
-    def __init__(self, client: Minio):
-        self._client = client
-
-    def write_uri(self, uri: str, data: bytes, *, content_type: str, kms_key_id: str) -> None:
-        from urllib.parse import urlparse
-        parsed = urlparse(uri)
-        bucket = parsed.netloc
-        key = parsed.path.lstrip("/")
-        self._client.put_object(
-            bucket_name=bucket,
-            object_name=key,
-            data=io.BytesIO(data),
-            length=len(data),
-            content_type=content_type,
-            sse=SseKMS(kms_key_id, {}),
-        )
+    """
+    A helper function to construct the Kafka consumer configuration.
+    """
+    return build_consumer_config(
+        consumer_group=CONSUMER_GROUP,
+        client_id="cdc-bronze-writer-consumer",
+        username_var="REDPANDA_FRAUD_SERVICE_USER",
+        password_var="REDPANDA_FRAUD_SERVICE_PASSWORD",
+    )
 
 
 def _build() -> tuple[CdcBronzeWriter, Consumer, EventProducer, psycopg.Connection]:
-    minio_client = Minio(
-        os.environ["MINIO_ENDPOINT"],
-        access_key=os.environ["MINIO_TRANSFORM_USER"],
-        secret_key=os.environ["MINIO_TRANSFORM_SECRET"],
-        secure=os.environ.get("MINIO_SECURE", "false").lower() == "true",
-        region=os.environ.get("MINIO_REGION", "us-east-1"),
+    """
+    Build the components required for the CDC bronze writer.
+    """
+    # Build the MinIO client
+    minio_client = build_minio_client(
+        access_key_var="MINIO_TRANSFORM_USER",
+        secret_key_var="MINIO_TRANSFORM_SECRET",
     )
-    event_store_conn = psycopg.connect(
-        host=os.environ["EVENT_STORE_DB_HOST"],
-        port=int(os.environ["EVENT_STORE_DB_PORT"]),
-        dbname=os.environ["EVENT_STORE_DB"],
-        user=os.environ["EVENT_APPEND_DB_USER"],
-        password=os.environ["EVENT_APPEND_DB_PASSWORD"],
-        autocommit=False,
+
+    # Build the event store connection
+    event_store_conn = build_event_store_conn()
+
+    # Build the Redpanda event producer
+    producer = build_event_producer(
+        client_id="cdc-bronze-writer",
+        username_var="REDPANDA_FRAUD_SERVICE_USER",
+        password_var="REDPANDA_FRAUD_SERVICE_PASSWORD",
     )
-    producer = EventProducer(
-        ProducerConfig.from_env(
-            client_id="cdc-bronze-writer",
-            username_var="REDPANDA_FRAUD_SERVICE_USER",
-            password_var="REDPANDA_FRAUD_SERVICE_PASSWORD",
-        )
-    )
+
+    # Build the CDC bronze writer
     writer = CdcBronzeWriter(
         store=MinioObjectStore(minio_client),
         kms_key_id=os.environ["MINIO_KMS_KEY_ID"],
         bucket=os.environ["MINIO_BUCKET_NAME"],
     )
+
+    # Listen for messages on `cdc.oltp.assessed.v1``
     consumer = Consumer(_consumer_config())
     consumer.subscribe([TOPIC_ASSESSED])
     return writer, consumer, producer, event_store_conn
@@ -122,9 +96,11 @@ def _prepare_batch_run(
     conn: psycopg.Connection,
     prepared: PreparedBatch,
 ) -> tuple[UUID, Envelope]:
-    """Persist parent pipeline_run + internal prepared event before Kafka publish."""
+    """
+    Persist parent pipeline_run + internal prepared event before Kafka publish.
+    """
     with conn.transaction():
-        run_id = open_run(
+        run_id = PgEventStore.open_run(
             conn,
             run_id=prepared.run_id,
             pipeline_class=PipelineClass.ingestion,
@@ -154,7 +130,8 @@ def _prepare_batch_run(
                 "last_lsn": prepared.last_lsn,
             },
         )
-        append_event(
+
+        PgEventStore.append_event(
             conn,
             internal_envelope,
             topic=TOPIC_INTERNAL,
@@ -175,16 +152,19 @@ def _finalize_published_batch(
     produce_partition: int,
     produce_offset: int,
 ) -> None:
-    """Persist published bronze-ready event + checkpoint and close run completed."""
+    """
+    Persist published `cdc.oltp.bronze.ready.v1` event + checkpoint and close run completed.
+    """
     with conn.transaction():
-        append_event(
+        PgEventStore.append_event(
             conn,
             ready_envelope,
             topic=TOPIC_BRONZE_READY,
             partition=produce_partition,
             kafka_offset=produce_offset,
         )
-        append_cdc_checkpoint(
+
+        PgEventStore.append_cdc_checkpoint(
             conn,
             run_id=run_id,
             source_table=prepared.source_table,
@@ -195,7 +175,8 @@ def _finalize_published_batch(
             offset_end=prepared.offset_end,
             record_count=prepared.record_count,
         )
-        close_run(conn, run_id, status="completed")
+
+        PgEventStore.close_run(conn, run_id, status="completed")
 
 
 def _mark_batch_failed(
@@ -205,9 +186,11 @@ def _mark_batch_failed(
     prepared: PreparedBatch,
     error: Exception,
 ) -> None:
-    """Record explicit failure mode for publish/finalize errors."""
+    """
+    Record explicit failure mode for publish/finalize errors.
+    """
     with conn.transaction():
-        raise_alert(
+        PgEventStore.raise_alert(
             conn,
             run_id=run_id,
             severity="high",
@@ -221,10 +204,14 @@ def _mark_batch_failed(
             },
             occurred_at=datetime.now(timezone.utc),
         )
-        close_run(conn, run_id, status="failed")
+
+        PgEventStore.close_run(conn, run_id, status="failed")
 
 
 def run() -> None:
+    """
+    Main entry point for the CDC bronze writer.
+    """
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
     writer, consumer, producer, event_store_conn = _build()
     max_records = int(os.environ.get("CDC_BATCH_MAX_RECORDS", "100"))
@@ -233,6 +220,9 @@ def run() -> None:
     shutdown = {"stop": False}
 
     def _handle_signal(signum, _frame) -> None:  # type: ignore[no-untyped-def]
+        """
+        Handle termination signals.
+        """
         logger.info("signal %s received, shutting down", signum)
         shutdown["stop"] = True
 
@@ -244,22 +234,32 @@ def run() -> None:
     batch_started_at = time.monotonic()
 
     def _flush() -> None:
+        """
+        Flush the current batch of messages.
+        """
         nonlocal pending, pending_msgs, batch_started_at
+
         if not pending:
             batch_started_at = time.monotonic()
             return
+
         flush = writer.build_flush(pending)
         prepared_batches = writer.write_batches(flush)
+
+        # Prepare each batch for processing
         for prepared in prepared_batches:
             effective_run_id = None
+
             try:
                 effective_run_id, ready_envelope = _prepare_batch_run(
                     event_store_conn,
                     prepared,
                 )
+
                 produce_partition, produce_offset = producer.produce(
                     TOPIC_BRONZE_READY, ready_envelope, key=f"{prepared.source_table}:{effective_run_id}"
                 )
+
                 _finalize_published_batch(
                     event_store_conn,
                     prepared=prepared,
@@ -285,6 +285,7 @@ def run() -> None:
                         )
                 raise
 
+            # Log successful batch processing
             logger.info(
                 "cdc_bronze_ready run_id=%s table=%s records=%s first_lsn=%s last_lsn=%s",
                 effective_run_id,
@@ -293,6 +294,7 @@ def run() -> None:
                 prepared.first_lsn,
                 prepared.last_lsn,
             )
+
         # Commit the last message in the batch; that advances the group offset
         # past every record in `pending`.
         last_msg = pending_msgs[-1]
@@ -301,13 +303,16 @@ def run() -> None:
         pending_msgs = []
         batch_started_at = time.monotonic()
 
+    # Process messages from the consumer via polling
     try:
         while not shutdown["stop"]:
             timeout = max(0.1, max_seconds - (time.monotonic() - batch_started_at))
             msg = consumer.poll(min(1.0, timeout))
+
             if msg is not None:
                 if msg.error():
                     raise KafkaException(msg.error())
+
                 if msg.value() is None:
                     consumer.commit(message=msg, asynchronous=False)
                 else:
@@ -317,6 +322,7 @@ def run() -> None:
                         logger.exception(
                             "dropping non-JSON assessed message offset=%s", msg.offset()
                         )
+
                         consumer.commit(message=msg, asynchronous=False)
                     else:
                         pending.append(AssessedRecord(
@@ -325,6 +331,7 @@ def run() -> None:
                             kafka_partition=msg.partition(),
                             kafka_offset=msg.offset(),
                         ))
+
                         pending_msgs.append(msg)
 
             if pending and (

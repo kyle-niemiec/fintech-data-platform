@@ -18,10 +18,16 @@ from typing import Any
 import clamd  # type: ignore[import-untyped]
 import psycopg
 from confluent_kafka import Consumer, KafkaException
-from minio import Minio  # type: ignore[import-untyped]
 
 from libs.platform_events.envelope import Envelope
-from libs.platform_events.producer import EventProducer, ProducerConfig
+from libs.platform_events.producer import EventProducer
+from libs.platform_storage import MinioObjectStore
+from libs.platform_worker_runtime import (
+    build_consumer_config,
+    build_event_producer,
+    build_event_store_conn,
+    build_minio_client,
+)
 
 from .scanner import (
     DEFAULT_ALLOWED_CONTENT_TYPES,
@@ -35,27 +41,6 @@ logger = logging.getLogger("excel_scanner")
 CONSUMER_GROUP = "excel-scanner-v1"
 
 
-class MinioObjectStore:
-    def __init__(self, client: Minio):
-        self._client = client
-
-    def stat(self, bucket: str, key: str) -> dict[str, Any]:
-        obj = self._client.stat_object(bucket, key)
-        raw_metadata = getattr(obj, "metadata", None) or {}
-        # minio-py returns a urllib3 HTTPHeaderDict (not a dict subclass),
-        # so coerce to a plain dict for downstream isinstance(_, dict) checks.
-        metadata = {k: v for k, v in raw_metadata.items()}
-        return {
-            "size": obj.size,
-            "etag": obj.etag,
-            "content_type": obj.content_type,
-            "metadata": metadata,
-        }
-
-    def get_stream(self, bucket: str, key: str):
-        return self._client.get_object(bucket, key)
-
-
 class ProducerAdapter:
     def __init__(self, producer: EventProducer):
         self._producer = producer
@@ -65,13 +50,9 @@ class ProducerAdapter:
 
 
 def build_scanner() -> tuple[ExcelScanner, psycopg.Connection, EventProducer, Consumer]:
-    minio_endpoint = os.environ["MINIO_ENDPOINT"]
-    minio_client = Minio(
-        minio_endpoint,
-        access_key=os.environ["MINIO_INGEST_USER"],
-        secret_key=os.environ["MINIO_INGEST_SECRET"],
-        secure=os.environ.get("MINIO_SECURE", "false").lower() == "true",
-        region=os.environ.get("MINIO_REGION", "us-east-1"),
+    minio_client = build_minio_client(
+        access_key_var="MINIO_INGEST_USER",
+        secret_key_var="MINIO_INGEST_SECRET",
     )
 
     clamd_client = clamd.ClamdNetworkSocket(
@@ -80,37 +61,22 @@ def build_scanner() -> tuple[ExcelScanner, psycopg.Connection, EventProducer, Co
     )
     scan_version = clamd_client.version()
 
-    db = psycopg.connect(
-        host=os.environ["EVENT_STORE_DB_HOST"],
-        port=int(os.environ["EVENT_STORE_DB_PORT"]),
-        dbname=os.environ["EVENT_STORE_DB"],
-        user=os.environ["EVENT_APPEND_DB_USER"],
-        password=os.environ["EVENT_APPEND_DB_PASSWORD"],
-        autocommit=False,
-    )
+    db = build_event_store_conn()
 
-    producer_config = ProducerConfig.from_env(
+    producer = build_event_producer(
         client_id="excel-scanner",
         username_var="REDPANDA_EXCEL_SCANNER_USER",
         password_var="REDPANDA_EXCEL_SCANNER_PASSWORD",
     )
-    producer = EventProducer(producer_config)
 
-    consumer_config: dict[str, str] = {
-        "bootstrap.servers": os.environ["REDPANDA_BOOTSTRAP_SERVERS"],
-        "group.id": CONSUMER_GROUP,
-        "auto.offset.reset": "earliest",
-        "enable.auto.commit": False,
-        "client.id": "excel-scanner-consumer",
-    }
-    security_protocol = os.environ.get("REDPANDA_SECURITY_PROTOCOL", "PLAINTEXT")
-    if security_protocol != "PLAINTEXT":
-        consumer_config["security.protocol"] = security_protocol
-        consumer_config["sasl.mechanism"] = os.environ.get("REDPANDA_SASL_MECHANISM", "SCRAM-SHA-256")
-        consumer_config["sasl.username"] = os.environ["REDPANDA_EXCEL_SCANNER_USER"]
-        consumer_config["sasl.password"] = os.environ["REDPANDA_EXCEL_SCANNER_PASSWORD"]
-
-    consumer = Consumer(consumer_config)
+    consumer = Consumer(
+        build_consumer_config(
+            consumer_group=CONSUMER_GROUP,
+            client_id="excel-scanner-consumer",
+            username_var="REDPANDA_EXCEL_SCANNER_USER",
+            password_var="REDPANDA_EXCEL_SCANNER_PASSWORD",
+        )
+    )
     consumer.subscribe([TOPIC_UPLOADED])
 
     scanner = ExcelScanner(

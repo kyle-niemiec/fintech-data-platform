@@ -24,7 +24,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
-from libs.platform_events.event_store import append_event, close_run, open_run, raise_alert
+from libs.platform_events.event_store import PgEventStore
 
 from .scorer import RiskAssessment, score_transaction
 
@@ -190,7 +190,7 @@ class FraudHandler:
 
         # Open/append/close run on event-store in one transaction.
         try:
-            effective_run_id = open_run(
+            effective_run_id = PgEventStore.open_run(
                 self.event_store_conn,
                 run_id=run_id,
                 pipeline_class=PipelineClass.ingestion,
@@ -248,7 +248,7 @@ class FraudHandler:
             )
         except Exception:
             try:
-                raise_alert(
+                PgEventStore.raise_alert(
                     self.event_store_conn,
                     run_id=effective_run_id,
                     severity="high",
@@ -257,21 +257,21 @@ class FraudHandler:
                     details={"raw": trigger_event_ref},
                     occurred_at=datetime.now(timezone.utc),
                 )
-                close_run(self.event_store_conn, effective_run_id, status="failed")
+                PgEventStore.close_run(self.event_store_conn, effective_run_id, status="failed")
                 self.event_store_conn.commit()
             except Exception:
                 self.event_store_conn.rollback()
             raise
 
         try:
-            append_event(
+            PgEventStore.append_event(
                 self.event_store_conn,
                 envelope,
                 topic=TOPIC_ASSESSED,
                 partition=partition,
                 kafka_offset=offset,
             )
-            close_run(self.event_store_conn, effective_run_id, status="completed")
+            PgEventStore.close_run(self.event_store_conn, effective_run_id, status="completed")
             self.event_store_conn.commit()
         except Exception:
             self.event_store_conn.rollback()

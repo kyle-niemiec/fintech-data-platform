@@ -3,3 +3,5 @@ confluent-kafka
 psycopg[binary]
 minio
 clamd
+
+sqlalchemy

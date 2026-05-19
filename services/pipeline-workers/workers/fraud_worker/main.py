@@ -10,7 +10,12 @@ import sys
 from confluent_kafka import Consumer, KafkaException
 import psycopg
 
-from libs.platform_events.producer import EventProducer, ProducerConfig
+from libs.platform_events.producer import EventProducer
+from libs.platform_worker_runtime import (
+    build_consumer_config,
+    build_event_producer,
+    build_event_store_conn,
+)
 
 from .handler import FraudHandler, RawMessage, decode_message
 
@@ -21,20 +26,12 @@ CONSUMER_GROUP = "fraud-worker-v1"
 
 
 def _consumer_config() -> dict[str, str]:
-    config: dict[str, str] = {
-        "bootstrap.servers": os.environ["REDPANDA_BOOTSTRAP_SERVERS"],
-        "group.id": CONSUMER_GROUP,
-        "auto.offset.reset": "earliest",
-        "enable.auto.commit": False,
-        "client.id": "fraud-worker-consumer",
-    }
-    security_protocol = os.environ.get("REDPANDA_SECURITY_PROTOCOL", "PLAINTEXT")
-    if security_protocol != "PLAINTEXT":
-        config["security.protocol"] = security_protocol
-        config["sasl.mechanism"] = os.environ.get("REDPANDA_SASL_MECHANISM", "SCRAM-SHA-256")
-        config["sasl.username"] = os.environ["REDPANDA_FRAUD_SERVICE_USER"]
-        config["sasl.password"] = os.environ["REDPANDA_FRAUD_SERVICE_PASSWORD"]
-    return config
+    return build_consumer_config(
+        consumer_group=CONSUMER_GROUP,
+        client_id="fraud-worker-consumer",
+        username_var="REDPANDA_FRAUD_SERVICE_USER",
+        password_var="REDPANDA_FRAUD_SERVICE_PASSWORD",
+    )
 
 
 def _build_handler() -> tuple[FraudHandler, Consumer, EventProducer]:
@@ -46,20 +43,11 @@ def _build_handler() -> tuple[FraudHandler, Consumer, EventProducer]:
         password=os.environ["OLTP_APP_PASSWORD"],
         autocommit=True,
     )
-    event_store_conn = psycopg.connect(
-        host=os.environ["EVENT_STORE_DB_HOST"],
-        port=int(os.environ["EVENT_STORE_DB_PORT"]),
-        dbname=os.environ["EVENT_STORE_DB"],
-        user=os.environ["EVENT_APPEND_DB_USER"],
-        password=os.environ["EVENT_APPEND_DB_PASSWORD"],
-        autocommit=False,
-    )
-    producer = EventProducer(
-        ProducerConfig.from_env(
-            client_id="fraud-worker",
-            username_var="REDPANDA_FRAUD_SERVICE_USER",
-            password_var="REDPANDA_FRAUD_SERVICE_PASSWORD",
-        )
+    event_store_conn = build_event_store_conn()
+    producer = build_event_producer(
+        client_id="fraud-worker",
+        username_var="REDPANDA_FRAUD_SERVICE_USER",
+        password_var="REDPANDA_FRAUD_SERVICE_PASSWORD",
     )
     consumer = Consumer(_consumer_config())
     consumer.subscribe([TOPIC_RAW])

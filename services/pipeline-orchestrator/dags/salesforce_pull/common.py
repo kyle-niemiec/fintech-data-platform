@@ -57,7 +57,7 @@ def _configured_sobjects() -> tuple[str, ...]:
 
 def _build_producer():
     """
-    Build a RedPanda event producer using credentials from environment variables.
+    Build a Redpanda event producer using credentials from environment variables.
     """
     return build_event_producer(
         client_id="salesforce-incremental-pull-dag",
@@ -70,11 +70,11 @@ def _latest_cursor(sobject: str) -> Optional[datetime]:
     """
     Query the event store for the latest cursor timestamp for the given SObject.
     """
-    from libs.platform_events.event_store import latest_sf_cursor
+    from libs.platform_events.event_store import PgEventStore
 
     with open_event_store_conn() as conn:
         with conn.transaction():
-            result = latest_sf_cursor(conn, sobject=sobject)
+            result = PgEventStore.latest_sf_cursor(conn, sobject=sobject)
 
     if result is None:
         return None

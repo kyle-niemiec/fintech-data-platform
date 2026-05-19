@@ -1,3 +1,5 @@
 confluent-kafka
 psycopg[binary]
 pydantic
+
+sqlalchemy

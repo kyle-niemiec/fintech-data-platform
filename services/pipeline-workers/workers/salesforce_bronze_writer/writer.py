@@ -9,7 +9,7 @@ for a single (run_id, sobject) pull. For each event the writer:
      (SSE-KMS).
   3. Emits `ingest.salesforce.bronze.ready.v1`.
   4. In one DB transaction: append_event, append_sf_cursor_checkpoint,
-     close_run(status='completed').
+     PgEventStore.close_run(status='completed').
 
 Zero-record events close the run without writing Parquet or advancing
 the cursor (no checkpoint row).
@@ -32,12 +32,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
-from libs.platform_events.event_store import (
-    append_event,
-    append_sf_cursor_checkpoint,
-    close_run,
-    raise_alert,
-)
+from libs.platform_events.event_store import PgEventStore
 
 logger = logging.getLogger("salesforce_bronze_writer")
 
@@ -143,7 +138,7 @@ class SalesforceBronzeWriter:
 
         if row_count_reported == 0 or not raw_uris:
             with self.db.transaction():
-                close_run(self.db, run_id, status="completed")
+                PgEventStore.close_run(self.db, run_id, status="completed")
             logger.info("salesforce raw.ready with zero rows closed run run_id=%s sobject=%s", run_id, sobject)
             return True
 
@@ -156,7 +151,7 @@ class SalesforceBronzeWriter:
 
             if not records:
                 with self.db.transaction():
-                    close_run(self.db, run_id, status="completed")
+                    PgEventStore.close_run(self.db, run_id, status="completed")
                 return True
 
             parquet_bytes, schema_fingerprint = records_to_parquet(records)
@@ -199,14 +194,14 @@ class SalesforceBronzeWriter:
                 TOPIC_BRONZE_READY, bronze_envelope, key=f"{sobject}:{run_id}"
             )
             with self.db.transaction():
-                append_event(
+                PgEventStore.append_event(
                     self.db,
                     bronze_envelope,
                     topic=TOPIC_BRONZE_READY,
                     partition=partition,
                     kafka_offset=offset,
                 )
-                append_sf_cursor_checkpoint(
+                PgEventStore.append_sf_cursor_checkpoint(
                     self.db,
                     run_id=run_id,
                     sobject=sobject,
@@ -217,14 +212,14 @@ class SalesforceBronzeWriter:
                     offset_end=msg.kafka_offset,
                     record_count=len(records),
                 )
-                close_run(self.db, run_id, status="completed")
+                PgEventStore.close_run(self.db, run_id, status="completed")
             return True
 
         except Exception as exc:
             logger.exception("salesforce bronze write failed run_id=%s sobject=%s", run_id, sobject)
             try:
                 with self.db.transaction():
-                    raise_alert(
+                    PgEventStore.raise_alert(
                         self.db,
                         run_id=run_id,
                         severity="high",
@@ -233,7 +228,7 @@ class SalesforceBronzeWriter:
                         details={"error": str(exc), "sobject": sobject, "raw_uris": raw_uris},
                         occurred_at=datetime.now(timezone.utc),
                     )
-                    close_run(self.db, run_id, status="failed")
+                    PgEventStore.close_run(self.db, run_id, status="failed")
             except Exception:
                 logger.exception("alert/close_run also failed for run_id=%s", run_id)
             return False

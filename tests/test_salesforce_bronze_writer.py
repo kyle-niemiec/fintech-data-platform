@@ -147,10 +147,10 @@ def test_handle_raw_ready_success_writes_bronze_and_advances_cursor(monkeypatch)
     def _raise_alert(conn, **kwargs):  # noqa: ANN001
         calls.append(_Call("raise_alert", kwargs))
 
-    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.append_event", _append_event)
-    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.append_sf_cursor_checkpoint", _append_sf_cursor)
-    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.close_run", _close_run)
-    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.raise_alert", _raise_alert)
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.append_event", _append_event)
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.append_sf_cursor_checkpoint", _append_sf_cursor)
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.close_run", _close_run)
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.raise_alert", _raise_alert)
 
     run_id = str(uuid4())
     envelope = _raw_ready_envelope(sobject="Account", run_id=run_id, row_count=2)
@@ -192,9 +192,9 @@ def test_handle_raw_ready_zero_rows_closes_without_checkpoint(monkeypatch) -> No
     def _close_run(conn, run_id, **kwargs):  # noqa: ANN001
         calls.append(_Call("close_run", {"run_id": str(run_id), **kwargs}))
 
-    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.append_event", _append_event)
-    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.append_sf_cursor_checkpoint", _append_sf_cursor)
-    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.close_run", _close_run)
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.append_event", _append_event)
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.append_sf_cursor_checkpoint", _append_sf_cursor)
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.close_run", _close_run)
 
     envelope = _raw_ready_envelope(row_count=0, output_uris=[])
     writer = SalesforceBronzeWriter(store=_FakeStore(), producer=_FakeProducer(), db=_FakeConn(), kms_key_id="k")
@@ -221,10 +221,10 @@ def test_handle_raw_ready_failure_alerts_and_closes_failed(monkeypatch) -> None:
     def _raise_alert(conn, **kwargs):  # noqa: ANN001
         calls.append(_Call("raise_alert", kwargs))
 
-    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.append_event", _append_event)
-    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.append_sf_cursor_checkpoint", _append_sf_cursor)
-    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.close_run", _close_run)
-    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.raise_alert", _raise_alert)
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.append_event", _append_event)
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.append_sf_cursor_checkpoint", _append_sf_cursor)
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.close_run", _close_run)
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.raise_alert", _raise_alert)
 
     class _FailingStore(_FakeStore):
         def read_uri(self, uri: str) -> bytes:  # type: ignore[override]

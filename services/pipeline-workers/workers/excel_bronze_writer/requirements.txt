@@ -5,3 +5,5 @@ openpyxl
 pyarrow
 psycopg[binary]
 pydantic
+
+sqlalchemy

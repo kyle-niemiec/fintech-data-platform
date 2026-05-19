@@ -25,7 +25,7 @@ def emit_event(*branch_outputs: dict[str, Any]) -> None:
         PipelineClass,
         PipelineName,
     )
-    from libs.platform_events.event_store import append_event, close_run
+    from libs.platform_events.event_store import PgEventStore
 
     # Check that the outcome is present
     outcome = next((output for output in branch_outputs if output), None)
@@ -79,7 +79,7 @@ def emit_event(*branch_outputs: dict[str, Any]) -> None:
     # Persist the emitted event to the event store and close the run with the appropriate status based on the validation outcome
     with open_event_store_conn() as conn:
         with conn.transaction():
-            append_event(
+            PgEventStore.append_event(
                 conn,
                 envelope,
                 topic=topic,
@@ -87,7 +87,7 @@ def emit_event(*branch_outputs: dict[str, Any]) -> None:
                 kafka_offset=offset,
             )
 
-            close_run(
+            PgEventStore.close_run(
                 conn,
                 UUID(outcome["run_id"]),
                 status="running" if is_raw else "quarantined",

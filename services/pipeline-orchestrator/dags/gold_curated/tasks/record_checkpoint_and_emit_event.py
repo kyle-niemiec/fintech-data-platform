@@ -19,11 +19,7 @@ def record_checkpoint_and_emit_event(state: dict[str, str]) -> None:
         PipelineClass,
         PipelineName,
     )
-    from libs.platform_events.event_store import (
-        append_event,
-        append_gold_checkpoint,
-        close_run,
-    )
+    from libs.platform_events.event_store import PgEventStore
 
     # Extract necessary information from the state to construct the event and checkpoint
     curated_run_id = UUID(state["curated_run_id"])
@@ -78,7 +74,7 @@ def record_checkpoint_and_emit_event(state: dict[str, str]) -> None:
     with open_event_store_conn() as conn:
         with conn.transaction():
             # Append the checkpoint for the gold run
-            append_gold_checkpoint(
+            PgEventStore.append_gold_checkpoint(
                 conn,
                 run_id=curated_run_id,
                 parent_run_id=parent_run_id,
@@ -90,7 +86,7 @@ def record_checkpoint_and_emit_event(state: dict[str, str]) -> None:
             )
 
             # Append the "gold completed" event
-            append_event(
+            PgEventStore.append_event(
                 conn,
                 envelope,
                 topic=TOPIC_GOLD_COMPLETED,
@@ -99,4 +95,4 @@ def record_checkpoint_and_emit_event(state: dict[str, str]) -> None:
             )
 
             # Close the run in the event store
-            close_run(conn, curated_run_id, status="completed")
+            PgEventStore.close_run(conn, curated_run_id, status="completed")

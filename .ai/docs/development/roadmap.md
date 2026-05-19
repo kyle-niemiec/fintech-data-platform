@@ -61,6 +61,7 @@ Legend:
 - [x] `silver_curated_promotion` consumes `ingest.salesforce.bronze.ready.v1`, opens curated runs with `parent_run_id`, stages/tokenizes, merges via Trino, records `event_store.silver_checkpoint`, emits `pipeline.silver.completed.v1`, and closes runs transactionally.
 - [x] `gold_curated_aggregation` consumes `pipeline.silver.completed.v1`, opens curated runs with `parent_run_id`, inserts KPI rows via Trino, records `event_store.gold_checkpoint`, emits `pipeline.gold.completed.v1`, and closes runs transactionally.
 - [x] Event-store has `silver_checkpoint`/`gold_checkpoint` tables and `append_silver_checkpoint`/`append_gold_checkpoint` helpers.
+- [x] Event-store runtime SQL is externalized into package resources and executed through SQLAlchemy Core while preserving `PgEventStore` API behavior.
 - [x] `platform_masking` deterministic HMAC-SHA256 library is implemented and used by silver curation.
 - [x] Redpanda curated consumer-group ACL extensions and Airflow connection seeding are implemented.
 - [x] Follow-on silver entities: `dim_account`, `dim_loan`.

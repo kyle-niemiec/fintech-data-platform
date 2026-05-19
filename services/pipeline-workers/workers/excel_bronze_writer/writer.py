@@ -14,7 +14,7 @@ import pandas as pd
 import psycopg
 
 from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
-from libs.platform_events.event_store import append_event, close_run, raise_alert
+from libs.platform_events.event_store import PgEventStore
 
 TOPIC_RAW_READY = "ingest.excel.raw.ready.v1"
 TOPIC_BRONZE_READY = "ingest.excel.bronze.ready.v1"
@@ -120,18 +120,18 @@ class ExcelBronzeWriter:
             )
             partition, offset = self.producer.produce(TOPIC_BRONZE_READY, bronze_envelope, key=run_id_str)
             with self.db.transaction():
-                append_event(
+                PgEventStore.append_event(
                     self.db,
                     bronze_envelope,
                     topic=TOPIC_BRONZE_READY,
                     partition=partition,
                     kafka_offset=offset,
                 )
-                close_run(self.db, run_id, status="completed")
+                PgEventStore.close_run(self.db, run_id, status="completed")
             return True
         except Exception as exc:
             with self.db.transaction():
-                raise_alert(
+                PgEventStore.raise_alert(
                     self.db,
                     run_id=run_id,
                     severity="high",
@@ -143,6 +143,6 @@ class ExcelBronzeWriter:
                     },
                     occurred_at=datetime.now(timezone.utc),
                 )
-                close_run(self.db, run_id, status="failed")
+                PgEventStore.close_run(self.db, run_id, status="failed")
             return False
 

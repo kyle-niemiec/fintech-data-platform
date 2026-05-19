@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 import json
 import logging
 import os
@@ -10,17 +9,20 @@ import signal
 import sys
 
 from confluent_kafka import Consumer, KafkaException
-from minio import Minio  # type: ignore[import-untyped]
-from minio.sse import SseKMS  # type: ignore[import-untyped]
-import psycopg
 
-from libs.platform_events.producer import EventProducer, ProducerConfig
+from libs.platform_events.producer import EventProducer
+from libs.platform_storage import MinioObjectStore
+from libs.platform_worker_runtime import (
+    build_consumer_config,
+    build_event_producer,
+    build_event_store_conn,
+    build_minio_client,
+)
 
 from .writer import (
     RawReadyMessage,
     SalesforceBronzeWriter,
     TOPIC_RAW_READY,
-    split_s3_uri,
 )
 
 logger = logging.getLogger("salesforce_bronze_writer")
@@ -28,70 +30,25 @@ logger = logging.getLogger("salesforce_bronze_writer")
 CONSUMER_GROUP = "salesforce-bronze-writer-v1"
 
 
-class MinioObjectStore:
-    def __init__(self, client: Minio):
-        self._client = client
-
-    def read_uri(self, uri: str) -> bytes:
-        bucket, key = split_s3_uri(uri)
-        obj = self._client.get_object(bucket, key)
-        try:
-            return obj.read()
-        finally:
-            obj.close()
-            obj.release_conn()
-
-    def write_uri(self, uri: str, data: bytes, *, content_type: str, kms_key_id: str) -> None:
-        bucket, key = split_s3_uri(uri)
-        self._client.put_object(
-            bucket_name=bucket,
-            object_name=key,
-            data=io.BytesIO(data),
-            length=len(data),
-            content_type=content_type,
-            sse=SseKMS(kms_key_id, {}),
-        )
-
-
 def _consumer_config() -> dict[str, str]:
-    config: dict[str, str] = {
-        "bootstrap.servers": os.environ["REDPANDA_BOOTSTRAP_SERVERS"],
-        "group.id": CONSUMER_GROUP,
-        "auto.offset.reset": "earliest",
-        "enable.auto.commit": False,
-        "client.id": "salesforce-bronze-writer-consumer",
-    }
-    security_protocol = os.environ.get("REDPANDA_SECURITY_PROTOCOL", "PLAINTEXT")
-    if security_protocol != "PLAINTEXT":
-        config["security.protocol"] = security_protocol
-        config["sasl.mechanism"] = os.environ.get("REDPANDA_SASL_MECHANISM", "SCRAM-SHA-256")
-        config["sasl.username"] = os.environ["REDPANDA_SALESFORCE_BRONZE_USER"]
-        config["sasl.password"] = os.environ["REDPANDA_SALESFORCE_BRONZE_PASSWORD"]
-    return config
+    return build_consumer_config(
+        consumer_group=CONSUMER_GROUP,
+        client_id="salesforce-bronze-writer-consumer",
+        username_var="REDPANDA_SALESFORCE_BRONZE_USER",
+        password_var="REDPANDA_SALESFORCE_BRONZE_PASSWORD",
+    )
 
 
 def build_writer() -> tuple[SalesforceBronzeWriter, Consumer, EventProducer]:
-    minio_client = Minio(
-        os.environ["MINIO_ENDPOINT"],
-        access_key=os.environ["MINIO_TRANSFORM_USER"],
-        secret_key=os.environ["MINIO_TRANSFORM_SECRET"],
-        secure=os.environ.get("MINIO_SECURE", "false").lower() == "true",
-        region=os.environ.get("MINIO_REGION", "us-east-1"),
+    minio_client = build_minio_client(
+        access_key_var="MINIO_TRANSFORM_USER",
+        secret_key_var="MINIO_TRANSFORM_SECRET",
     )
-    db = psycopg.connect(
-        host=os.environ["EVENT_STORE_DB_HOST"],
-        port=int(os.environ["EVENT_STORE_DB_PORT"]),
-        dbname=os.environ["EVENT_STORE_DB"],
-        user=os.environ["EVENT_APPEND_DB_USER"],
-        password=os.environ["EVENT_APPEND_DB_PASSWORD"],
-        autocommit=False,
-    )
-    producer = EventProducer(
-        ProducerConfig.from_env(
-            client_id="salesforce-bronze-writer",
-            username_var="REDPANDA_SALESFORCE_BRONZE_USER",
-            password_var="REDPANDA_SALESFORCE_BRONZE_PASSWORD",
-        )
+    db = build_event_store_conn()
+    producer = build_event_producer(
+        client_id="salesforce-bronze-writer",
+        username_var="REDPANDA_SALESFORCE_BRONZE_USER",
+        password_var="REDPANDA_SALESFORCE_BRONZE_PASSWORD",
     )
     writer = SalesforceBronzeWriter(
         store=MinioObjectStore(minio_client),
