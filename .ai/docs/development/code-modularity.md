@@ -30,11 +30,11 @@
 - DAG identifiers, task identifiers, event types, trigger references, and run lifecycle behavior are preserved through modularization and packaging changes.
 
 ## Worker Runtime Modularity
-- Shared worker bootstrap/runtime helpers are centralized in `platform/libs/platform_worker_runtime/runtime.py` for:
+- Shared worker bootstrap/runtime helpers are centralized in `services/libs/service_runtime/runtime.py` for:
   - Kafka consumer config construction
-  - Event-store SQLAlchemy engine/connection setup with transaction compatibility
-  - MinIO client creation
   - Redpanda producer creation
-- Duplicate `MinioObjectStore` entrypoint classes were consolidated to a shared adapter in `platform/libs/platform_storage/minio_object_store.py`.
-- Worker and orchestrator event-store call sites use the `PgEventStore` namespace API with a single class-method declaration per operation in `platform_events.event_store`.
-- Event-store runtime SQL is externalized under `platform/libs/platform_events/sql/event_store/`, with `PgEventStore` loading cached statements from package resources.
+- Event-store SQLAlchemy engine/connection helpers are centralized in `services/libs/event_store/runtime.py`.
+- MinIO client construction and object-store adapter helpers are centralized in `services/libs/minio_store/`.
+- Duplicate `MinioObjectStore` entrypoint classes were consolidated to a shared adapter in `services/libs/minio_store/minio_object_store.py`.
+- Worker and orchestrator event-store call sites use the `PgEventStore` namespace API with a single class-method declaration per operation in `event_store.PgEventStore`.
+- Event-store runtime SQL is externalized under `services/libs/event_store/sql/event_store/`, with `PgEventStore` loading cached statements from package resources.

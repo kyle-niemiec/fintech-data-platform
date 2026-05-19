@@ -1,4 +1,4 @@
-"""Unit coverage for shared worker runtime helpers."""
+"""Unit coverage for shared runtime helper modules."""
 
 from __future__ import annotations
 
@@ -6,14 +6,16 @@ import sys
 import types
 from dataclasses import dataclass
 
-from libs.platform_worker_runtime import runtime
+from meridian.libs.event_store import runtime as event_store_runtime
+from meridian.libs.minio_store import minio_client as minio_runtime
+from meridian.libs.service_runtime import runtime as service_runtime
 
 
 def test_build_consumer_config_plaintext(monkeypatch) -> None:
     monkeypatch.setenv("REDPANDA_BOOTSTRAP_SERVERS", "redpanda:9092")
     monkeypatch.setenv("REDPANDA_SECURITY_PROTOCOL", "PLAINTEXT")
 
-    config = runtime.build_consumer_config(
+    config = service_runtime.build_consumer_config(
         consumer_group="group-1",
         client_id="client-1",
         username_var="REDPANDA_USER",
@@ -33,7 +35,7 @@ def test_build_consumer_config_sasl(monkeypatch) -> None:
     monkeypatch.setenv("REDPANDA_USER", "user")
     monkeypatch.setenv("REDPANDA_PASS", "pass")
 
-    config = runtime.build_consumer_config(
+    config = service_runtime.build_consumer_config(
         consumer_group="group-1",
         client_id="client-1",
         username_var="REDPANDA_USER",
@@ -63,7 +65,7 @@ def test_build_event_store_engine_uses_expected_env(monkeypatch) -> None:
 
     monkeypatch.setattr(sqlalchemy, "create_engine", _fake_create_engine)
 
-    engine = runtime.build_event_store_engine()
+    engine = event_store_runtime.build_event_store_engine()
 
     assert engine is not None
     assert captured["url"].drivername == "postgresql+psycopg"
@@ -113,11 +115,11 @@ def test_build_event_store_conn_wraps_engine_connection(monkeypatch) -> None:
             self.disposed = True
 
     fake_engine = _FakeEngine()
-    monkeypatch.setattr(runtime, "build_event_store_engine", lambda **_: fake_engine)
+    monkeypatch.setattr(event_store_runtime, "build_event_store_engine", lambda **_: fake_engine)
 
-    conn = runtime.build_event_store_conn()
+    conn = event_store_runtime.build_event_store_conn()
 
-    assert isinstance(conn, runtime.EventStoreConnection)
+    assert isinstance(conn, event_store_runtime.ManagedConnection)
     conn.close()
     assert fake_engine.connection.closed is True
     assert fake_engine.disposed is True
@@ -139,7 +141,7 @@ def test_build_minio_client_uses_expected_env(monkeypatch) -> None:
     fake_minio_module = types.SimpleNamespace(Minio=_FakeMinio)
     monkeypatch.setitem(sys.modules, "minio", fake_minio_module)
 
-    client = runtime.build_minio_client(
+    client = minio_runtime.build_minio_client(
         access_key_var="MINIO_INGEST_USER",
         secret_key_var="MINIO_INGEST_SECRET",
     )
@@ -165,10 +167,10 @@ def test_build_event_producer_uses_from_env(monkeypatch) -> None:
         def __init__(self, config):
             self.config = config
 
-    monkeypatch.setattr(runtime.ProducerConfig, "from_env", staticmethod(_fake_from_env))
-    monkeypatch.setattr(runtime, "EventProducer", _FakeProducer)
+    monkeypatch.setattr(service_runtime.ProducerConfig, "from_env", staticmethod(_fake_from_env))
+    monkeypatch.setattr(service_runtime, "EventProducer", _FakeProducer)
 
-    producer = runtime.build_event_producer(
+    producer = service_runtime.build_event_producer(
         client_id="worker-a",
         username_var="USER_VAR",
         password_var="PASS_VAR",

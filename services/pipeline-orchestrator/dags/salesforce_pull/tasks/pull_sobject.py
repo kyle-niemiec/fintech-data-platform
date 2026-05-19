@@ -28,13 +28,13 @@ def pull_sobject(sobject: str, context: dict[str, Any]) -> dict[str, Any]:
     Pull incremental data for the specified Salesforce object, write it to MinIO, and emit an event.
     """
     import requests
-    from libs.platform_events.envelope import (
+    from meridian.libs.redpanda_events.envelope import (
         Envelope,
         EventSource,
         PipelineClass,
         PipelineName,
     )
-    from libs.platform_events.event_store import PgEventStore
+    from meridian.libs.event_store import PgEventStore
 
     if sobject not in SOBJECT_FIELDS:
         raise AirflowException(f"unknown SObject: {sobject}")
@@ -123,7 +123,7 @@ def pull_sobject(sobject: str, context: dict[str, Any]) -> dict[str, Any]:
 
     # Persist the event to the event store within the context of the run
     with open_event_store_conn() as conn:
-        with conn.transaction():
+        with conn.begin():
             effective_run_id = PgEventStore.open_run(
                 conn,
                 run_id=run_id,

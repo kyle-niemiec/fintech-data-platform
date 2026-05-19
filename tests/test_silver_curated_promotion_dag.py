@@ -78,6 +78,14 @@ RECORD_CHECKPOINT_FILE = (
     / "record_checkpoint_and_emit_event.py"
 )
 
+CURATED_HELPERS_FILE = (
+    Path(__file__).resolve().parents[1]
+    / "services"
+    / "pipeline-orchestrator"
+    / "dags"
+    / "curated_dag_helpers.py"
+)
+
 
 def test_dag_file_parses():
     ast.parse(LISTENER_FILE.read_text())
@@ -126,8 +134,9 @@ def test_dag_imports_shared_libs():
         + STAGE_AND_MASK_FILE.read_text()
         + RECORD_CHECKPOINT_FILE.read_text()
     )
-    assert "libs.platform_events" in source
-    assert "libs.platform_masking" in source
+    assert "meridian.libs.redpanda_events" in source
+    assert "meridian.libs.event_store" in source
+    assert "meridian.libs.masking" in source
     assert "curated_specs" in source
 
 
@@ -144,7 +153,12 @@ def test_dag_records_silver_checkpoint():
 
 
 def test_dag_closes_run_on_failure():
-    source = TASKS_FILE.read_text() + PROMOTION_FILE.read_text() + RECORD_CHECKPOINT_FILE.read_text()
+    source = (
+        TASKS_FILE.read_text()
+        + PROMOTION_FILE.read_text()
+        + RECORD_CHECKPOINT_FILE.read_text()
+        + CURATED_HELPERS_FILE.read_text()
+    )
     assert "close_run" in source
     assert 'status="failed"' in source
     assert 'status="completed"' in source

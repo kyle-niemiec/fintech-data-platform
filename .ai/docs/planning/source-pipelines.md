@@ -152,7 +152,7 @@ The Phase 6 vertical slice implements the Salesforce Opportunity curated path en
   - `gold_curated_aggregation` (`schedule=None`, `max_active_runs>1`): one run per silver envelope.
 - Silver transform (`lakehouse.silver.dim_opportunity`):
   1. Open a `curated_promotion` run with `parent_run_id = bronze.run_id`.
-  2. Read the bronze parquet referenced by the envelope, tokenize AccountId via `platform_masking.tokenize(scope='salesforce_account_id')`, and write a staging parquet under `s3://.../warehouse/_staging/<curated_run_id>/` with SSE-KMS headers.
+  2. Read the bronze parquet referenced by the envelope, tokenize AccountId via `masking.tokenize(scope='salesforce_account_id')`, and write a staging parquet under `s3://.../warehouse/_staging/<curated_run_id>/` with SSE-KMS headers.
   3. Execute SCD2 `MERGE INTO lakehouse.silver.dim_opportunity` via Trino, matched by `opportunity_id` on `is_current=true`, closing the current row on any source-faithful business-attribute change and inserting a new current version.
   4. In a single event-store transaction: `append_silver_checkpoint` (with merge stats), `append_event` for `pipeline.silver.completed.v1`, `close_run(status='completed')`. The Kafka produce happens before the transaction so persistence is authoritative.
 - Gold transform (`lakehouse.gold.kpi_pipeline_conversion`):
@@ -160,7 +160,7 @@ The Phase 6 vertical slice implements the Salesforce Opportunity curated path en
   2. Execute the aggregation INSERT from `lakehouse.silver.dim_opportunity` where `is_current=true`, grouped by `stage_name`, with counts (won/lost/open), $ totals, and closed-rate conversion per (snapshot_date, stage_name).
   3. In a single event-store transaction: `append_gold_checkpoint` (metric=`pipeline_conversion`), `append_event` for `pipeline.gold.completed.v1`, `close_run(status='completed')`.
 - Failure paths: on any Airflow task failure the DAG-level `on_failure_callback` emits `pipeline.{silver,gold}.failed.v1` and closes the curated run `failed`.
-- Masking: `platform_masking` provides deterministic HMAC-SHA256 primitives (`tokenize`, `mask_email`, `hash_pii`, `redact`) with salt sourced from `PLATFORM_MASKING_SALT`. Determinism is load-bearing - re-runs must produce the same silver natural keys for the MERGE to behave as SCD2.
+- Masking: `masking` provides deterministic HMAC-SHA256 primitives (`tokenize`, `mask_email`, `hash_pii`, `redact`) with salt sourced from `PLATFORM_MASKING_SALT`. Determinism is load-bearing - re-runs must produce the same silver natural keys for the MERGE to behave as SCD2.
 - Identity: Trino and iceberg-rest both use the existing `MINIO_TRINO_WRITE` S3 identity scoped to `silver/*` and `gold/*` with KMS enforcement. DAG Kafka access uses the existing `rp_orchestrator_service` Redpanda principal, extended with READ on `pipeline.silver.completed.v1` and the two curated consumer groups (`airflow-curated-silver-v1`, `airflow-curated-gold-v1`).
 
 ### Curated Promotion Pipeline (Phase 6 follow-on completion)

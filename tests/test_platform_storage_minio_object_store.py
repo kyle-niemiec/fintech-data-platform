@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from libs.platform_storage import MinioObjectStore
+from meridian.libs.minio_store import MinioObjectStore
 
 
 class _FakeResponse:

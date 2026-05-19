@@ -11,9 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
 
-from psycopg.types.json import Jsonb
-
-from libs.platform_events.event_store import PgEventStore
+from meridian.libs.event_store import PgEventStore
 
 
 @dataclass
@@ -29,11 +27,6 @@ class _StubConn:
     def execute(self, statement: Any, params: dict[str, Any]) -> _StubResult:
         self.executed.append((str(statement), dict(params)))
         return _StubResult()
-
-
-def _jsonb_value(wrapped: Any) -> Any:
-    assert isinstance(wrapped, Jsonb)
-    return wrapped.obj
 
 
 def test_append_silver_checkpoint_inserts_into_silver_checkpoint():
@@ -61,11 +54,11 @@ def test_append_silver_checkpoint_inserts_into_silver_checkpoint():
     assert params["run_id"] == str(run_id)
     assert params["parent_run_id"] == str(parent_run_id)
     assert params["silver_domain"] == "salesforce_opportunity"
-    assert _jsonb_value(params["input_uris"]) == [
+    assert params["input_uris"] == [
         "s3://fintech-lakehouse/bronze/source=salesforce/object=Opportunity/part-0.parquet"
     ]
     assert params["output_table"] == "lakehouse.silver.dim_opportunity"
-    assert _jsonb_value(params["output_uris"]) == [
+    assert params["output_uris"] == [
         "s3://fintech-lakehouse/silver/domain=salesforce_opportunity/part-0.parquet"
     ]
     assert params["record_count"] == 42
@@ -116,9 +109,9 @@ def test_append_gold_checkpoint_inserts_into_gold_checkpoint():
     assert params["run_id"] == str(run_id)
     assert params["parent_run_id"] == str(parent_run_id)
     assert params["metric"] == "pipeline_conversion"
-    assert _jsonb_value(params["input_uris"]) == ["lakehouse.silver.dim_opportunity"]
+    assert params["input_uris"] == ["lakehouse.silver.dim_opportunity"]
     assert params["output_table"] == "lakehouse.gold.kpi_pipeline_conversion"
-    assert _jsonb_value(params["output_uris"]) == [
+    assert params["output_uris"] == [
         "s3://fintech-lakehouse/gold/metric=pipeline_conversion/part-0.parquet"
     ]
     assert params["record_count"] == 7

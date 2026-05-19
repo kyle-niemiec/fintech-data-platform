@@ -6,13 +6,16 @@ matching Salesforce Opportunity event.
 
 from __future__ import annotations
 
-import json
-
 import pendulum
 from airflow import DAG
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.apache.kafka.sensors.kafka import AwaitMessageTriggerFunctionSensor
 
+from curated_dag_helpers import (
+    attach_trigger_metadata,
+    build_trigger_event,
+    parse_event_envelope,
+    trigger_dag,
+)
 from curated_specs import resolve_silver_spec
 from silver_curated.common import TOPICS_BRONZE_READY, default_args
 
@@ -21,19 +24,20 @@ def apply_bronze_event(message, **_):
     """
     Validate Kafka message and prepare TriggerDagRun payload.
     """
-    try:
-        envelope = json.loads(message.value())
-    except (TypeError, ValueError, json.JSONDecodeError):
+    envelope = parse_event_envelope(message)
+    if envelope is None:
         return None
 
     if envelope.get("event_type") not in TOPICS_BRONZE_READY:
         return None
 
     payload = envelope.get("payload") or {}
+
     if payload.get("stage") != "bronze":
         return None
 
     silver_spec = resolve_silver_spec(envelope)
+
     if silver_spec is None:
         return None
 
@@ -43,34 +47,20 @@ def apply_bronze_event(message, **_):
         return None
 
     trigger_run_id = f"silver_curated_promotion__{run_id}"
-    envelope["_trigger_topic"] = message.topic()
-    envelope["_trigger_partition"] = int(message.partition())
-    envelope["_trigger_offset"] = int(message.offset())
+    envelope = attach_trigger_metadata(envelope, message)
 
     envelope["_curated_silver_domain"] = silver_spec.domain
     envelope["_curated_silver_output_table"] = silver_spec.output_table
     envelope["_curated_silver_transform_id"] = silver_spec.transform_id
 
-    return {
-        "trigger_run_id": trigger_run_id,
-        "conf": envelope,
-    }
+    return build_trigger_event(trigger_run_id=trigger_run_id, conf=envelope)
 
 
 def trigger_promotion(event, **context):
     """
     Trigger silver_curated_promotion with the event conf.
     """
-    trigger = TriggerDagRunOperator(
-        task_id=f"trigger_{event['trigger_run_id']}",
-        trigger_dag_id="silver_curated_promotion",
-        trigger_run_id=event["trigger_run_id"],
-        conf=event["conf"],
-        reset_dag_run=False,
-        wait_for_completion=False,
-    )
-
-    trigger.execute(context)
+    trigger_dag(event, target_dag_id="silver_curated_promotion", context=context)
 
 
 """

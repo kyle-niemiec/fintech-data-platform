@@ -13,13 +13,13 @@ def record_checkpoint_and_emit_event(state: dict[str, str]) -> None:
     1. It records a checkpoint in the event store to mark the completion of the gold aggregation.
     2. It emits a "gold completed" event to notify downstream consumers of the completed aggregation.
     """
-    from libs.platform_events.envelope import (
+    from meridian.libs.redpanda_events.envelope import (
         Envelope,
         EventSource,
         PipelineClass,
         PipelineName,
     )
-    from libs.platform_events.event_store import PgEventStore
+    from meridian.libs.event_store import PgEventStore
 
     # Extract necessary information from the state to construct the event and checkpoint
     curated_run_id = UUID(state["curated_run_id"])
@@ -72,7 +72,7 @@ def record_checkpoint_and_emit_event(state: dict[str, str]) -> None:
 
     # Record the checkpoint in the event store and append the "gold completed" event to the event store.
     with open_event_store_conn() as conn:
-        with conn.transaction():
+        with conn.begin():
             # Append the checkpoint for the gold run
             PgEventStore.append_gold_checkpoint(
                 conn,

@@ -46,6 +46,15 @@ COMMON_FILE = (
     / "common.py"
 )
 
+SILVER_COMMON_FILE = (
+    Path(__file__).resolve().parents[1]
+    / "services"
+    / "pipeline-orchestrator"
+    / "dags"
+    / "silver_curated"
+    / "common.py"
+)
+
 RUN_AGGREGATION_SQL_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
@@ -66,6 +75,14 @@ RECORD_CHECKPOINT_FILE = (
     / "record_checkpoint_and_emit_event.py"
 )
 
+CURATED_HELPERS_FILE = (
+    Path(__file__).resolve().parents[1]
+    / "services"
+    / "pipeline-orchestrator"
+    / "dags"
+    / "curated_dag_helpers.py"
+)
+
 
 def test_dag_file_parses():
     ast.parse(LISTENER_FILE.read_text())
@@ -83,8 +100,10 @@ def test_dag_declares_listener_and_aggregation_dag_ids():
 
 
 def test_dag_subscribes_to_silver_completed():
-    source = LISTENER_FILE.read_text() + COMMON_FILE.read_text()
-    assert "pipeline.silver.completed.v1" in source
+    listener_source = LISTENER_FILE.read_text()
+    silver_common_source = SILVER_COMMON_FILE.read_text()
+    assert "TOPIC_SILVER_COMPLETED" in listener_source
+    assert "pipeline.silver.completed.v1" in silver_common_source
 
 
 def test_listener_filters_unmapped_silver_domains():
@@ -112,12 +131,13 @@ def test_dag_has_required_aggregation_tasks():
 
 def test_dag_imports_shared_libs():
     source = TASKS_FILE.read_text() + RECORD_CHECKPOINT_FILE.read_text()
-    assert "libs.platform_events" in source
+    assert "meridian.libs.redpanda_events" in source
+    assert "meridian.libs.event_store" in source
     assert "curated_specs" in source
 
 
 def test_dag_uses_curated_promotion_pipeline_name():
-    source = TASKS_FILE.read_text()
+    source = TASKS_FILE.read_text() + CURATED_HELPERS_FILE.read_text()
     assert "curated_promotion" in source
     assert "PipelineClass.curated" in source
 
@@ -130,7 +150,7 @@ def test_dag_records_gold_checkpoint():
 
 def test_dag_closes_run_on_failure():
     task_source = TASKS_FILE.read_text() + RECORD_CHECKPOINT_FILE.read_text()
-    dag_source = AGGREGATION_FILE.read_text()
+    dag_source = AGGREGATION_FILE.read_text() + CURATED_HELPERS_FILE.read_text()
     assert "close_run" in task_source
     assert 'status="failed"' in dag_source
     assert 'status="completed"' in task_source

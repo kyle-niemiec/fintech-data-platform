@@ -24,7 +24,8 @@ def test_dag_file_declares_required_tasks_and_dag_id():
 
 def test_task_module_imports_shared_libs_and_event_contracts():
     source = PULL_TASK_FILE.read_text()
-    assert "libs.platform_events" in source
+    assert "meridian.libs.redpanda_events" in source
+    assert "meridian.libs.event_store" in source
     assert "open_run" in source
     assert "append_event" in source
 

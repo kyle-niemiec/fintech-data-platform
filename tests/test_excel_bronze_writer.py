@@ -102,8 +102,12 @@ class _FakeConn:
     calls: list[_Call] = field(default_factory=list)
 
     @contextmanager
-    def transaction(self):
+    def begin(self):
         yield self
+
+    @contextmanager
+    def transaction(self):
+        yield from self.begin()
 
 
 def test_raw_uri_to_bronze_uri():

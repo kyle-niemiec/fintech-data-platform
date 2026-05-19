@@ -4,24 +4,24 @@
 - DAG runtime helpers are centralized in `services/pipeline-orchestrator/dags/dag_runtime.py`.
 - Shared helper coverage includes:
   - UTC timestamp creation
-  - SQLAlchemy-backed event-store connection setup (with psycopg-style `transaction()` compatibility)
-  - MinIO client creation
+  - SQLAlchemy-backed event-store connection setup via `meridian.libs.event_store.open_event_store_conn`
+  - MinIO client creation via `meridian.libs.minio_store.build_minio_client`
   - Redpanda producer creation
 
 ## Shared Worker Runtime Services
-- Worker runtime helpers are centralized in `platform/libs/platform_worker_runtime/runtime.py`.
+- Worker runtime helpers are centralized in `services/libs/service_runtime/runtime.py`.
 - Shared helper coverage includes:
   - Kafka consumer config construction (including SASL env mapping)
-  - SQLAlchemy-backed event-store engine/connection setup (with psycopg-style `transaction()` compatibility)
-  - MinIO client creation
   - Redpanda producer creation
+- Event-store engine/connection lifecycle helpers are centralized in `services/libs/event_store/runtime.py`.
+- MinIO client construction helpers are centralized in `services/libs/minio_store/minio_client.py`.
 
 ## Dev Compose Pathing Note
 - `infra/compose/dev/pgadmin.yaml` binds `servers.json` with long syntax and `bind.create_host_path: false` so missing path resolution fails fast instead of creating a directory.
 - In multi-file compose usage, relative bind paths must stay relative to the first `-f` compose file.
 
 ## Shared Worker Storage Adapter
-- Worker MinIO object store behavior is centralized in `platform/libs/platform_storage/minio_object_store.py`.
+- Worker MinIO object store behavior is centralized in `services/libs/minio_store/minio_object_store.py`.
 - Shared adapter coverage includes:
   - `s3://` URI parsing
   - URI-based read/write helpers

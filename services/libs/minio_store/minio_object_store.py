@@ -1,4 +1,6 @@
-"""Shared MinIO object store adapter used by workers."""
+"""
+Shared MinIO object store adapter used by workers.
+"""
 
 from __future__ import annotations
 
@@ -28,8 +30,8 @@ class MinioObjectStore:
     workers. This is not intended to be a full abstraction layer, just a shared
     helper for common patterns.
     """
-    
-    
+
+
     def __init__(self, client: "Minio"):
         """
         Initialize the MinioObjectStore with a MinIO client.

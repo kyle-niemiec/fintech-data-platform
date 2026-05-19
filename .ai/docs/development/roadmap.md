@@ -42,7 +42,7 @@ Legend:
 - [x] Debezium Server streams WAL changes to Redpanda and collapses `trading.*` tables onto canonical `cdc.oltp.raw.v1`.
 - [x] Fraud worker consumes raw CDC events, scores transactions with the demo continuous model, upserts `trading.risk_flag` idempotently via `(raw_topic, raw_partition, raw_offset)`, and emits `cdc.oltp.assessed.v1`.
 - [x] CDC bronze writer batches assessed events, writes zero-transformation Parquet to `bronze/source=cdc/...` with SSE-KMS, emits `cdc.oltp.bronze.ready.v1`, and records a `cdc_checkpoint` row per flush.
-- [x] Event-store DDL adds `event_store.cdc_checkpoint`; `append_cdc_checkpoint` helper is part of `platform_events.event_store`.
+- [x] Event-store DDL adds `event_store.cdc_checkpoint`; `append_cdc_checkpoint` helper is part of `event_store.PgEventStore`.
 - [x] Root UI runs view is generalized across pipelines with a multi-select pipeline pill filter and a Recent Transactions tab backed by `oltp_ui_reader`.
 
 ## Phase 5 - Salesforce Pipeline
@@ -62,7 +62,7 @@ Legend:
 - [x] `gold_curated_aggregation` consumes `pipeline.silver.completed.v1`, opens curated runs with `parent_run_id`, inserts KPI rows via Trino, records `event_store.gold_checkpoint`, emits `pipeline.gold.completed.v1`, and closes runs transactionally.
 - [x] Event-store has `silver_checkpoint`/`gold_checkpoint` tables and `append_silver_checkpoint`/`append_gold_checkpoint` helpers.
 - [x] Event-store runtime SQL is externalized into package resources and executed through SQLAlchemy Core while preserving `PgEventStore` API behavior.
-- [x] `platform_masking` deterministic HMAC-SHA256 library is implemented and used by silver curation.
+- [x] `masking` deterministic HMAC-SHA256 library is implemented and used by silver curation.
 - [x] Redpanda curated consumer-group ACL extensions and Airflow connection seeding are implemented.
 - [x] Follow-on silver entities: `dim_account`, `dim_loan`.
 - [x] Follow-on facts: `fact_loan_payment`, `fact_commission_adjustment`, `loan_status_history`.

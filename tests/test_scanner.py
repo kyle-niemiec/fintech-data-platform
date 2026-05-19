@@ -18,7 +18,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from libs.platform_events.envelope import Envelope
+from meridian.libs.redpanda_events.envelope import Envelope
 from workers.excel_scanner import scanner as scanner_mod
 from workers.excel_scanner.scanner import (
     DEFAULT_ALLOWED_CONTENT_TYPES,
@@ -125,8 +125,12 @@ class FakeConn:
     calls: list[RecordedCall] = field(default_factory=list)
 
     @contextmanager
-    def transaction(self):
+    def begin(self):
         yield self
+
+    @contextmanager
+    def transaction(self):
+        yield from self.begin()
 
 
 @pytest.fixture

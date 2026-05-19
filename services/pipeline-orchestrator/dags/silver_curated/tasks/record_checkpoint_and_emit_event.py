@@ -14,13 +14,13 @@ def record_checkpoint_and_emit_event(state: dict[str, Any]) -> None:
     1. It records a checkpoint in the event store to mark the completion of the silver promotion.
     2. It emits a "silver completed" event to notify downstream consumers of the completed promotion.
     """
-    from libs.platform_events.envelope import (
+    from meridian.libs.redpanda_events.envelope import (
         Envelope,
         EventSource,
         PipelineClass,
         PipelineName,
     )
-    from libs.platform_events.event_store import PgEventStore
+    from meridian.libs.event_store import PgEventStore
 
     # Extract necessary information from the state to construct the event and checkpoint
     curated_run_id = UUID(state["curated_run_id"])
@@ -73,7 +73,7 @@ def record_checkpoint_and_emit_event(state: dict[str, Any]) -> None:
 
     # Persist the checkpoint and emitted event in the event store within a transaction
     with open_event_store_conn() as conn:
-        with conn.transaction():
+        with conn.begin():
             # Append the silver checkpoint to the event store with details about the completed promotion.
             PgEventStore.append_silver_checkpoint(
                 conn,

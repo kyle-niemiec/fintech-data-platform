@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-import json
-
 import pendulum
 from airflow import DAG
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.apache.kafka.sensors.kafka import AwaitMessageTriggerFunctionSensor
 
+from curated_dag_helpers import (
+    attach_trigger_metadata,
+    build_trigger_event,
+    parse_event_envelope,
+    trigger_dag,
+)
 from curated_specs import resolve_gold_metric
 from gold_curated.common import default_args
 from silver_curated.common import TOPIC_SILVER_COMPLETED
@@ -19,13 +22,10 @@ def apply_silver_event(message, **_):
     This function is applied to messages received from the RedPanda topic that
     signals the completion of silver pipeline runs. It inspects the message
     to determine if it corresponds to a completed silver run that should trigger
-    a gold curated aggregation run. If so, it extracts the necessary metadata
-    from the message and returns a dictionary that can be used to trigger the
-    `gold_curated_aggregation` DAG with the appropriate configuration.
+    a gold curated aggregation run.
     """
-    try:
-        envelope = json.loads(message.value())
-    except (TypeError, ValueError, json.JSONDecodeError):
+    envelope = parse_event_envelope(message)
+    if envelope is None:
         return None
 
     # Look for the event type and the run ID of the completed silver run in the message envelope.
@@ -44,14 +44,9 @@ def apply_silver_event(message, **_):
         return None
 
     trigger_run_id = f"gold_curated_aggregation__{silver_run_id}"
-    envelope["_trigger_topic"] = message.topic()
-    envelope["_trigger_partition"] = int(message.partition())
-    envelope["_trigger_offset"] = int(message.offset())
+    envelope = attach_trigger_metadata(envelope, message)
 
-    return {
-        "trigger_run_id": trigger_run_id,
-        "conf": envelope,
-    }
+    return build_trigger_event(trigger_run_id=trigger_run_id, conf=envelope)
 
 
 def trigger_aggregation(event, **context):
@@ -60,15 +55,7 @@ def trigger_aggregation(event, **context):
     silver-completed event. It uses the metadata from the message to trigger a
     new run of the `gold_curated_aggregation` DAG.
     """
-    trigger = TriggerDagRunOperator(
-        task_id=f"trigger_{event['trigger_run_id']}",
-        trigger_dag_id="gold_curated_aggregation",
-        trigger_run_id=event["trigger_run_id"],
-        conf=event["conf"],
-        reset_dag_run=False,
-        wait_for_completion=False,
-    )
-    trigger.execute(context)
+    trigger_dag(event, target_dag_id="gold_curated_aggregation", context=context)
 
 """
 This DAG defines a long-running RedPanda listener that waits for messages indicating

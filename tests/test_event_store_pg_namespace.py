@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
-from libs.platform_events.event_store import PgEventStore
+from meridian.libs.redpanda_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
+from meridian.libs.event_store import PgEventStore
 
 
 @dataclass

@@ -3,7 +3,7 @@
 The Airflow DAG calls these helpers. Keeping them outside `airflow/` lets
 unit tests run without the Airflow runtime. A schema contract is a small
 JSON file declaring required columns and their expected pandas dtypes;
-contracts live under platform/libs/platform_events/excel_schemas/.
+contracts live under services/libs/event_schemas/.
 """
 
 from __future__ import annotations
@@ -56,31 +56,43 @@ class ValidationResult:
 
 
 def load_contract(path: Path) -> SchemaContract:
+    """
+    Load a schema contract from a JSON file.
+    """
     return SchemaContract.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
 
 def load_workbook(source: BinaryIO | bytes, *, sheet_name: Optional[str] = None) -> pd.DataFrame:
-    """Read an xlsx into a DataFrame. Accepts a byte stream or raw bytes."""
+    """
+    Read an xlsx into a DataFrame. Accepts a byte stream or raw bytes.
+    """
     if isinstance(source, (bytes, bytearray)):
         import io
-
         source = io.BytesIO(source)
+
     return pd.read_excel(source, sheet_name=sheet_name or 0, engine="openpyxl")
 
 
 def validate_dataframe(df: pd.DataFrame, contract: SchemaContract) -> ValidationResult:
+    """
+    Validate a DataFrame against a schema contract, returning a ValidationResult.
+    """
     errors: list[ValidationError] = []
 
+    # Check for missing required columns.
     for col in contract.required_columns:
         if col not in df.columns:
             errors.append(
                 ValidationError(kind="missing_column", column=col, detail="column absent")
             )
 
+    # Check for column type mismatches.
     for col, expected_dtype in contract.column_types.items():
         if col not in df.columns:
             continue
+
         actual = str(df[col].dtype)
+
         if not _dtype_matches(actual, expected_dtype):
             errors.append(
                 ValidationError(
@@ -90,10 +102,13 @@ def validate_dataframe(df: pd.DataFrame, contract: SchemaContract) -> Validation
                 )
             )
 
+    # Check for nulls in columns that disallow them.
     for col in contract.disallow_null_columns:
         if col not in df.columns:
             continue
+
         null_count = int(df[col].isna().sum())
+
         if null_count > 0:
             errors.append(
                 ValidationError(
@@ -112,7 +127,8 @@ _FLOAT_DTYPES = {"float16", "float32", "float64"}
 
 
 def _dtype_matches(actual: str, expected: str) -> bool:
-    """Dtype compare tuned for the round-trip through Excel.
+    """
+    Dtype compare tuned for the round-trip through Excel.
 
     Excel has no distinction between int and float, so whole-number floats
     may read back as int; we accept either for numeric contracts. Pandas

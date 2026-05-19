@@ -16,18 +16,12 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from confluent_kafka import Consumer, KafkaException
-import psycopg
 
-from libs.platform_events.event_store import PgEventStore
-from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
-from libs.platform_events.producer import EventProducer
-from libs.platform_storage import MinioObjectStore
-from libs.platform_worker_runtime import (
-    build_consumer_config,
-    build_event_producer,
-    build_event_store_conn,
-    build_minio_client,
-)
+from meridian.libs.event_store import ManagedConnection, PgEventStore, build_event_store_conn
+from meridian.libs.minio_store import MinioObjectStore, build_minio_client
+from meridian.libs.redpanda_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
+from meridian.libs.redpanda_events.producer import EventProducer
+from meridian.libs.service_runtime import build_consumer_config, build_event_producer
 
 from .writer import (
     AssessedRecord,
@@ -59,7 +53,7 @@ def _consumer_config() -> dict[str, str]:
     )
 
 
-def _build() -> tuple[CdcBronzeWriter, Consumer, EventProducer, psycopg.Connection]:
+def _build() -> tuple[CdcBronzeWriter, Consumer, EventProducer, ManagedConnection]:
     """
     Build the components required for the CDC bronze writer.
     """
@@ -93,13 +87,13 @@ def _build() -> tuple[CdcBronzeWriter, Consumer, EventProducer, psycopg.Connecti
 
 
 def _prepare_batch_run(
-    conn: psycopg.Connection,
+    conn: ManagedConnection,
     prepared: PreparedBatch,
 ) -> tuple[UUID, Envelope]:
     """
     Persist parent pipeline_run + internal prepared event before Kafka publish.
     """
-    with conn.transaction():
+    with conn.begin():
         run_id = PgEventStore.open_run(
             conn,
             run_id=prepared.run_id,
@@ -144,7 +138,7 @@ def _prepare_batch_run(
 
 
 def _finalize_published_batch(
-    conn: psycopg.Connection,
+    conn: ManagedConnection,
     *,
     prepared: PreparedBatch,
     run_id: UUID,
@@ -155,7 +149,7 @@ def _finalize_published_batch(
     """
     Persist published `cdc.oltp.bronze.ready.v1` event + checkpoint and close run completed.
     """
-    with conn.transaction():
+    with conn.begin():
         PgEventStore.append_event(
             conn,
             ready_envelope,
@@ -180,7 +174,7 @@ def _finalize_published_batch(
 
 
 def _mark_batch_failed(
-    conn: psycopg.Connection,
+    conn: ManagedConnection,
     *,
     run_id: UUID,
     prepared: PreparedBatch,
@@ -189,7 +183,7 @@ def _mark_batch_failed(
     """
     Record explicit failure mode for publish/finalize errors.
     """
-    with conn.transaction():
+    with conn.begin():
         PgEventStore.raise_alert(
             conn,
             run_id=run_id,

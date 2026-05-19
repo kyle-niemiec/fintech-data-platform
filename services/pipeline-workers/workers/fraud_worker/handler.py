@@ -1,4 +1,5 @@
-"""Fraud worker handler: Debezium raw -> risk_flag + assessed envelope.
+"""
+Fraud worker handler: Debezium raw -> risk_flag + assessed envelope.
 
 Failure ordering is deliberate:
     1. OLTP `risk_flag` upsert (idempotent via unique(raw_topic, raw_partition, raw_offset))
@@ -20,11 +21,10 @@ import logging
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
-import psycopg
-from psycopg.types.json import Jsonb
+from sqlalchemy import text
 
-from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
-from libs.platform_events.event_store import PgEventStore
+from meridian.libs.redpanda_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
+from meridian.libs.event_store import ManagedConnection, PgEventStore
 
 from .scorer import RiskAssessment, score_transaction
 
@@ -43,7 +43,9 @@ class EventEmitter(Protocol):
 
 @dataclass
 class RawMessage:
-    """What the handler needs from a Debezium raw record."""
+    """
+    What the handler needs from a Debezium raw record.
+    """
     topic: str
     partition: int
     offset: int
@@ -52,29 +54,34 @@ class RawMessage:
 
 
 def _extract_debezium_fields(value: dict[str, Any]) -> dict[str, Any]:
-    """Pull the `payload` body from a Debezium envelope.
+    """
+    Pull the `payload` body from a Debezium envelope.
 
     Debezium Postgres emits `{schema, payload}`; with JSON schema stripping it
     may also emit just the payload. Handle both.
     """
     if "payload" in value and isinstance(value["payload"], dict):
         return value["payload"]
+
     return value
 
 
 def parse_raw(raw: RawMessage) -> dict[str, Any] | None:
-    """Return the parsed row dict (from `after`, or `before` on delete).
+    """
+    Return the parsed row dict (from `after`, or `before` on delete).
 
     Returns None if the envelope is not a known transaction change (e.g. a
     tombstone or a change against a table other than trading.transaction).
     """
     payload = _extract_debezium_fields(raw.value)
     op = payload.get("op")
+
     if op not in ("c", "u", "r", "d"):
         return None
 
     source = payload.get("source") or {}
     source_table = f"{source.get('schema', '')}.{source.get('table', '')}"
+
     if source_table not in (
         "trading.transaction",
         "trading.loan",
@@ -87,6 +94,7 @@ def parse_raw(raw: RawMessage) -> dict[str, Any] | None:
     after = payload.get("after")
     before = payload.get("before")
     row = after if op != "d" else before
+
     if not isinstance(row, dict):
         return None
 
@@ -100,49 +108,77 @@ def parse_raw(raw: RawMessage) -> dict[str, Any] | None:
 
 
 def _upsert_risk_flag(
-    oltp_conn: psycopg.Connection,
+    oltp_conn: ManagedConnection,
     *,
     transaction_id: str,
     event_id: UUID,
     assessment: RiskAssessment,
     raw: RawMessage,
 ) -> bool:
-    """Insert risk_flag row. Returns True if inserted, False if replay dedupe."""
-    with oltp_conn.cursor() as cur:
-        cur.execute(
+    """
+    Insert risk_flag row. Returns True if inserted, False if replay dedupe.
+    """
+    # TECH-DEBT: SQL statements should be in separate files
+    row = oltp_conn.execute(
+        text(
             """
             INSERT INTO trading.risk_flag (
                 transaction_id, event_id, fraud_rule_version,
                 risk_score, risk_flags,
                 raw_topic, raw_partition, raw_offset
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (
+                :transaction_id,
+                :event_id,
+                :fraud_rule_version,
+                :risk_score,
+                CAST(:risk_flags AS jsonb),
+                :raw_topic,
+                :raw_partition,
+                :raw_offset
+            )
             ON CONFLICT (raw_topic, raw_partition, raw_offset) DO NOTHING
             RETURNING risk_flag_id
-            """,
-            (
-                transaction_id,
-                str(event_id),
-                FRAUD_RULE_LABEL,
-                assessment.risk_score,
-                Jsonb(assessment.risk_flags),
-                raw.topic,
-                raw.partition,
-                raw.offset,
-            ),
-        )
-        return cur.fetchone() is not None
+            """
+        ),
+        {
+            "transaction_id": transaction_id,
+            "event_id": str(event_id),
+            "fraud_rule_version": FRAUD_RULE_LABEL,
+            "risk_score": assessment.risk_score,
+            "risk_flags": json.dumps(assessment.risk_flags, separators=(",", ":")),
+            "raw_topic": raw.topic,
+            "raw_partition": raw.partition,
+            "raw_offset": raw.offset,
+        },
+    ).fetchone()
+
+    return row is not None
 
 
 @dataclass
 class FraudHandler:
-    oltp_conn: psycopg.Connection
-    event_store_conn: psycopg.Connection
+    """
+    Handler for Debezium raw messages. Responsibilities:
+    1. Parse raw message and skip if not a transaction-related change.
+    2. Score transaction changes; assign default assessment for non-transaction changes.
+    3. Idempotently upsert risk_flag for transaction changes.
+    4. Emit assessed event to Kafka with risk assessment and metadata.
+    5. Log event in event-store with dedupe key (topic+partition+offset) to prevent duplicate emits on replay.
+    """
+    oltp_conn: ManagedConnection
+    event_store_conn: ManagedConnection
     producer: EventEmitter
 
+
     def handle(self, raw: RawMessage) -> bool:
-        """Returns True if a new assessed event was emitted (i.e. not a skip)."""
+        """
+        Returns True if a new assessed event was emitted (i.e. not a skip).
+
+        TECH-DEBT: This method is doing a lot; consider splitting into smaller methods or functions.
+        """
         parsed = parse_raw(raw)
+
         if parsed is None:
             return False
 
@@ -150,6 +186,7 @@ class FraudHandler:
         transaction_id = str(row.get("transaction_id"))
         source_table = str(parsed["source_table"])
         business_key = transaction_id
+
         if source_table == "trading.loan":
             business_key = str(row.get("loan_id"))
         elif source_table == "trading.loan_payment":
@@ -162,6 +199,7 @@ class FraudHandler:
                 "skip raw without business key topic=%s partition=%s offset=%s",
                 raw.topic, raw.partition, raw.offset,
             )
+
             return False
 
         assessment = score_transaction(row) if source_table == "trading.transaction" else RiskAssessment(risk_score=0, risk_flags=[])
@@ -173,23 +211,24 @@ class FraudHandler:
         if source_table == "trading.transaction":
             # Idempotent OLTP write first; replays no-op here.
             try:
-                self.oltp_conn.autocommit = True
-                _upsert_risk_flag(
-                    self.oltp_conn,
-                    transaction_id=transaction_id,
-                    event_id=event_id,
-                    assessment=assessment,
-                    raw=raw,
-                )
+                with self.oltp_conn.begin():
+                    _upsert_risk_flag(
+                        self.oltp_conn,
+                        transaction_id=transaction_id,
+                        event_id=event_id,
+                        assessment=assessment,
+                        raw=raw,
+                    )
             except Exception:
                 logger.exception(
                     "risk_flag upsert failed topic=%s partition=%s offset=%s",
                     raw.topic, raw.partition, raw.offset,
                 )
+
                 raise
 
         # Open/append/close run on event-store in one transaction.
-        try:
+        with self.event_store_conn.begin():
             effective_run_id = PgEventStore.open_run(
                 self.event_store_conn,
                 run_id=run_id,
@@ -200,9 +239,6 @@ class FraudHandler:
                 trigger_event_ref=trigger_event_ref,
                 initiator=INITIATOR,
             )
-        except Exception:
-            self.event_store_conn.rollback()
-            raise
 
         envelope = Envelope.build(
             event_id=event_id,
@@ -247,7 +283,7 @@ class FraudHandler:
                 TOPIC_ASSESSED, envelope, key=f"{parsed['source_table']}:{business_key}"
             )
         except Exception:
-            try:
+            with self.event_store_conn.begin():
                 PgEventStore.raise_alert(
                     self.event_store_conn,
                     run_id=effective_run_id,
@@ -258,12 +294,9 @@ class FraudHandler:
                     occurred_at=datetime.now(timezone.utc),
                 )
                 PgEventStore.close_run(self.event_store_conn, effective_run_id, status="failed")
-                self.event_store_conn.commit()
-            except Exception:
-                self.event_store_conn.rollback()
             raise
 
-        try:
+        with self.event_store_conn.begin():
             PgEventStore.append_event(
                 self.event_store_conn,
                 envelope,
@@ -271,11 +304,8 @@ class FraudHandler:
                 partition=partition,
                 kafka_offset=offset,
             )
+
             PgEventStore.close_run(self.event_store_conn, effective_run_id, status="completed")
-            self.event_store_conn.commit()
-        except Exception:
-            self.event_store_conn.rollback()
-            raise
 
         return True
 

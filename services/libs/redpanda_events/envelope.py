@@ -44,7 +44,9 @@ _HASH_PREFIX = "sha256-"
 
 
 def canonical_payload_hash(payload: dict[str, Any]) -> str:
-    """Deterministic sha256 of payload. Stable across dict ordering."""
+    """
+    Deterministic sha256 of payload. Stable across dict ordering.
+    """
     canonical = json.dumps(
         payload,
         sort_keys=True,
@@ -52,19 +54,28 @@ def canonical_payload_hash(payload: dict[str, Any]) -> str:
         ensure_ascii=False,
         default=_json_default,
     )
+
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     return f"{_HASH_PREFIX}{digest}"
 
 
 def _json_default(value: Any) -> Any:
+    """
+    JSON serializer for non-standard types in payloads. Must be deterministic.
+    """
     if isinstance(value, datetime):
         return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
     if isinstance(value, UUID):
         return str(value)
+
     raise TypeError(f"Unserializable value for payload hashing: {type(value).__name__}")
 
 
 class Envelope(BaseModel):
+    """
+    Envelope model for all Redpanda platform events.
+    """
     model_config = ConfigDict(extra="forbid", use_enum_values=True)
 
     event_id: UUID = Field(default_factory=uuid4)
@@ -81,26 +92,44 @@ class Envelope(BaseModel):
     payload_hash: str
     payload: dict[str, Any]
 
+
     @field_validator("occurred_at")
     @classmethod
     def _require_tz(cls, value: datetime) -> datetime:
+        """
+        Validate that occurred_at is timezone-aware (UTC expected). Convert to
+        UTC if needed.
+        """
         if value.tzinfo is None:
             raise ValueError("occurred_at must be timezone-aware (UTC expected)")
+
         return value.astimezone(timezone.utc)
+
 
     @field_validator("trigger_event_ref")
     @classmethod
     def _non_empty_ref(cls, value: str) -> str:
+        """
+        Validate that trigger_event_ref is non-empty. We allow arbitrary strings
+        here, but empty would be unhelpful.
+        """
         if not value.strip():
             raise ValueError("trigger_event_ref must not be empty")
+
         return value
+
 
     @field_validator("payload_hash")
     @classmethod
     def _well_formed_hash(cls, value: str) -> str:
+        """
+        Validate that payload_hash is well-formed (sha256-<64 hex chars>).
+        """
         if not value.startswith(_HASH_PREFIX) or len(value) != len(_HASH_PREFIX) + 64:
             raise ValueError("payload_hash must be sha256-<64 hex chars>")
+
         return value
+
 
     @classmethod
     def build(
@@ -118,6 +147,10 @@ class Envelope(BaseModel):
         occurred_at: Optional[datetime] = None,
         event_id: Optional[UUID] = None,
     ) -> "Envelope":
+        """
+        Build an Envelope, computing event_id, occurred_at, and payload_hash if
+        not provided.
+        """
         return cls(
             event_id=event_id or uuid4(),
             event_type=event_type,
@@ -134,4 +167,8 @@ class Envelope(BaseModel):
         )
 
     def to_wire(self) -> bytes:
+        """
+        Serialize the envelope to bytes for writing to Redpanda. The payload is
+        included in the JSON, but the hash is pre-computed and must be correct.
+        """
         return self.model_dump_json(by_alias=False).encode("utf-8")

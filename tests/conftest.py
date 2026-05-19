@@ -1,6 +1,6 @@
 """Shared pytest fixtures.
 
-Adds service/platform roots to sys.path so tests can import `app`, `workers`,
+Adds service roots to sys.path so tests can import `app`, `workers`,
 and `libs` without requiring editable installs. Integration-tier fixtures (redpanda,
 minio, event-store) are added in later slices under the `integration` marker.
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PYTHONPATH_ROOTS = (
-    _REPO_ROOT / "platform",
+    _REPO_ROOT / "services",
     _REPO_ROOT / "services" / "pipeline-workers",
     _REPO_ROOT / "services" / "ui-api",
     _REPO_ROOT / "services" / "pipeline-orchestrator" / "dags",

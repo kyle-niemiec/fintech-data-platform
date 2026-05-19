@@ -1,4 +1,5 @@
-"""Entrypoint wiring: Redpanda consumer -> ExcelScanner -> Redpanda + event-store.
+"""
+Entrypoint wiring: Redpanda consumer -> ExcelScanner -> Redpanda + event-store.
 
 Consumes MinIO S3 notifications from `ingest.excel.uploaded.v1` and dispatches
 each record to the scanner. Offsets are committed only after the scanner has
@@ -16,18 +17,13 @@ from contextlib import closing
 from typing import Any
 
 import clamd  # type: ignore[import-untyped]
-import psycopg
 from confluent_kafka import Consumer, KafkaException
 
-from libs.platform_events.envelope import Envelope
-from libs.platform_events.producer import EventProducer
-from libs.platform_storage import MinioObjectStore
-from libs.platform_worker_runtime import (
-    build_consumer_config,
-    build_event_producer,
-    build_event_store_conn,
-    build_minio_client,
-)
+from meridian.libs.event_store import ManagedConnection, build_event_store_conn
+from meridian.libs.minio_store import MinioObjectStore, build_minio_client
+from meridian.libs.redpanda_events.envelope import Envelope
+from meridian.libs.redpanda_events.producer import EventProducer
+from meridian.libs.service_runtime import build_consumer_config, build_event_producer
 
 from .scanner import (
     DEFAULT_ALLOWED_CONTENT_TYPES,
@@ -42,14 +38,25 @@ CONSUMER_GROUP = "excel-scanner-v1"
 
 
 class ProducerAdapter:
+    """
+    Adapter to allow ExcelScanner to produce events without depending directly on
+    the EventProducer interface, which allows for easier testing.
+    """
+
+
     def __init__(self, producer: EventProducer):
         self._producer = producer
+
 
     def produce(self, topic: str, envelope: Envelope, *, key: str) -> tuple[int, int]:
         return self._producer.produce(topic, envelope, key=key)
 
 
-def build_scanner() -> tuple[ExcelScanner, psycopg.Connection, EventProducer, Consumer]:
+def build_scanner() -> tuple[ExcelScanner, ManagedConnection, EventProducer, Consumer]:
+    """
+    Build the ExcelScanner, along with its dependencies (RedPanda consumer and
+    event producer, Minio client, and event store connection).
+    """
     minio_client = build_minio_client(
         access_key_var="MINIO_INGEST_USER",
         secret_key_var="MINIO_INGEST_SECRET",
@@ -59,6 +66,7 @@ def build_scanner() -> tuple[ExcelScanner, psycopg.Connection, EventProducer, Co
         host=os.environ["CLAMAV_HOST"],
         port=int(os.environ.get("CLAMAV_PORT", "3310")),
     )
+
     scan_version = clamd_client.version()
 
     db = build_event_store_conn()
@@ -77,6 +85,7 @@ def build_scanner() -> tuple[ExcelScanner, psycopg.Connection, EventProducer, Co
             password_var="REDPANDA_EXCEL_SCANNER_PASSWORD",
         )
     )
+
     consumer.subscribe([TOPIC_UPLOADED])
 
     scanner = ExcelScanner(
@@ -90,10 +99,16 @@ def build_scanner() -> tuple[ExcelScanner, psycopg.Connection, EventProducer, Co
             scan_engine_version=scan_version,
         ),
     )
+
     return scanner, db, producer, consumer
 
 
 def run() -> None:
+    """
+    Main run loop for the ExcelScanner worker. Polls for messages from Redpanda,
+    processes them with the ExcelScanner, and commits offsets only after successful
+    processing.
+    """
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 
     scanner, db, producer, consumer = build_scanner()
@@ -109,8 +124,10 @@ def run() -> None:
     with closing(db), closing(consumer):
         while not shutdown["stop"]:
             msg = consumer.poll(1.0)
+
             if msg is None:
                 continue
+
             if msg.error():
                 raise KafkaException(msg.error())
 
@@ -122,6 +139,7 @@ def run() -> None:
                 continue
 
             records = notification.get("Records") or []
+
             for record in records:
                 try:
                     scanner.handle_record(
@@ -137,7 +155,9 @@ def run() -> None:
                         msg.partition(),
                         msg.offset(),
                     )
+
                     raise
+
             consumer.commit(message=msg, asynchronous=False)
 
         producer.close()

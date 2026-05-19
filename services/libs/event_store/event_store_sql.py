@@ -12,7 +12,7 @@ from typing import Mapping
 from sqlalchemy import text
 from sqlalchemy.sql.elements import TextClause
 
-SQL_PACKAGE = "libs.platform_events.sql.event_store"
+SQL_PACKAGE = "meridian.libs.event_store.sql.event_store"
 BIND_PARAM_PATTERN = re.compile(r"(?<!:):([a-zA-Z_][a-zA-Z0-9_]*)")
 
 # Mapping of statement names to their corresponding SQL file names within the package.

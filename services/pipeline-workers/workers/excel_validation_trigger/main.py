@@ -1,4 +1,6 @@
-"""Kafka consumer that triggers the Airflow excel_validation DAG."""
+"""
+Kafka consumer that triggers the Airflow excel_validation DAG.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +12,7 @@ import sys
 
 from confluent_kafka import Consumer, KafkaException
 import requests
-from libs.platform_worker_runtime import build_consumer_config
+from meridian.libs.service_runtime import build_consumer_config
 
 from .trigger import build_dag_run_id, build_dag_run_payload, trigger_dag_run
 
@@ -22,6 +24,9 @@ DAG_ID = "excel_validation"
 
 
 def _consumer_config() -> dict[str, str]:
+    """
+    Build the configuration for the Redpanda consumer, including credentials from environment variables.
+    """
     return build_consumer_config(
         consumer_group=CONSUMER_GROUP,
         client_id="excel-validation-trigger-consumer",
@@ -31,6 +36,9 @@ def _consumer_config() -> dict[str, str]:
 
 
 def run() -> None:
+    """
+    Main loop for the consumer. Polls for messages and triggers Airflow DAG runs accordingly.
+    """
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
     airflow_base_url = os.environ.get("AIRFLOW_BASE_URL", "http://airflow_webserver:8080")
     airflow_user = os.environ["AIRFLOW_API_USER"]
@@ -53,12 +61,16 @@ def run() -> None:
 
     try:
         while not shutdown["stop"]:
+            # Poll for messages
             msg = consumer.poll(1.0)
+
             if msg is None:
                 continue
+
             if msg.error():
                 raise KafkaException(msg.error())
 
+            # Process the message and build the envelope
             try:
                 envelope = json.loads(msg.value())
                 conf = build_dag_run_payload(envelope)
@@ -70,9 +82,11 @@ def run() -> None:
                     msg.offset(),
                     exc,
                 )
+
                 consumer.commit(message=msg, asynchronous=False)
                 continue
 
+            # Trigger the Airflow DAG
             try:
                 trigger_dag_run(
                     session=session,
@@ -92,6 +106,8 @@ def run() -> None:
                 continue
 
             consumer.commit(message=msg, asynchronous=False)
+
+            # Log the successful trigger
             logger.info(
                 "dag_triggered dag_id=%s dag_run_id=%s run_id=%s topic=%s partition=%s offset=%s",
                 DAG_ID,

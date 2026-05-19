@@ -10,7 +10,7 @@ def validate(downloaded: dict[str, Any]) -> dict[str, Any]:
     Validate the downloaded Excel payload against the specified contract and
     return the validation results along with the original downloaded metadata.
     """
-    from libs.excel_validation import load_contract, load_workbook, validate_dataframe
+    from meridian.libs.excel_validation import load_contract, load_workbook, validate_dataframe
 
     contract = load_contract(CONTRACTS_ROOT / f"{downloaded['schema_contract_id']}.json")
     payload = _b64_decode(downloaded["_payload_b64"])

@@ -70,10 +70,10 @@ def _latest_cursor(sobject: str) -> Optional[datetime]:
     """
     Query the event store for the latest cursor timestamp for the given SObject.
     """
-    from libs.platform_events.event_store import PgEventStore
+    from meridian.libs.event_store import PgEventStore
 
     with open_event_store_conn() as conn:
-        with conn.transaction():
+        with conn.begin():
             result = PgEventStore.latest_sf_cursor(conn, sobject=sobject)
 
     if result is None:

@@ -1,4 +1,6 @@
-"""Entrypoint for Excel bronze writer worker."""
+"""
+Entrypoint for Excel bronze writer worker.
+"""
 
 from __future__ import annotations
 
@@ -10,14 +12,10 @@ import sys
 
 from confluent_kafka import Consumer, KafkaException
 
-from libs.platform_events.producer import EventProducer
-from libs.platform_storage import MinioObjectStore
-from libs.platform_worker_runtime import (
-    build_consumer_config,
-    build_event_producer,
-    build_event_store_conn,
-    build_minio_client,
-)
+from meridian.libs.event_store import build_event_store_conn
+from meridian.libs.minio_store import MinioObjectStore, build_minio_client
+from meridian.libs.redpanda_events.producer import EventProducer
+from meridian.libs.service_runtime import build_consumer_config, build_event_producer
 
 from .writer import ExcelBronzeWriter, PandasParquetConverter, TOPIC_RAW_READY
 
@@ -27,6 +25,10 @@ CONSUMER_GROUP = "excel-bronze-writer-v1"
 
 
 def _consumer_config() -> dict[str, str]:
+    """
+    Build the RedPanda consumer config for the Excel bronze writer, using credentials
+    from env vars.
+    """
     return build_consumer_config(
         consumer_group=CONSUMER_GROUP,
         client_id="excel-bronze-writer-consumer",
@@ -36,16 +38,23 @@ def _consumer_config() -> dict[str, str]:
 
 
 def build_writer() -> tuple[ExcelBronzeWriter, Consumer, EventProducer]:
+    """
+    Build the ExcelBronzeWriter, along with its dependencies (RedPanda consumer and
+    event producer, Minio client, and event store connection).
+    """
     minio_client = build_minio_client(
         access_key_var="MINIO_TRANSFORM_USER",
         secret_key_var="MINIO_TRANSFORM_SECRET",
     )
+
     db = build_event_store_conn()
+
     producer = build_event_producer(
         client_id="excel-bronze-writer",
         username_var="REDPANDA_EXCEL_BRONZE_USER",
         password_var="REDPANDA_EXCEL_BRONZE_PASSWORD",
     )
+
     writer = ExcelBronzeWriter(
         store=MinioObjectStore(minio_client),
         converter=PandasParquetConverter(),
@@ -53,12 +62,18 @@ def build_writer() -> tuple[ExcelBronzeWriter, Consumer, EventProducer]:
         db=db,
         kms_key_id=os.environ["MINIO_KMS_KEY_ID"],
     )
+
     consumer = Consumer(_consumer_config())
     consumer.subscribe([TOPIC_RAW_READY])
     return writer, consumer, producer
 
 
 def run() -> None:
+    """
+    Main run loop for the Excel bronze writer. Polls for messages from the Redpanda
+    topic that signals when raw data is ready, and attempts to process each message with
+    the ExcelBronzeWriter.
+    """
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
     writer, consumer, producer = build_writer()
     shutdown = {"stop": False}
@@ -70,14 +85,18 @@ def run() -> None:
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
 
+    # The worker will keep running until it receives a shutdown signal.
     try:
         while not shutdown["stop"]:
             msg = consumer.poll(1.0)
+
             if msg is None:
                 continue
+
             if msg.error():
                 raise KafkaException(msg.error())
 
+            # Load the message value as JSON, and log and skip if it's not valid JSON.
             try:
                 envelope = json.loads(msg.value())
             except json.JSONDecodeError as exc:
@@ -85,6 +104,7 @@ def run() -> None:
                 consumer.commit(message=msg, asynchronous=False)
                 continue
 
+            # Process the message with the ExcelBronzeWriter, and log any exceptions.
             try:
                 handled = writer.handle_raw_ready(envelope)
             except Exception:
@@ -94,8 +114,10 @@ def run() -> None:
                     msg.partition(),
                     msg.offset(),
                 )
+
                 continue
 
+            # If the message was processed successfully, commit the offset.
             if handled:
                 logger.info(
                     "bronze_ready_emitted run_id=%s topic=%s partition=%s offset=%s",
@@ -109,6 +131,7 @@ def run() -> None:
                     "bronze write failed but run closed as failed run_id=%s",
                     envelope.get("run_id"),
                 )
+
             consumer.commit(message=msg, asynchronous=False)
     finally:
         try:

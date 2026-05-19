@@ -1,7 +1,8 @@
-"""Generate a valid payroll .xlsx in-memory for demo uploads.
+"""
+Generate a valid payroll .xlsx in-memory for demo uploads.
 
 Output conforms to the payroll_v1 schema contract:
-    platform/libs/platform_events/excel_schemas/payroll_v1.json
+    services/libs/event_schemas/payroll_v1.json
 """
 
 from __future__ import annotations
@@ -17,12 +18,18 @@ CURRENCIES = ("USD", "EUR", "GBP")
 
 
 def _random_period_end(rng: random.Random, now: datetime) -> datetime:
+    """
+    Return a random date within the last 180 days.
+    """
     days_back = rng.randint(0, 180)
     d = (now - timedelta(days=days_back)).date()
     return datetime(d.year, d.month, d.day)
 
 
 def build_payroll_frame(rows: int, seed: int | None = None) -> pd.DataFrame:
+    """
+    Build a DataFrame with synthetic payroll data.
+    """
     rng = random.Random(seed)
     now = datetime.now(timezone.utc)
 
@@ -44,18 +51,26 @@ def build_payroll_frame(rows: int, seed: int | None = None) -> pd.DataFrame:
 
 
 def generate_payroll_xlsx(rows: int, seed: int | None = None) -> tuple[bytes, int]:
-    """Return (xlsx_bytes, row_count). Caller clamps `rows`."""
+    """
+    Return (xlsx_bytes, row_count). Caller clamps `rows`.
+    """
     frame = build_payroll_frame(rows, seed=seed)
     buffer = io.BytesIO()
+
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         frame.to_excel(writer, sheet_name=SHEET_NAME, index=False)
+
     return buffer.getvalue(), len(frame)
 
 
+# TECH-DEBT: random variable?
 COMMISSION_SHEET_NAME = "commission_adjustments"
 
 
 def build_commission_adjustment_frame(rows: int, seed: int | None = None) -> pd.DataFrame:
+    """
+    Build a DataFrame with synthetic commission adjustment data.
+    """
     rng = random.Random(seed)
     now = datetime.now(timezone.utc)
     advisor_ids = [f"A{rng.randint(10_000, 99_999)}" for _ in range(rows)]
@@ -76,8 +91,13 @@ def build_commission_adjustment_frame(rows: int, seed: int | None = None) -> pd.
 
 
 def generate_commission_adjustment_xlsx(rows: int, seed: int | None = None) -> tuple[bytes, int]:
+    """
+    Return (xlsx_bytes, row_count) for a commission adjustment sheet.
+    """
     frame = build_commission_adjustment_frame(rows, seed=seed)
     buffer = io.BytesIO()
+
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         frame.to_excel(writer, sheet_name=COMMISSION_SHEET_NAME, index=False)
+
     return buffer.getvalue(), len(frame)

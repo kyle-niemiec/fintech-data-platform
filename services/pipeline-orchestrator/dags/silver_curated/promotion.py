@@ -14,7 +14,7 @@ from uuid import UUID, uuid4
 import pendulum
 from airflow import DAG
 from airflow.decorators import task
-from dag_runtime import open_event_store_conn
+from curated_dag_helpers import safe_emit_curated_failure_event
 
 from silver_curated.common import (
     TOPIC_SILVER_FAILED,
@@ -37,14 +37,6 @@ def _emit_failure_event(context):
     """
     DAG-level failure callback: emit pipeline.silver.failed.v1 + close run.
     """
-    from libs.platform_events.envelope import (
-        Envelope,
-        EventSource,
-        PipelineClass,
-        PipelineName,
-    )
-    from libs.platform_events.event_store import PgEventStore
-
     dag_run = context["dag_run"]
     conf = dag_run.conf or {}
     parent_run_id = conf.get("run_id")
@@ -66,44 +58,15 @@ def _emit_failure_event(context):
         "transform_version": "v1",
     }
 
-    try:
-        envelope = Envelope.build(
-            event_type=TOPIC_SILVER_FAILED,
-            source=EventSource.orchestration,
-            run_id=UUID(curated_run_id),
-            pipeline_class=PipelineClass.curated,
-            pipeline_name=PipelineName.curated_promotion,
-            parent_run_id=UUID(parent_run_id) if parent_run_id else None,
-            trigger_event_ref=bronze_trigger_ref,
-            trace_id=UUID(trace_id) if trace_id else uuid4(),
-            payload=payload,
-        )
-    except Exception:
-        logger.exception("failed to build silver.failed envelope")
-        return
-
-    producer = _build_producer()
-    try:
-        partition, offset = producer.produce(
-            TOPIC_SILVER_FAILED, envelope, key=str(envelope.run_id)
-        )
-    finally:
-        producer.close()
-
-    try:
-        with open_event_store_conn() as conn:
-            with conn.transaction():
-                PgEventStore.append_event(
-                    conn,
-                    envelope,
-                    topic=TOPIC_SILVER_FAILED,
-                    partition=partition,
-                    kafka_offset=offset,
-                )
-
-                PgEventStore.close_run(conn, UUID(curated_run_id), status="failed")
-    except Exception:
-        logger.exception("failed to persist silver.failed event/close run")
+    safe_emit_curated_failure_event(
+        run_id=UUID(curated_run_id),
+        parent_run_id=UUID(parent_run_id) if parent_run_id else None,
+        trace_id=UUID(trace_id) if trace_id else uuid4(),
+        trigger_event_ref=bronze_trigger_ref,
+        topic=TOPIC_SILVER_FAILED,
+        payload=payload,
+        producer_builder=_build_producer,
+    )
 
 
 with DAG(

@@ -79,7 +79,7 @@ See [.ai/docs/planning/operations.md](.ai/docs/planning/operations.md) for the c
 - `services/ui-api/`: read-only FastAPI query API for the UI.
 - `services/pipeline-workers/`: event-driven ingestion workers (scanner, trigger bridge, bronze writer).
 - `services/pipeline-orchestrator/`: Airflow runtime and DAGs.
-- `platform/libs/`: shared event contracts and runtime libraries used across services.
+- `services/libs/`: shared event contracts and runtime libraries used across services.
 - `infra/`: Docker Compose, Terraform, DB migrations, KMS bootstrap, and operational tooling.
 
 ## Documentation

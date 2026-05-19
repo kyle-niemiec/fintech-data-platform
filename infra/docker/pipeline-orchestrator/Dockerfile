@@ -10,9 +10,8 @@ USER airflow
 COPY services/pipeline-orchestrator/requirements.txt /tmp/worker-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/worker-requirements.txt
 
-# Place shared lib files on PYTHONPATH so DAGs can use
-# `from libs.platform_events...` and `from libs.excel_validation...`.
-COPY --chown=airflow:airflow platform/libs /opt/airflow/platform_libs/libs
-ENV PYTHONPATH=/opt/airflow/platform_libs:${PYTHONPATH}
+# Place shared lib files on PYTHONPATH so DAGs can import `meridian.libs.*`.
+COPY --chown=airflow:airflow services/libs /opt/airflow/meridian/libs
+ENV PYTHONPATH=/opt/airflow:${PYTHONPATH}
 
 COPY --chown=airflow:airflow services/pipeline-orchestrator/dags /opt/airflow/dags

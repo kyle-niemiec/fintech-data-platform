@@ -41,8 +41,9 @@ def test_task_modules_import_shared_libs():
     validate_source = VALIDATE_TASK_FILE.read_text()
     emit_source = EMIT_EVENT_TASK_FILE.read_text()
 
-    assert "libs.excel_validation" in validate_source
-    assert "libs.platform_events" in emit_source
+    assert "meridian.libs.excel_validation" in validate_source
+    assert "meridian.libs.redpanda_events" in emit_source
+    assert "meridian.libs.event_store" in emit_source
 
 
 def test_emit_task_handles_run_state_boundaries():

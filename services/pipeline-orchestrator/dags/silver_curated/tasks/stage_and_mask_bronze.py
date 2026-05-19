@@ -50,7 +50,7 @@ def _to_iso_date(value: Any) -> str | None:
 
 
 def _extract_rows_for_domain(*, domain: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    from libs.platform_masking import tokenize
+    from meridian.libs.masking import tokenize
 
     if domain == "salesforce_opportunity":
         out: list[dict[str, Any]] = []

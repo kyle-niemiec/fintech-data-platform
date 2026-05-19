@@ -10,14 +10,10 @@ import sys
 
 from confluent_kafka import Consumer, KafkaException
 
-from libs.platform_events.producer import EventProducer
-from libs.platform_storage import MinioObjectStore
-from libs.platform_worker_runtime import (
-    build_consumer_config,
-    build_event_producer,
-    build_event_store_conn,
-    build_minio_client,
-)
+from meridian.libs.event_store import build_event_store_conn
+from meridian.libs.minio_store import MinioObjectStore, build_minio_client
+from meridian.libs.redpanda_events.producer import EventProducer
+from meridian.libs.service_runtime import build_consumer_config, build_event_producer
 
 from .writer import (
     RawReadyMessage,
@@ -31,6 +27,10 @@ CONSUMER_GROUP = "salesforce-bronze-writer-v1"
 
 
 def _consumer_config() -> dict[str, str]:
+    """
+    Build the configuration for the RedPanda consumer, including credentials from environment variables.
+    TECH-DEBT: Reused code for building platform services should be consolidated using factories.
+    """
     return build_consumer_config(
         consumer_group=CONSUMER_GROUP,
         client_id="salesforce-bronze-writer-consumer",
@@ -40,28 +40,38 @@ def _consumer_config() -> dict[str, str]:
 
 
 def build_writer() -> tuple[SalesforceBronzeWriter, Consumer, EventProducer]:
+    """
+    Build the SalesforceBronzeWriter along with its dependencies.
+    """
     minio_client = build_minio_client(
         access_key_var="MINIO_TRANSFORM_USER",
         secret_key_var="MINIO_TRANSFORM_SECRET",
     )
+
     db = build_event_store_conn()
+
     producer = build_event_producer(
         client_id="salesforce-bronze-writer",
         username_var="REDPANDA_SALESFORCE_BRONZE_USER",
         password_var="REDPANDA_SALESFORCE_BRONZE_PASSWORD",
     )
+
     writer = SalesforceBronzeWriter(
         store=MinioObjectStore(minio_client),
         producer=producer,
         db=db,
         kms_key_id=os.environ["MINIO_KMS_KEY_ID"],
     )
+
     consumer = Consumer(_consumer_config())
     consumer.subscribe([TOPIC_RAW_READY])
     return writer, consumer, producer
 
 
 def run() -> None:
+    """
+    Main loop for the consumer. Polls for messages and processes them using the SalesforceBronzeWriter.
+    """
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
     writer, consumer, producer = build_writer()
     shutdown = {"stop": False}
@@ -76,6 +86,7 @@ def run() -> None:
     try:
         while not shutdown["stop"]:
             msg = consumer.poll(1.0)
+
             if msg is None:
                 continue
             if msg.error():
@@ -94,6 +105,7 @@ def run() -> None:
                 kafka_partition=msg.partition(),
                 kafka_offset=msg.offset(),
             )
+
             try:
                 handled = writer.handle_raw_ready(raw)
             except Exception:
@@ -101,6 +113,7 @@ def run() -> None:
                     "unhandled bronze writer failure topic=%s partition=%s offset=%s",
                     msg.topic(), msg.partition(), msg.offset(),
                 )
+
                 continue
 
             if handled:

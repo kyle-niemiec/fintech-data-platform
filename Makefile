@@ -35,7 +35,7 @@ endef
 INFRA_UP_STEPS := 1 2 3 4 5 6 7 8 9 10 11 12
 INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))))
 
-.PHONY: help infra-up infra-up-dev infra-down infra-down-dev infra-ps infra-ps-dev infra-clean \
+.PHONY: help infra-up infra-up-dev infra-down infra-down-dev infra-ps infra-ps-dev infra-ps-watch infra-ps-watch-dev infra-clean \
 	infra-tf-init infra-pg-up infra-kc-up infra-tf-bootstrap infra-tf-apply \
 	infra-excel-pipeline infra-cdc-pipeline infra-salesforce-pipeline infra-curated-pipeline \
 	infra-api-up infra-ui-up infra-pgadmin-up \
@@ -65,6 +65,8 @@ help:
 	@printf "  infra-down-dev           Stop infrastructure containers (dev UI access stack)\n"
 	@printf "  infra-ps                 Show infrastructure container status\n"
 	@printf "  infra-ps-dev             Show infrastructure container status (dev UI access stack)\n"
+	@printf "  infra-ps-watch           Show a refreshing view of infrastructure container logs\n"
+	@printf "  infra-ps-watch-dev       Show a refreshing view of infrastructure container logs (dev UI access stack)\n"
 	@printf "  infra-clean              Stop containers, remove local data volumes (incl. Airflow metadata), and clear Terraform state\n"
 	@printf "  terraform-plan           Show Terraform plans for bootstrap + identity\n"
 	@printf "  terraform-plan-bootstrap Show Terraform plan for bootstrap phase\n"
@@ -284,6 +286,22 @@ infra-ps:
 infra-ps-dev:
 	$(call banner,Showing infrastructure container status...)
 	@$(COMPOSE_DEV) ps --format 'table {{.Name}}\t{{.Service}}\t{{.CreatedAt}}\t{{.Status}}\t{{.Ports}}'
+
+infra-ps-watch:
+	@clear
+	@while true; do \
+		clear; \
+		make --no-print-directory infra-ps; \
+		sleep 5; \
+	done
+
+infra-ps-watch-dev:
+	@clear
+	@while true; do \
+		clear; \
+		make --no-print-directory infra-ps-dev; \
+		sleep 5; \
+	done
 
 infra-clean:
 	@$(COMPOSE_DEV) down --volumes --remove-orphans

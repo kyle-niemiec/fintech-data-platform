@@ -8,9 +8,10 @@ from datetime import datetime, timezone
 from typing import Any, Mapping, Optional
 from uuid import UUID
 
-from psycopg.types.json import Jsonb
+from sqlalchemy import bindparam
+from sqlalchemy.dialects.postgresql import JSONB
 
-from .envelope import Envelope, PipelineClass, PipelineName
+from meridian.libs.redpanda_events.envelope import Envelope, PipelineClass, PipelineName
 from .event_store_sql import SqlStatement, load_event_store_statements
 
 _EVENT_STORE_SQL: dict[str, SqlStatement] = load_event_store_statements()
@@ -30,7 +31,14 @@ def _execute(conn: Any, statement_name: str, params: Mapping[str, Any]):
             f"{statement_name}: expected {sorted(statement.bind_names)} got {sorted(provided)}"
         )
 
-    return conn.execute(statement.text_clause, dict(params))
+    text_clause = statement.text_clause
+
+    for json_bind in ("payload", "details", "input_uris", "output_uris"):
+        value = params.get(json_bind)
+        if isinstance(value, (dict, list)):
+            text_clause = text_clause.bindparams(bindparam(json_bind, type_=JSONB))
+
+    return conn.execute(text_clause, dict(params))
 
 
 class PgEventStore:
@@ -125,7 +133,7 @@ class PgEventStore:
                 "kafka_offset": kafka_offset,
                 "occurred_at": envelope.occurred_at,
                 "trace_id": str(envelope.trace_id) if envelope.trace_id else None,
-                "payload": Jsonb(envelope.payload),
+                "payload": envelope.payload,
                 "payload_hash": envelope.payload_hash,
                 "schema_version": envelope.schema_version,
             },
@@ -176,7 +184,7 @@ class PgEventStore:
                 "severity": severity,
                 "category": category,
                 "summary": summary,
-                "details": Jsonb(details),
+                "details": details,
                 "occurred_at": occurred_at or datetime.now(timezone.utc),
             },
         )
@@ -284,9 +292,9 @@ class PgEventStore:
                 "run_id": str(run_id),
                 "parent_run_id": str(parent_run_id),
                 "silver_domain": silver_domain,
-                "input_uris": Jsonb(input_uris),
+                "input_uris": input_uris,
                 "output_table": output_table,
-                "output_uris": Jsonb(output_uris),
+                "output_uris": output_uris,
                 "record_count": record_count,
                 "merge_inserted": merge_inserted,
                 "merge_updated": merge_updated,
@@ -316,9 +324,9 @@ class PgEventStore:
                 "run_id": str(run_id),
                 "parent_run_id": str(parent_run_id),
                 "metric": metric,
-                "input_uris": Jsonb(input_uris),
+                "input_uris": input_uris,
                 "output_table": output_table,
-                "output_uris": Jsonb(output_uris),
+                "output_uris": output_uris,
                 "record_count": record_count,
             },
         )

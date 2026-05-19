@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from libs.excel_validation import (
+from meridian.libs.excel_validation import (
     SchemaContract,
     ValidationError,
     ValidationResult,
@@ -20,7 +20,7 @@ from libs.excel_validation import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PAYROLL_CONTRACT_PATH = (
-    REPO_ROOT / "platform" / "libs" / "platform_events" / "excel_schemas" / "payroll_v1.json"
+    REPO_ROOT / "services" / "libs" / "event_schemas" / "payroll_v1.json"
 )
 
 

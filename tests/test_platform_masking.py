@@ -1,4 +1,4 @@
-"""Unit tests for libs.platform_masking.
+"""Unit tests for meridian.libs.masking.
 
 The masking library must be deterministic: reruns with the same salt
 must produce identical outputs so silver SCD2 identity is stable across
@@ -17,7 +17,7 @@ def _salt(monkeypatch):
 
 
 def test_mask_email_preserves_domain_and_hashes_local():
-    from libs.platform_masking import mask_email
+    from meridian.libs.masking import mask_email
 
     masked = mask_email("jane.doe@acme.co")
 
@@ -27,20 +27,20 @@ def test_mask_email_preserves_domain_and_hashes_local():
 
 
 def test_mask_email_passes_none_through():
-    from libs.platform_masking import mask_email
+    from meridian.libs.masking import mask_email
 
     assert mask_email(None) is None
 
 
 def test_mask_email_raises_on_malformed():
-    from libs.platform_masking import mask_email
+    from meridian.libs.masking import mask_email
 
     with pytest.raises(ValueError):
         mask_email("not-an-email")
 
 
 def test_tokenize_is_deterministic_and_scoped():
-    from libs.platform_masking import tokenize
+    from meridian.libs.masking import tokenize
 
     same_scope_a = tokenize("12345", scope="account_id")
     same_scope_b = tokenize("12345", scope="account_id")
@@ -53,14 +53,14 @@ def test_tokenize_is_deterministic_and_scoped():
 
 
 def test_tokenize_requires_non_empty_scope():
-    from libs.platform_masking import tokenize
+    from meridian.libs.masking import tokenize
 
     with pytest.raises(ValueError):
         tokenize("12345", scope="")
 
 
 def test_hash_pii_returns_64_char_hex():
-    from libs.platform_masking import hash_pii
+    from meridian.libs.masking import hash_pii
 
     digest = hash_pii("SSN:123-45-6789")
 
@@ -70,7 +70,7 @@ def test_hash_pii_returns_64_char_hex():
 
 
 def test_redact_masks_middle_third():
-    from libs.platform_masking import redact
+    from meridian.libs.masking import redact
 
     assert redact("555-867-5309") == "555-****5309"
     assert redact("abcdef") == "ab**ef"
@@ -81,7 +81,7 @@ def test_redact_masks_middle_third():
 def test_missing_salt_raises():
     import importlib
 
-    import libs.platform_masking.masking as masking
+    import meridian.libs.masking.masking as masking
 
     importlib.reload(masking)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
+from meridian.libs.redpanda_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
 
 
 def _build(event_type: str, payload: dict) -> Envelope:

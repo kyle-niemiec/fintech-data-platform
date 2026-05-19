@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from airflow.exceptions import AirflowException
-from dag_runtime import open_event_store_conn
+from curated_dag_helpers import open_curated_run_and_append_started_event
 
 from curated_specs import resolve_silver_spec
 from silver_curated.common import (
@@ -22,14 +22,6 @@ def open_curated_run(context: dict[str, Any]) -> dict[str, Any]:
     which contains metadata about the completed bronze pipeline run that triggered
     this silver run.
     """
-    from libs.platform_events.envelope import (
-        Envelope,
-        EventSource,
-        PipelineClass,
-        PipelineName,
-    )
-    from libs.platform_events.event_store import PgEventStore
-
     # Extract the bronze envelope from the DAG run configuration
     dag_run = context["dag_run"]
     bronze_envelope = dag_run.conf or {}
@@ -59,53 +51,26 @@ def open_curated_run(context: dict[str, Any]) -> dict[str, Any]:
     curated_run_id = uuid4()
     trace_uuid = UUID(trace_id)
 
-    # Open a connection to the event store and create a new run for the silver curated promotion pipeline.
-    with open_event_store_conn() as conn:
-        with conn.transaction():
-            # Open the event store run for the silver curated promotion pipeline
-            effective_run_id = PgEventStore.open_run(
-                conn,
-                run_id=curated_run_id,
-                pipeline_class=PipelineClass.curated,
-                pipeline_name=PipelineName.curated_promotion,
-                source_system=SOURCE_SYSTEM,
-                trigger_type=TRIGGER_TYPE,
-                trigger_event_ref=trigger_event_ref,
-                initiator=INITIATOR,
-                status="running",
-                parent_run_id=UUID(parent_run_id),
-            )
-
-            # Create the envelope for the silver curated promotion pipeline
-            started_envelope = Envelope.build(
-                event_type=TOPIC_SILVER_STARTED,
-                source=EventSource.orchestration,
-                run_id=effective_run_id,
-                pipeline_class=PipelineClass.curated,
-                pipeline_name=PipelineName.curated_promotion,
-                parent_run_id=UUID(parent_run_id),
-                trigger_event_ref=trigger_event_ref,
-                trace_id=trace_uuid,
-                payload={
-                    "message": "Silver curated promotion started.",
-                    "stage": "silver",
-                    "silver_domain": silver_spec.domain,
-                    "output_table": silver_spec.output_table,
-                    "parent_run_id": parent_run_id,
-                    "input_uris": bronze_uris,
-                    "transform_id": silver_spec.transform_id,
-                    "transform_version": "v1",
-                },
-            )
-
-            # Append the "silver started" event to the event store
-            PgEventStore.append_event(
-                conn,
-                started_envelope,
-                topic=TOPIC_SILVER_STARTED,
-                partition=-1,
-                kafka_offset=-1,
-            )
+    effective_run_id = open_curated_run_and_append_started_event(
+        run_id=curated_run_id,
+        parent_run_id=UUID(parent_run_id),
+        trace_id=trace_uuid,
+        trigger_event_ref=trigger_event_ref,
+        source_system=SOURCE_SYSTEM,
+        trigger_type=TRIGGER_TYPE,
+        initiator=INITIATOR,
+        started_topic=TOPIC_SILVER_STARTED,
+        started_payload={
+            "message": "Silver curated promotion started.",
+            "stage": "silver",
+            "silver_domain": silver_spec.domain,
+            "output_table": silver_spec.output_table,
+            "parent_run_id": parent_run_id,
+            "input_uris": bronze_uris,
+            "transform_id": silver_spec.transform_id,
+            "transform_version": "v1",
+        },
+    )
 
     # Return the relevant metadata about the opened run and the bronze input for downstream tasks
     return {

@@ -95,8 +95,12 @@ class _FakeConn:
     calls: list[_Call] = field(default_factory=list)
 
     @contextmanager
-    def transaction(self):
+    def begin(self):
         yield self
+
+    @contextmanager
+    def transaction(self):
+        yield from self.begin()
 
 
 def _sf_record(idx: int, *, sobject: str = "Account", ts: str | None = None) -> dict[str, Any]:

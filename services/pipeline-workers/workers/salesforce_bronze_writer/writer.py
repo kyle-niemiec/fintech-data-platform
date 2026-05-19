@@ -27,12 +27,11 @@ from typing import Any, Protocol
 from urllib.parse import urlparse
 from uuid import UUID
 
-import psycopg
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
-from libs.platform_events.event_store import PgEventStore
+from meridian.libs.redpanda_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
+from meridian.libs.event_store import ManagedConnection, PgEventStore
 
 logger = logging.getLogger("salesforce_bronze_writer")
 
@@ -43,21 +42,32 @@ TRANSFORM_VERSION = "v1"
 
 
 def split_s3_uri(uri: str) -> tuple[str, str]:
+    """
+    Split an S3 URI into bucket and key.
+    """
     parsed = urlparse(uri)
+
     if parsed.scheme != "s3" or not parsed.netloc or not parsed.path:
         raise ValueError(f"invalid s3 uri: {uri}")
+
     return parsed.netloc, parsed.path.lstrip("/")
 
 
 def raw_uri_to_bronze_uri(raw_uri: str) -> str:
-    """raw/source=salesforce/object=X/year=.../run_id=.../page-NNNN.json
-    -> bronze/source=salesforce/object=X/year=.../run_id=.../part-0.parquet"""
+    """
+    raw/source=salesforce/object=X/year=.../run_id=.../page-NNNN.json
+    ->
+    bronze/source=salesforce/object=X/year=.../run_id=.../part-0.parquet
+    """
     bucket, key = split_s3_uri(raw_uri)
+
     if not key.startswith("raw/source=salesforce/"):
         raise ValueError(f"raw uri is not salesforce raw path: {raw_uri}")
+
     bronze_prefix = key.replace("raw/source=salesforce/", "bronze/source=salesforce/", 1)
     parent, _sep, _leaf = bronze_prefix.rpartition("/")
     bronze_key = f"{parent}/part-0.parquet" if parent else "part-0.parquet"
+
     return f"s3://{bucket}/{bronze_key}"
 
 
@@ -72,6 +82,9 @@ class EventEmitter(Protocol):
 
 @dataclass
 class RawReadyMessage:
+    """
+    Structured data extracted from the `ingest.salesforce.raw.ready.v1` event for easier handling.
+    """
     envelope: dict[str, Any]
     kafka_topic: str
     kafka_partition: int
@@ -79,7 +92,8 @@ class RawReadyMessage:
 
 
 def records_to_parquet(records: list[dict[str, Any]]) -> tuple[bytes, str]:
-    """Flatten a list of SObject record dicts into Parquet.
+    """
+    Flatten a list of SObject record dicts into Parquet.
 
     All non-primitive values (nested dicts/lists like `attributes`) are
     preserved as JSON strings so the bronze layer stays zero-transformation.
@@ -89,6 +103,7 @@ def records_to_parquet(records: list[dict[str, Any]]) -> tuple[bytes, str]:
 
     keys: list[str] = []
     seen: set[str] = set()
+
     for rec in records:
         for k in rec.keys():
             if k not in seen:
@@ -96,9 +111,11 @@ def records_to_parquet(records: list[dict[str, Any]]) -> tuple[bytes, str]:
                 keys.append(k)
 
     columns: dict[str, list[Any]] = {k: [] for k in keys}
+
     for rec in records:
         for k in keys:
             v = rec.get(k)
+
             if isinstance(v, (dict, list)):
                 columns[k].append(json.dumps(v, sort_keys=True, separators=(",", ":"), default=str))
             else:
@@ -109,24 +126,38 @@ def records_to_parquet(records: list[dict[str, Any]]) -> tuple[bytes, str]:
     pq.write_table(table, out, compression="snappy")
     signature = "|".join(f"{name}:{str(table.schema.field(name).type)}" for name in keys)
     fingerprint = "sha256-" + hashlib.sha256(signature.encode("utf-8")).hexdigest()
+
     return out.getvalue(), fingerprint
 
 
 def _parse_cursor_ts(raw: str) -> datetime:
+    """
+    Parse the SystemModstamp string into a timezone-aware datetime. Salesforce
+    timestamps are in ISO 8601 format and may end with 'Z' to indicate UTC.
+    """
     ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
+
     return ts
 
 
 @dataclass
 class SalesforceBronzeWriter:
+    """
+    Handler for `ingest.salesforce.raw.ready.v1` events. See module docstring for details.
+    """
     store: ObjectStore
     producer: EventEmitter
-    db: psycopg.Connection
+    db: ManagedConnection
     kms_key_id: str
 
+
     def handle_raw_ready(self, msg: RawReadyMessage) -> bool:
+        """
+        Process the raw.ready message: read raw JSON, write bronze Parquet, emit bronze.ready, checkpoint cursor, close run.
+        """
         envelope = msg.envelope
         payload = envelope.get("payload") or {}
         run_id = UUID(str(envelope["run_id"]))
@@ -137,21 +168,24 @@ class SalesforceBronzeWriter:
         row_count_reported = int(payload.get("row_count") or 0)
 
         if row_count_reported == 0 or not raw_uris:
-            with self.db.transaction():
+            with self.db.begin():
                 PgEventStore.close_run(self.db, run_id, status="completed")
+
             logger.info("salesforce raw.ready with zero rows closed run run_id=%s sobject=%s", run_id, sobject)
             return True
 
         try:
             records: list[dict[str, Any]] = []
+
             for uri in raw_uris:
                 body = self.store.read_uri(uri)
                 page = json.loads(body)
                 records.extend(page.get("records") or [])
 
             if not records:
-                with self.db.transaction():
+                with self.db.begin():
                     PgEventStore.close_run(self.db, run_id, status="completed")
+
                 return True
 
             parquet_bytes, schema_fingerprint = records_to_parquet(records)
@@ -190,10 +224,12 @@ class SalesforceBronzeWriter:
                     "transform_version": TRANSFORM_VERSION,
                 },
             )
+
             partition, offset = self.producer.produce(
                 TOPIC_BRONZE_READY, bronze_envelope, key=f"{sobject}:{run_id}"
             )
-            with self.db.transaction():
+
+            with self.db.begin():
                 PgEventStore.append_event(
                     self.db,
                     bronze_envelope,
@@ -201,6 +237,7 @@ class SalesforceBronzeWriter:
                     partition=partition,
                     kafka_offset=offset,
                 )
+
                 PgEventStore.append_sf_cursor_checkpoint(
                     self.db,
                     run_id=run_id,
@@ -212,13 +249,16 @@ class SalesforceBronzeWriter:
                     offset_end=msg.kafka_offset,
                     record_count=len(records),
                 )
+
                 PgEventStore.close_run(self.db, run_id, status="completed")
+
             return True
 
         except Exception as exc:
             logger.exception("salesforce bronze write failed run_id=%s sobject=%s", run_id, sobject)
+
             try:
-                with self.db.transaction():
+                with self.db.begin():
                     PgEventStore.raise_alert(
                         self.db,
                         run_id=run_id,
@@ -228,7 +268,9 @@ class SalesforceBronzeWriter:
                         details={"error": str(exc), "sobject": sobject, "raw_uris": raw_uris},
                         occurred_at=datetime.now(timezone.utc),
                     )
+
                     PgEventStore.close_run(self.db, run_id, status="failed")
             except Exception:
                 logger.exception("alert/close_run also failed for run_id=%s", run_id)
+
             return False

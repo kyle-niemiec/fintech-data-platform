@@ -21,7 +21,7 @@ from uuid import UUID, uuid4
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
+from meridian.libs.redpanda_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
 
 
 TOPIC_ASSESSED = "cdc.oltp.assessed.v1"

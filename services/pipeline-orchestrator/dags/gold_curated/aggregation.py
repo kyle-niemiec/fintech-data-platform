@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID, uuid4
 from airflow import DAG
 from airflow.decorators import task
-from dag_runtime import open_event_store_conn
+from curated_dag_helpers import safe_emit_curated_failure_event
 from gold_curated.common import (
     TOPIC_GOLD_FAILED,
     default_args,
@@ -26,14 +26,6 @@ def _emit_failure_event(context):
     This function is an Airflow failure callback that emits a "gold.failed" event
     to the event store.
     """
-    from libs.platform_events.envelope import (
-        Envelope,
-        EventSource,
-        PipelineClass,
-        PipelineName,
-    )
-    from libs.platform_events.event_store import PgEventStore
-
     # Extract relevant information from the DAG run context to include in the failure event payload and metadata.
     dag_run = context["dag_run"]
     conf = dag_run.conf or {}
@@ -55,47 +47,15 @@ def _emit_failure_event(context):
         "transform_version": "v1",
     }
 
-    try:
-        envelope = Envelope.build(
-            event_type=TOPIC_GOLD_FAILED,
-            source=EventSource.orchestration,
-            run_id=UUID(curated_run_id),
-            pipeline_class=PipelineClass.curated,
-            pipeline_name=PipelineName.curated_promotion,
-            parent_run_id=UUID(parent_run_id) if parent_run_id else None,
-            trigger_event_ref=silver_trigger_ref,
-            trace_id=UUID(trace_id) if trace_id else uuid4(),
-            payload=payload,
-        )
-    except Exception:
-        logger.exception("failed to build gold.failed envelope")
-        return
-
-    producer = _build_producer()
-
-    # Emit the "gold.failed" event to Redpanda and capture the partition and offset
-    try:
-        partition, offset = producer.produce(
-            TOPIC_GOLD_FAILED, envelope, key=str(envelope.run_id)
-        )
-    finally:
-        producer.close()
-
-    # Persist the "gold.failed" event and close the event store run with a "failed" status
-    try:
-        with open_event_store_conn() as conn:
-            with conn.transaction():
-                PgEventStore.append_event(
-                    conn,
-                    envelope,
-                    topic=TOPIC_GOLD_FAILED,
-                    partition=partition,
-                    kafka_offset=offset,
-                )
-
-                PgEventStore.close_run(conn, UUID(curated_run_id), status="failed")
-    except Exception:
-        logger.exception("failed to persist gold.failed event/close run")
+    safe_emit_curated_failure_event(
+        run_id=UUID(curated_run_id),
+        parent_run_id=UUID(parent_run_id) if parent_run_id else None,
+        trace_id=UUID(trace_id) if trace_id else uuid4(),
+        trigger_event_ref=silver_trigger_ref,
+        topic=TOPIC_GOLD_FAILED,
+        payload=payload,
+        producer_builder=_build_producer,
+    )
 
 
 """

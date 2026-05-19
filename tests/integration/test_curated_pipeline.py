@@ -15,7 +15,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from libs.platform_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
+from meridian.libs.redpanda_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
 
 
 pytestmark = pytest.mark.integration

@@ -14,7 +14,7 @@ from dag_runtime import (
 )
 
 CONTRACTS_ROOT = Path(
-    os.environ.get("EXCEL_CONTRACTS_DIR", "/opt/airflow/platform_libs/libs/platform_events/excel_schemas")
+    os.environ.get("EXCEL_CONTRACTS_DIR", "/opt/airflow/meridian/libs/event_schemas")
 )
 
 DEFAULT_CONTRACT_ID = os.environ.get("EXCEL_DEFAULT_CONTRACT_ID", "payroll_v1")

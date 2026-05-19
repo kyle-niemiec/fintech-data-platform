@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from libs.platform_events.event_store_sql import load_event_store_statements
+from meridian.libs.event_store.event_store_sql import load_event_store_statements
 
 
 def test_load_event_store_statements_returns_non_empty_queries() -> None:

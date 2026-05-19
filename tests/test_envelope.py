@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 
-from libs.platform_events.envelope import (
+from meridian.libs.redpanda_events.envelope import (
     Envelope,
     EventSource,
     PipelineClass,

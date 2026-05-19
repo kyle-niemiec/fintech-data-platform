@@ -19,13 +19,13 @@ def emit_event(*branch_outputs: dict[str, Any]) -> None:
     """
     Emit an event to Redpanda based on the outcome of the validation and append it.
     """
-    from libs.platform_events.envelope import (
+    from meridian.libs.redpanda_events.envelope import (
         Envelope,
         EventSource,
         PipelineClass,
         PipelineName,
     )
-    from libs.platform_events.event_store import PgEventStore
+    from meridian.libs.event_store import PgEventStore
 
     # Check that the outcome is present
     outcome = next((output for output in branch_outputs if output), None)
@@ -78,7 +78,7 @@ def emit_event(*branch_outputs: dict[str, Any]) -> None:
 
     # Persist the emitted event to the event store and close the run with the appropriate status based on the validation outcome
     with open_event_store_conn() as conn:
-        with conn.transaction():
+        with conn.begin():
             PgEventStore.append_event(
                 conn,
                 envelope,
