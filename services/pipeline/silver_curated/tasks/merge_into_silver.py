@@ -22,6 +22,20 @@ def _ts_expr(value_col: str) -> str:
     )
 
 
+def _date_expr(value_col: str) -> str:
+    """
+    Return a SQL expression that attempts to parse the given value column as a DATE.
+    """
+    return (
+        "COALESCE("
+        f"TRY(CAST({value_col} AS DATE)), "
+        f"TRY(CAST(CAST({value_col} AS TIMESTAMP(6)) AS DATE)), "
+        f"TRY(CAST(CAST({value_col} AS TIMESTAMP(6) WITH TIME ZONE) AS DATE)), "
+        f"TRY(CAST(from_iso8601_timestamp({value_col}) AS DATE))"
+        ")"
+    )
+
+
 def _run_sql(sql: str) -> None:
     """
     Run the given SQL statement using a Trino cursor.
@@ -91,7 +105,7 @@ USING (
         name,
         stage_name,
         CAST(amount AS DECIMAL(18, 2)) AS amount,
-        CAST(close_date AS DATE) AS close_date,
+        {_date_expr('close_date')} AS close_date,
         is_won,
         is_closed,
         {_ts_expr('source_system_mod')} AS source_system_mod,
@@ -241,8 +255,8 @@ INSERT INTO lakehouse.silver.fact_loan_payment
 SELECT
     CAST(loan_id AS VARCHAR) AS loan_id,
     CAST(payment_amount AS DECIMAL(18, 2)) AS payment_amount,
-    CAST(payment_due_date AS DATE) AS payment_due_date,
-    CAST(payment_posted_at AS DATE) AS payment_posted_at,
+    {_date_expr('payment_due_date')} AS payment_due_date,
+    {_date_expr('payment_posted_at')} AS payment_posted_at,
     CAST({sql_string_literal(parent_run_id)} AS VARCHAR) AS source_run_id,
     CAST({sql_string_literal(curated_run_id)} AS VARCHAR) AS curated_run_id,
     {_ts_expr('source_system_mod')} AS source_system_mod,
@@ -291,14 +305,14 @@ SELECT
     CAST(advisor_id AS VARCHAR) AS advisor_id,
     CAST(adjustment_amount AS DECIMAL(18, 2)) AS adjustment_amount,
     CAST(adjustment_reason AS VARCHAR) AS adjustment_reason,
-    CAST(adjustment_date AS DATE) AS adjustment_date,
+    {_date_expr('adjustment_date')} AS adjustment_date,
     CAST(currency AS VARCHAR) AS currency,
     CAST({sql_string_literal(parent_run_id)} AS VARCHAR) AS source_run_id,
     CAST({sql_string_literal(curated_run_id)} AS VARCHAR) AS curated_run_id,
     current_timestamp AS source_system_mod,
-    year(CAST(adjustment_date AS DATE)) AS year,
-    month(CAST(adjustment_date AS DATE)) AS month,
-    day(CAST(adjustment_date AS DATE)) AS day
+    year({_date_expr('adjustment_date')}) AS year,
+    month({_date_expr('adjustment_date')}) AS month,
+    day({_date_expr('adjustment_date')}) AS day
 FROM (
     VALUES
     {rows_sql}

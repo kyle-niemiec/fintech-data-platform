@@ -33,13 +33,16 @@ def test_task_module_imports_shared_libs_and_event_contracts():
 def test_task_opens_run_before_publishing_raw_ready():
     source = PULL_TASK_FILE.read_text()
     open_run_idx = source.find("PgEventStore.open_run(")
+    append_started_idx = source.find("topic=TOPIC_PULL_STARTED")
     produce_idx = source.find("producer.produce(")
-    assert open_run_idx != -1 and produce_idx != -1
+    assert open_run_idx != -1 and append_started_idx != -1 and produce_idx != -1
     assert open_run_idx < produce_idx
+    assert append_started_idx < produce_idx
 
 
 def test_raw_ready_topic_and_transform_identifier_are_preserved():
     common_source = COMMON_FILE.read_text()
     task_source = PULL_TASK_FILE.read_text()
     assert "ingest.salesforce.raw.ready.v1" in common_source
+    assert "ingest.sf.pull.started.v1" in common_source
     assert "salesforce_incremental_pull" in task_source

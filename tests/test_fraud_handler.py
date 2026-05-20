@@ -5,7 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from workers.fraud_worker.handler import RawMessage, SOURCE_SYSTEM, parse_raw
+from workers.fraud_worker.handler import (
+    RawMessage,
+    SOURCE_SYSTEM,
+    TOPIC_ASSESSED_STARTED,
+    TOPIC_INTERNAL,
+    parse_raw,
+)
 
 
 def _debezium_envelope(*, op: str = "c", instrument: str = "AAPL", amount: str = "15000",
@@ -76,3 +82,8 @@ def test_parse_raw_treats_snapshot_like_create() -> None:
 
 def test_cdc_source_system_matches_event_store_domain_contract() -> None:
     assert SOURCE_SYSTEM == "cdc"
+
+
+def test_fraud_started_event_contract_constants_are_stable() -> None:
+    assert TOPIC_INTERNAL == "event_store.internal"
+    assert TOPIC_ASSESSED_STARTED == "cdc.oltp.assessed.started.v1"

@@ -19,6 +19,7 @@ from dag_runtime import (
 )
 
 SOURCE_SYSTEM = "salesforce"
+TOPIC_PULL_STARTED = "ingest.sf.pull.started.v1"
 TOPIC_RAW_READY = "ingest.salesforce.raw.ready.v1"
 TRIGGER_TYPE = "schedule"
 INITIATOR = "airflow"

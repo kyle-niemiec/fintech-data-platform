@@ -52,6 +52,7 @@
 ## Curated Shared SQL Helpers
 - Curated task SQL-literal helpers are centralized in `services/pipeline/curated_sql_helpers.py`.
 - Gold and silver task modules reuse these shared helpers instead of duplicating local literal-escaping logic.
+- Silver merge SQL date fields now normalize both plain-date and timestamp-shaped strings through a shared `_date_expr(...)` helper to avoid Trino `INVALID_CAST_ARGUMENT` failures on values like `YYYY-MM-DDTHH:MM:SS`.
 
 ## Source Contract Expansion
 - CDC source contracts now include curated-driving entities from OLTP logical replication tables:

@@ -12,6 +12,7 @@ from salesforce_pull.common import (
     INITIATOR,
     SOBJECT_FIELDS,
     SOURCE_SYSTEM,
+    TOPIC_PULL_STARTED,
     TOPIC_RAW_READY,
     TRIGGER_TYPE,
     _build_producer,
@@ -76,20 +77,50 @@ def pull_sobject(sobject: str, context: dict[str, Any]) -> dict[str, Any]:
             "trigger_event_ref": trigger_event_ref,
         }
 
-    # Generate a unique run ID and trace ID for this pull operation, write the data to MinIO, and emit an event.
-    requested_run_id = uuid4()
+    # Generate a unique run ID and trace ID for this pull operation, write the data to MinIO, and emit events.
+    run_id = uuid4()
     trace_id = uuid4()
+    request_id = str(uuid4())
+
+    started_payload: dict[str, Any] = {
+        "message": f"Salesforce incremental pull started for {sobject}.",
+        "object_name": sobject,
+        "cursor_from": since_ts.astimezone(timezone.utc).isoformat().replace("+00:00", "Z") if since_ts else None,
+        "cursor_to": None,
+        "request_id": request_id,
+    }
+
     with open_event_store_conn() as conn:
         with conn.begin():
             run_id = PgEventStore.open_run(
                 conn,
-                run_id=requested_run_id,
+                run_id=run_id,
                 pipeline_class=PipelineClass.ingestion,
                 pipeline_name=PipelineName.salesforce_ingestion,
                 source_system=SOURCE_SYSTEM,
                 trigger_type=TRIGGER_TYPE,
                 trigger_event_ref=trigger_event_ref,
                 initiator=INITIATOR,
+            )
+
+            # Keep run creation and first event-log insert in one transaction.
+            started_envelope = Envelope.build(
+                event_type=TOPIC_PULL_STARTED,
+                source=EventSource.salesforce,
+                run_id=run_id,
+                pipeline_class=PipelineClass.ingestion,
+                pipeline_name=PipelineName.salesforce_ingestion,
+                trigger_event_ref=trigger_event_ref,
+                trace_id=trace_id,
+                payload=started_payload,
+            )
+
+            PgEventStore.append_event(
+                conn,
+                started_envelope,
+                topic=TOPIC_PULL_STARTED,
+                partition=-1,
+                kafka_offset=-1,
             )
 
     output_uris = _write_pages_to_minio(bucket, sobject, str(run_id), pages)
@@ -109,6 +140,7 @@ def pull_sobject(sobject: str, context: dict[str, Any]) -> dict[str, Any]:
         "page_count": len(pages),
         "fields": list(fields),
         "api_version": api_version,
+        "request_id": request_id,
         "input_uris": [f"{base_url.rstrip('/')}/services/data/{api_version}/query"],
         "output_uris": output_uris,
         "transform_id": "salesforce_incremental_pull",

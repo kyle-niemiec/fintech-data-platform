@@ -3,12 +3,13 @@ Fraud worker handler: Debezium raw -> risk_flag + assessed envelope.
 
 Failure ordering is deliberate:
     1. OLTP `risk_flag` upsert (idempotent via unique(raw_topic, raw_partition, raw_offset))
-    2. Produce `cdc.oltp.assessed.v1`
-    3. `append_event` + `close_run` on event-store
-    4. Kafka commit (caller's responsibility)
+    2. `open_run` + internal started event append on event-store
+    3. Produce `cdc.oltp.assessed.v1`
+    4. `append_event` + `close_run` on event-store
+    5. Kafka commit (caller's responsibility)
 
-Any failure before step 4 causes Kafka to redeliver. Step 1 no-ops on replay;
-steps 2-3 are idempotent via the event-log dedupe key.
+Any failure before step 5 causes Kafka to redeliver. Step 1 no-ops on replay;
+steps 3-4 are idempotent via the event-log dedupe key.
 """
 
 from __future__ import annotations
@@ -31,6 +32,8 @@ from .scorer import RiskAssessment, score_transaction
 logger = logging.getLogger(__name__)
 
 TOPIC_ASSESSED = "cdc.oltp.assessed.v1"
+TOPIC_INTERNAL = "event_store.internal"
+TOPIC_ASSESSED_STARTED = "cdc.oltp.assessed.started.v1"
 TRIGGER_TYPE = "cdc_raw_event"
 INITIATOR = "fraud_worker"
 SOURCE_SYSTEM = "cdc"
@@ -227,7 +230,7 @@ class FraudHandler:
 
                 raise
 
-        # Open/append/close run on event-store in one transaction.
+        # Open run and write a first internal event-log row in one transaction.
         with self.event_store_conn.begin():
             effective_run_id = PgEventStore.open_run(
                 self.event_store_conn,
@@ -238,6 +241,32 @@ class FraudHandler:
                 trigger_type=TRIGGER_TYPE,
                 trigger_event_ref=trigger_event_ref,
                 initiator=INITIATOR,
+            )
+
+            started_envelope = Envelope.build(
+                event_type=TOPIC_ASSESSED_STARTED,
+                source=EventSource.cdc,
+                run_id=effective_run_id,
+                pipeline_class=PipelineClass.ingestion,
+                pipeline_name=PipelineName.cdc_ingestion,
+                trigger_event_ref=trigger_event_ref,
+                trace_id=trace_id,
+                payload={
+                    "stage": "assessed",
+                    "state": "started",
+                    "source_table": parsed["source_table"],
+                    "topic": raw.topic,
+                    "partition": raw.partition,
+                    "offset": raw.offset,
+                },
+            )
+
+            PgEventStore.append_event(
+                self.event_store_conn,
+                started_envelope,
+                topic=TOPIC_INTERNAL,
+                partition=-1,
+                kafka_offset=-1,
             )
 
         envelope = Envelope.build(

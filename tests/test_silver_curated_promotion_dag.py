@@ -154,3 +154,12 @@ def test_dag_closes_run_on_failure():
     assert "close_run" in source
     assert 'status="failed"' in source
     assert 'status="completed"' in source
+
+
+def test_merge_sql_uses_safe_date_parsing():
+    source = MERGE_FILE.read_text()
+    assert "def _date_expr" in source
+    assert "_date_expr('close_date')" in source
+    assert "_date_expr('payment_due_date')" in source
+    assert "_date_expr('payment_posted_at')" in source
+    assert "_date_expr('adjustment_date')" in source

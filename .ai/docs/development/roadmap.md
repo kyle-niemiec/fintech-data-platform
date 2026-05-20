@@ -44,6 +44,7 @@ Legend:
 - [x] CDC bronze writer batches assessed events, writes zero-transformation Parquet to `bronze/source=cdc/...` with SSE-KMS, emits `cdc.oltp.bronze.ready.v1`, and records a `cdc_checkpoint` row per flush.
 - [x] Event-store DDL adds `event_store.cdc_checkpoint`; `append_cdc_checkpoint` helper is part of `event_store.PgEventStore`.
 - [x] Root UI runs view is generalized across pipelines with a multi-select pipeline pill filter and a Recent Transactions tab backed by `oltp_ui_reader`.
+- [x] `fraud_worker` persists an internal `cdc.oltp.assessed.started.v1` event_log row in the same transaction as `open_run`, satisfying deferred `pipeline_run`/`event_log` commit invariants.
 
 ## Phase 5 - Salesforce Pipeline
 
@@ -52,6 +53,7 @@ Legend:
 - [x] Airflow ingestion DAG code is modularized into package + task-module layout (`excel_validation/`, `salesforce_pull/`) with stable DAG/task identifiers.
 - [x] Pull cursor history and raw response artifacts are persisted.
 - [x] Bronze-ready events for CRM objects are emitted.
+- [x] `salesforce_incremental_pull.pull_sobject` now persists a `ingest.sf.pull.started.v1` event_log row in the same transaction as `open_run`, satisfying the deferred run/event_log commit invariant before `raw.ready` publish.
 
 ## Phase 6 - Curated Layer Orchestration
 
@@ -69,6 +71,7 @@ Legend:
 - [x] Remaining gold KPIs: `kpi_portfolio_health`, `kpi_payment_performance`, `kpi_commission_economics`.
 - [x] Curated CDC path.
 - [x] Curated Excel path.
+- [x] Silver merge DATE normalization accepts both plain date strings and timestamp-shaped strings (for example `YYYY-MM-DDTHH:MM:SS`) without failing Trino casts.
 - [x] Gold listener ignores unsupported silver-domain completions instead of triggering unmapped gold runs.
 - [x] CDC bronze-ready handoff persists parent run visibility before Kafka publish and records explicit failed status/alerts when publish/finalize steps fail.
 - [x] Airflow runtime upgraded to 3.2.1 architecture (`api-server` + standalone `dag-processor`), with FAB auth manager and API v2-trigger compatibility for `excel_validation_trigger`.

@@ -31,3 +31,5 @@
 - Trino readiness gating checks `/v1/info/state == ACTIVE` before marking the Trino service healthy, preventing `trino_curated_init` from running while the coordinator is still initializing.
 - `trino_curated_init` retries each migration command up to 30 times (2s backoff) to tolerate transient Trino startup race conditions during fresh infra boot.
 - `salesforce_incremental_pull` opens `pipeline_run` before publishing `ingest.salesforce.raw.ready.v1` so downstream bronze workers cannot hit FK races on `event_log.run_id` during fast-consume windows.
+- `salesforce_incremental_pull.pull_sobject` now appends an `ingest.sf.pull.started.v1` event_log row in the same transaction as `open_run`, satisfying the deferred event-store invariant that every inserted `pipeline_run` must commit with at least one `event_log` row.
+- `fraud_worker` now appends an internal `cdc.oltp.assessed.started.v1` event_log row in the same transaction as `open_run`, preventing deferred-constraint failures on `pipeline_run` commits before `cdc.oltp.assessed.v1` publish completes.
