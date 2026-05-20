@@ -77,8 +77,21 @@ def pull_sobject(sobject: str, context: dict[str, Any]) -> dict[str, Any]:
         }
 
     # Generate a unique run ID and trace ID for this pull operation, write the data to MinIO, and emit an event.
-    run_id = uuid4()
+    requested_run_id = uuid4()
     trace_id = uuid4()
+    with open_event_store_conn() as conn:
+        with conn.begin():
+            run_id = PgEventStore.open_run(
+                conn,
+                run_id=requested_run_id,
+                pipeline_class=PipelineClass.ingestion,
+                pipeline_name=PipelineName.salesforce_ingestion,
+                source_system=SOURCE_SYSTEM,
+                trigger_type=TRIGGER_TYPE,
+                trigger_event_ref=trigger_event_ref,
+                initiator=INITIATOR,
+            )
+
     output_uris = _write_pages_to_minio(bucket, sobject, str(run_id), pages)
 
     last = records_flat[-1]
@@ -118,23 +131,25 @@ def pull_sobject(sobject: str, context: dict[str, Any]) -> dict[str, Any]:
     # Emit the event to Redpanda and capture the partition and offset for recording in the event store.
     try:
         partition, offset = producer.produce(TOPIC_RAW_READY, envelope, key=f"{sobject}:{run_id}")
+    except Exception as exc:
+        with open_event_store_conn() as conn:
+            with conn.begin():
+                PgEventStore.raise_alert(
+                    conn,
+                    run_id=run_id,
+                    severity="high",
+                    category="salesforce_raw_ready_produce_failed",
+                    summary="Salesforce raw.ready publish failed",
+                    details={"error": str(exc), "sobject": sobject, "trigger_event_ref": trigger_event_ref},
+                )
+                PgEventStore.close_run(conn, run_id, status="failed")
+        raise AirflowException(f"failed to publish {TOPIC_RAW_READY} for {sobject}: {exc}") from exc
     finally:
         producer.close()
 
-    # Persist the event to the event store within the context of the run
+    # Persist the event to the event store within the context of the run.
     with open_event_store_conn() as conn:
         with conn.begin():
-            effective_run_id = PgEventStore.open_run(
-                conn,
-                run_id=run_id,
-                pipeline_class=PipelineClass.ingestion,
-                pipeline_name=PipelineName.salesforce_ingestion,
-                source_system=SOURCE_SYSTEM,
-                trigger_type=TRIGGER_TYPE,
-                trigger_event_ref=trigger_event_ref,
-                initiator=INITIATOR,
-            )
-
             PgEventStore.append_event(
                 conn,
                 envelope,
@@ -147,7 +162,7 @@ def pull_sobject(sobject: str, context: dict[str, Any]) -> dict[str, Any]:
     return {
         "sobject": sobject,
         "row_count": len(records_flat),
-        "run_id": str(effective_run_id),
+        "run_id": str(run_id),
         "trigger_event_ref": trigger_event_ref,
         "output_uris": output_uris,
         "proposed_cursor_ts": proposed_cursor_ts,

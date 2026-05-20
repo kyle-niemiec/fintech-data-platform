@@ -16,6 +16,7 @@ from meridian.libs.service_runtime import build_consumer_config
 
 from .trigger import (
     build_dag_run_id,
+    build_logical_date,
     build_dag_run_payload,
     fetch_api_bearer_token,
     trigger_dag_run,
@@ -78,6 +79,7 @@ def run() -> None:
             try:
                 envelope = json.loads(msg.value())
                 conf = build_dag_run_payload(envelope)
+                logical_date = build_logical_date(envelope)
                 run_id = str(envelope["run_id"])
                 dag_run_id = build_dag_run_id(run_id)
             except (json.JSONDecodeError, KeyError, TypeError) as exc:
@@ -104,6 +106,7 @@ def run() -> None:
                     airflow_base_url=airflow_base_url,
                     dag_id=DAG_ID,
                     dag_run_id=dag_run_id,
+                    logical_date=logical_date,
                     conf=conf,
                     bearer_token=bearer_token,
                 )

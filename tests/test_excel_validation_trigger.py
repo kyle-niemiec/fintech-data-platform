@@ -10,6 +10,7 @@ import pytest
 from workers.excel_validation_trigger.trigger import (
     DEFAULT_SCHEMA_CONTRACT_ID,
     build_dag_run_id,
+    build_logical_date,
     build_dag_run_payload,
     fetch_api_bearer_token,
     trigger_dag_run,
@@ -64,6 +65,18 @@ def test_build_dag_run_payload_uses_contract_from_event_when_present():
     assert payload["schema_contract_id"] == "payroll_v2"
 
 
+def test_build_logical_date_uses_occurred_at_when_present():
+    envelope = _scanned_pass_envelope()
+    assert build_logical_date(envelope) == "2026-04-14T00:00:00Z"
+
+
+def test_build_logical_date_falls_back_to_now_when_missing():
+    envelope = _scanned_pass_envelope()
+    envelope.pop("occurred_at")
+    value = build_logical_date(envelope)
+    assert value.endswith("Z")
+
+
 @dataclass
 class _FakeResponse:
     status_code: int
@@ -103,6 +116,7 @@ def test_trigger_dag_run_treats_201_as_success():
         airflow_base_url="http://airflow-api-server:8080",
         dag_id="excel_validation",
         dag_run_id="excel_validation__r1",
+        logical_date="2026-04-14T00:00:00Z",
         conf={"run_id": "r1"},
         bearer_token="token-1",
     )
@@ -115,6 +129,7 @@ def test_trigger_dag_run_treats_409_as_idempotent_success():
         airflow_base_url="http://airflow-api-server:8080",
         dag_id="excel_validation",
         dag_run_id="excel_validation__r1",
+        logical_date="2026-04-14T00:00:00Z",
         conf={"run_id": "r1"},
         bearer_token="token-1",
     )
@@ -128,6 +143,7 @@ def test_trigger_dag_run_raises_on_other_errors():
             airflow_base_url="http://airflow-api-server:8080",
             dag_id="excel_validation",
             dag_run_id="excel_validation__r1",
+            logical_date="2026-04-14T00:00:00Z",
             conf={"run_id": "r1"},
             bearer_token="token-1",
         )
@@ -140,11 +156,13 @@ def test_trigger_dag_run_uses_api_v2_and_bearer_token():
         airflow_base_url="http://airflow-api-server:8080",
         dag_id="excel_validation",
         dag_run_id="excel_validation__r1",
+        logical_date="2026-04-14T00:00:00Z",
         conf={"run_id": "r1"},
         bearer_token="token-abc",
     )
     assert session.called_with[0]["url"] == "http://airflow-api-server:8080/api/v2/dags/excel_validation/dagRuns"
     assert session.called_with[0]["headers"] == {"Authorization": "Bearer token-abc"}
+    assert session.called_with[0]["json"]["logical_date"] == "2026-04-14T00:00:00Z"
 
 
 def test_fetch_api_bearer_token_returns_access_token():

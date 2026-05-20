@@ -30,6 +30,14 @@ def test_task_module_imports_shared_libs_and_event_contracts():
     assert "append_event" in source
 
 
+def test_task_opens_run_before_publishing_raw_ready():
+    source = PULL_TASK_FILE.read_text()
+    open_run_idx = source.find("PgEventStore.open_run(")
+    produce_idx = source.find("producer.produce(")
+    assert open_run_idx != -1 and produce_idx != -1
+    assert open_run_idx < produce_idx
+
+
 def test_raw_ready_topic_and_transform_identifier_are_preserved():
     common_source = COMMON_FILE.read_text()
     task_source = PULL_TASK_FILE.read_text()

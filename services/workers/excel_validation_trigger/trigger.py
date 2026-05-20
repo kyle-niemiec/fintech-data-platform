@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 DEFAULT_SCHEMA_CONTRACT_ID = "payroll_v1"
@@ -26,12 +27,25 @@ def build_dag_run_payload(envelope: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_logical_date(envelope: dict[str, Any]) -> str:
+    """
+    Airflow API v2 requires `logical_date` when creating DAG runs.
+    """
+    occurred_at = envelope.get("occurred_at")
+
+    if isinstance(occurred_at, str) and occurred_at.strip():
+        return occurred_at
+
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def trigger_dag_run(
     *,
     session: Any,
     airflow_base_url: str,
     dag_id: str,
     dag_run_id: str,
+    logical_date: str,
     conf: dict[str, Any],
     bearer_token: str,
     timeout: float = 10.0,
@@ -40,7 +54,7 @@ def trigger_dag_run(
     response = session.post(
         url,
         headers={"Authorization": f"Bearer {bearer_token}"},
-        json={"dag_run_id": dag_run_id, "conf": conf},
+        json={"dag_run_id": dag_run_id, "logical_date": logical_date, "conf": conf},
         timeout=timeout,
     )
     if response.status_code in {200, 201, 409}:

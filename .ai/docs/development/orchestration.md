@@ -27,5 +27,7 @@
 - Airflow runtime runs on 3.x service topology: `airflow api-server` replaces `webserver`, and a dedicated `airflow dag-processor` service is started alongside scheduler/triggerer.
 - Airflow auth manager is explicitly set to FAB (`airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager`) so existing `airflow users` bootstrap flow and UI login continue to work after 3.x migration.
 - Excel validation trigger worker now targets Airflow REST API v2 (`/api/v2/dags/.../dagRuns`) with bearer token authentication via `/auth/token`.
+- Excel validation trigger includes required `logical_date` when creating DAG runs through Airflow API v2, preventing 422 rejections that left runs parked at `ingest.excel.scanned.pass.v1`.
 - Trino readiness gating checks `/v1/info/state == ACTIVE` before marking the Trino service healthy, preventing `trino_curated_init` from running while the coordinator is still initializing.
 - `trino_curated_init` retries each migration command up to 30 times (2s backoff) to tolerate transient Trino startup race conditions during fresh infra boot.
+- `salesforce_incremental_pull` opens `pipeline_run` before publishing `ingest.salesforce.raw.ready.v1` so downstream bronze workers cannot hit FK races on `event_log.run_id` during fast-consume windows.
