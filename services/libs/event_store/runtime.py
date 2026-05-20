@@ -69,7 +69,13 @@ def build_event_store_engine(
         database=os.environ["EVENT_STORE_DB"],
     )
 
-    return create_engine(url)
+    pool_recycle_seconds = int(os.environ.get("EVENT_STORE_DB_POOL_RECYCLE_SECONDS", "1800"))
+
+    return create_engine(
+        url,
+        pool_pre_ping=True,
+        pool_recycle=max(1, pool_recycle_seconds),
+    )
 
 
 def build_event_store_conn(

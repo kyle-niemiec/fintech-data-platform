@@ -11,6 +11,10 @@
 - Ingestion DAG packaging and task-module split is covered by:
   - `tests/test_excel_validation_dag.py`
   - `tests/test_salesforce_incremental_pull_dag.py`
+- Excel worker runtime resilience and commit semantics are covered by:
+  - `tests/test_excel_worker_main_loops.py`
+  - `tests/test_excel_bronze_writer.py`
+  - `tests/test_scanner.py`
 
 ## Latest Round Verification
 - Tests import shared libraries via `meridian.libs.*`, matching the runtime image layout

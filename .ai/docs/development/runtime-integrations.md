@@ -19,6 +19,7 @@
   - Kafka consumer config construction (including SASL env mapping)
   - Redpanda producer creation
 - Event-store engine/connection lifecycle helpers are centralized in `services/libs/event_store/runtime.py`.
+- Event-store engine defaults now enable SQLAlchemy stale-connection safeguards (`pool_pre_ping=True`, bounded `pool_recycle`) for worker resilience across Postgres restarts.
 - MinIO client construction helpers are centralized in `services/libs/minio_store/minio_client.py`.
 
 ## Dev Compose Pathing Note

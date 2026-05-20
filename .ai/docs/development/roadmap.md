@@ -32,6 +32,7 @@ Legend:
   - [x] `ingest.excel.raw.ready.v1` on pass (`pipeline_run` remains `running`)
   - [x] `ingest.excel.quarantined.v1` on fail (`pipeline_run` closes `quarantined`)
 - [x] Bronze writer consumes `ingest.excel.raw.ready.v1`, writes Parquet to bronze with SSE-KMS headers, emits `ingest.excel.bronze.ready.v1`, and closes run `completed` (or `failed` with alert on error).
+- [x] Excel scanner and bronze writer now use fresh event-store connections per persistence phase and keep Kafka offsets uncommitted for replay when event-store finalization/persistence fails.
 - [x] Terraform identity provisions dedicated Redpanda principals for scanner, airflow trigger, and bronze writer with least-privilege topic/group ACLs.
 - [x] Terraform bootstrap provisions dedicated MinIO validation principal (`landing/raw/quarantine` scope) used by the Airflow validation DAG.
 

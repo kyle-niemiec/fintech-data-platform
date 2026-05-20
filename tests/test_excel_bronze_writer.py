@@ -6,9 +6,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
+import pytest
+
 from workers.excel_bronze_writer.writer import (
     TOPIC_BRONZE_READY,
     ExcelBronzeWriter,
+    RetryableFinalizationError,
     raw_uri_to_bronze_uri,
 )
 
@@ -102,6 +105,10 @@ class _FakeConn:
     calls: list[_Call] = field(default_factory=list)
 
     @contextmanager
+    def session(self):
+        yield self
+
+    @contextmanager
     def begin(self):
         yield self
 
@@ -137,7 +144,13 @@ def test_handle_raw_ready_success(monkeypatch):
     converter = _FakeConverter()
     producer = _FakeProducer()
     conn = _FakeConn()
-    writer = ExcelBronzeWriter(store=store, converter=converter, producer=producer, db=conn, kms_key_id="fintech-lakehouse-kms-key")
+    writer = ExcelBronzeWriter(
+        store=store,
+        converter=converter,
+        producer=producer,
+        db_connection_factory=conn.session,
+        kms_key_id="fintech-lakehouse-kms-key",
+    )
 
     ok = writer.handle_raw_ready(_raw_ready_envelope())
     assert ok is True
@@ -178,7 +191,7 @@ def test_handle_raw_ready_failure_closes_failed_and_alerts(monkeypatch):
         store=_FakeStore(),
         converter=_FailingConverter(),
         producer=_FakeProducer(),
-        db=_FakeConn(),
+        db_connection_factory=_FakeConn().session,
         kms_key_id="fintech-lakehouse-kms-key",
     )
 
@@ -186,3 +199,30 @@ def test_handle_raw_ready_failure_closes_failed_and_alerts(monkeypatch):
     assert ok is False
     assert any(c.name == "raise_alert" for c in calls)
     assert any(c.name == "close_run" and c.kwargs["status"] == "failed" for c in calls)
+
+
+def test_handle_raw_ready_finalization_failure_is_retryable(monkeypatch):
+    calls: list[_Call] = []
+
+    def _append_event(conn, envelope, **kwargs):  # noqa: ANN001
+        calls.append(_Call("append_event", kwargs))
+        raise RuntimeError("db down during finalize")
+
+    def _close_run(conn, run_id, **kwargs):  # noqa: ANN001
+        calls.append(_Call("close_run", {"run_id": str(run_id), **kwargs}))
+
+    monkeypatch.setattr("workers.excel_bronze_writer.writer.PgEventStore.append_event", _append_event)
+    monkeypatch.setattr("workers.excel_bronze_writer.writer.PgEventStore.close_run", _close_run)
+
+    writer = ExcelBronzeWriter(
+        store=_FakeStore(),
+        converter=_FakeConverter(),
+        producer=_FakeProducer(),
+        db_connection_factory=_FakeConn().session,
+        kms_key_id="fintech-lakehouse-kms-key",
+    )
+
+    with pytest.raises(RetryableFinalizationError):
+        writer.handle_raw_ready(_raw_ready_envelope())
+
+    assert any(c.name == "append_event" for c in calls)

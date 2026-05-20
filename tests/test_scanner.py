@@ -125,6 +125,10 @@ class FakeConn:
     calls: list[RecordedCall] = field(default_factory=list)
 
     @contextmanager
+    def session(self):
+        yield self
+
+    @contextmanager
     def begin(self):
         yield self
 
@@ -259,7 +263,7 @@ def _build_scanner(
         object_store=store,
         clamd_client=clamd_client,
         producer=producer,
-        db=db,
+        db_connection_factory=db.session,
         config=config or ScannerConfig(scan_engine_version="1.0/fake"),
     )
     return scanner, store, clamd_client, producer

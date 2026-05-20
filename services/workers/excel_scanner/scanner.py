@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Any, BinaryIO, Callable, Optional, Protocol
+from typing import Any, BinaryIO, Callable, ContextManager, Optional, Protocol
 from urllib.parse import unquote_plus
 from uuid import UUID, uuid4
 
@@ -31,7 +31,7 @@ from meridian.libs.redpanda_events.envelope import (
     PipelineClass,
     PipelineName,
 )
-from meridian.libs.event_store import ManagedConnection, PgEventStore
+from meridian.libs.event_store import PgEventStore
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +218,7 @@ class ExcelScanner:
         object_store: ObjectStore,
         clamd_client: ClamdClient,
         producer: EventEmitter,
-        db: ManagedConnection,
+        db_connection_factory: Callable[[], ContextManager[Any]],
         config: ScannerConfig,
         now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     ):
@@ -228,7 +228,7 @@ class ExcelScanner:
         self._objects = object_store
         self._clamd = clamd_client
         self._producer = producer
-        self._db = db
+        self._db_connection_factory = db_connection_factory
         self._config = config
         self._now = now
 
@@ -272,27 +272,28 @@ class ExcelScanner:
         trace_id = uuid4()
 
         # Create the event store run and emit the "uploaded" event before gating/scanning
-        with self._db.begin():
-            run_id = PgEventStore.open_run(
-                self._db,
-                run_id=run_id,
-                pipeline_class=PipelineClass.ingestion,
-                pipeline_name=PipelineName.excel_ingestion,
-                source_system="excel",
-                trigger_type="minio_object_created",
-                trigger_event_ref=obj.trigger_event_ref,
-                initiator=obj.uploader_principal,
-            )
+        with self._db_connection_factory() as db:
+            with db.begin():
+                run_id = PgEventStore.open_run(
+                    db,
+                    run_id=run_id,
+                    pipeline_class=PipelineClass.ingestion,
+                    pipeline_name=PipelineName.excel_ingestion,
+                    source_system="excel",
+                    trigger_type="minio_object_created",
+                    trigger_event_ref=obj.trigger_event_ref,
+                    initiator=obj.uploader_principal,
+                )
 
-            uploaded_env = self._build_uploaded_envelope(obj, run_id, trace_id)
+                uploaded_env = self._build_uploaded_envelope(obj, run_id, trace_id)
 
-            PgEventStore.append_event(
-                self._db,
-                uploaded_env,
-                topic=source_topic,
-                partition=source_partition,
-                kafka_offset=source_offset,
-            )
+                PgEventStore.append_event(
+                    db,
+                    uploaded_env,
+                    topic=source_topic,
+                    partition=source_partition,
+                    kafka_offset=source_offset,
+                )
 
         # Run gates and scan
         verdict = self._run_gates_and_scan(obj)
@@ -301,31 +302,32 @@ class ExcelScanner:
         partition, offset = self._producer.produce(topic, scanned_env, key=str(run_id))
 
         # Persist the scanned event and raise alert if failed, within the same transaction to ensure consistency between event store and emitted events.
-        with self._db.begin():
-            PgEventStore.append_event(
-                self._db,
-                scanned_env,
-                topic=topic,
-                partition=partition,
-                kafka_offset=offset,
-            )
-
-            # Raise alert for failures with severity based on reason, and close the run with appropriate status
-            if not verdict.passed:
-                PgEventStore.raise_alert(
-                    self._db,
-                    run_id=run_id,
-                    severity="high" if verdict.reason == "malware" else "medium",
-                    category="excel_scan_failed",
-                    summary=f"Excel upload rejected: {verdict.reason}",
-                    details={
-                        "object_key": obj.object_key,
-                        "reason": verdict.reason,
-                        "detail": verdict.detail,
-                    },
+        with self._db_connection_factory() as db:
+            with db.begin():
+                PgEventStore.append_event(
+                    db,
+                    scanned_env,
+                    topic=topic,
+                    partition=partition,
+                    kafka_offset=offset,
                 )
 
-                PgEventStore.close_run(self._db, run_id, status="scan_failed")
+                # Raise alert for failures with severity based on reason, and close the run with appropriate status
+                if not verdict.passed:
+                    PgEventStore.raise_alert(
+                        db,
+                        run_id=run_id,
+                        severity="high" if verdict.reason == "malware" else "medium",
+                        category="excel_scan_failed",
+                        summary=f"Excel upload rejected: {verdict.reason}",
+                        details={
+                            "object_key": obj.object_key,
+                            "reason": verdict.reason,
+                            "detail": verdict.detail,
+                        },
+                    )
+
+                    PgEventStore.close_run(db, run_id, status="scan_failed")
 
         # Log the result of the scan for observability
         logger.info(

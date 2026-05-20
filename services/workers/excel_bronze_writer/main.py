@@ -12,12 +12,17 @@ import sys
 
 from confluent_kafka import Consumer, KafkaException
 
-from meridian.libs.event_store import build_event_store_conn
+from meridian.libs.event_store import open_event_store_conn
 from meridian.libs.minio_store import MinioObjectStore, build_minio_client
 from meridian.libs.redpanda_events.producer import EventProducer
 from meridian.libs.service_runtime import build_consumer_config, build_event_producer
 
-from .writer import ExcelBronzeWriter, PandasParquetConverter, TOPIC_RAW_READY
+from .writer import (
+    ExcelBronzeWriter,
+    PandasParquetConverter,
+    RetryableFinalizationError,
+    TOPIC_RAW_READY,
+)
 
 logger = logging.getLogger("excel_bronze_writer")
 
@@ -40,14 +45,12 @@ def _consumer_config() -> dict[str, str]:
 def build_writer() -> tuple[ExcelBronzeWriter, Consumer, EventProducer]:
     """
     Build the ExcelBronzeWriter, along with its dependencies (RedPanda consumer and
-    event producer, Minio client, and event store connection).
+    event producer, Minio client, and event-store connection factory).
     """
     minio_client = build_minio_client(
         access_key_var="MINIO_TRANSFORM_USER",
         secret_key_var="MINIO_TRANSFORM_SECRET",
     )
-
-    db = build_event_store_conn()
 
     producer = build_event_producer(
         client_id="excel-bronze-writer",
@@ -59,7 +62,7 @@ def build_writer() -> tuple[ExcelBronzeWriter, Consumer, EventProducer]:
         store=MinioObjectStore(minio_client),
         converter=PandasParquetConverter(),
         producer=producer,
-        db=db,
+        db_connection_factory=open_event_store_conn,
         kms_key_id=os.environ["MINIO_KMS_KEY_ID"],
     )
 
@@ -107,14 +110,22 @@ def run() -> None:
             # Process the message with the ExcelBronzeWriter, and log any exceptions.
             try:
                 handled = writer.handle_raw_ready(envelope)
-            except Exception:
+            except RetryableFinalizationError:
                 logger.exception(
-                    "unhandled bronze writer failure topic=%s partition=%s offset=%s",
+                    "retryable finalization failure topic=%s partition=%s offset=%s",
                     msg.topic(),
                     msg.partition(),
                     msg.offset(),
                 )
-
+                continue
+            except Exception:
+                logger.exception(
+                    "terminal bronze writer failure topic=%s partition=%s offset=%s",
+                    msg.topic(),
+                    msg.partition(),
+                    msg.offset(),
+                )
+                consumer.commit(message=msg, asynchronous=False)
                 continue
 
             # If the message was processed successfully, commit the offset.

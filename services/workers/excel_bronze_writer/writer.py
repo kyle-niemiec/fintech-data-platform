@@ -8,20 +8,29 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import io
-from typing import Any, Protocol
+import logging
+from typing import Any, Callable, ContextManager, Protocol
 from urllib.parse import urlparse
 from uuid import UUID
 
 import pandas as pd
 
 from meridian.libs.redpanda_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
-from meridian.libs.event_store import ManagedConnection, PgEventStore
+from meridian.libs.event_store import PgEventStore
 
 TOPIC_RAW_READY = "ingest.excel.raw.ready.v1"
 TOPIC_BRONZE_READY = "ingest.excel.bronze.ready.v1"
 
 TRANSFORM_ID = "excel_to_parquet"
 TRANSFORM_VERSION = "v1"
+
+logger = logging.getLogger(__name__)
+
+
+class RetryableFinalizationError(RuntimeError):
+    """
+    Raised when bronze-ready publish/write succeeded but event-store finalization failed.
+    """
 
 
 def split_s3_uri(uri: str) -> tuple[str, str]:
@@ -110,7 +119,7 @@ class ExcelBronzeWriter:
     store: ObjectStore
     converter: Converter
     producer: EventEmitter
-    db: ManagedConnection
+    db_connection_factory: Callable[[], ContextManager[Any]]
     kms_key_id: str
 
     def handle_raw_ready(self, envelope_dict: dict[str, Any]) -> bool:
@@ -123,15 +132,15 @@ class ExcelBronzeWriter:
         trace_id_str = str(envelope_dict["trace_id"])
         trigger_event_ref = str(envelope_dict["trigger_event_ref"])
         payload = envelope_dict.get("payload") or {}
-        raw_uri = (payload.get("output_uris") or [None])[0]
-
-        if not raw_uri:
-            raise ValueError("raw.ready payload missing output_uris[0]")
-
         run_id = UUID(run_id_str)
         trace_id = UUID(trace_id_str)
 
         try:
+            raw_uri = (payload.get("output_uris") or [None])[0]
+
+            if not raw_uri:
+                raise ValueError("raw.ready payload missing output_uris[0]")
+
             # Read the Excel bytes from the raw URI
             xlsx_bytes = self.store.read_uri(raw_uri)
             parquet_bytes, record_count, schema_fingerprint = self.converter.to_parquet(xlsx_bytes)
@@ -169,34 +178,48 @@ class ExcelBronzeWriter:
 
             partition, offset = self.producer.produce(TOPIC_BRONZE_READY, bronze_envelope, key=run_id_str)
 
-            # Write the bronze ready event to the event store
-            with self.db.begin():
-                PgEventStore.append_event(
-                    self.db,
-                    bronze_envelope,
-                    topic=TOPIC_BRONZE_READY,
-                    partition=partition,
-                    kafka_offset=offset,
-                )
+            try:
+                # Write the bronze ready event to the event store
+                with self.db_connection_factory() as db:
+                    with db.begin():
+                        PgEventStore.append_event(
+                            db,
+                            bronze_envelope,
+                            topic=TOPIC_BRONZE_READY,
+                            partition=partition,
+                            kafka_offset=offset,
+                        )
 
-                PgEventStore.close_run(self.db, run_id, status="completed")
+                        PgEventStore.close_run(db, run_id, status="completed")
+            except Exception as exc:
+                raise RetryableFinalizationError(
+                    f"bronze ready published but finalization failed for run_id={run_id}"
+                ) from exc
 
             return True
+        except RetryableFinalizationError:
+            raise
         except Exception as exc:
-            with self.db.begin():
-                PgEventStore.raise_alert(
-                    self.db,
-                    run_id=run_id,
-                    severity="high",
-                    category="excel_bronze_write_failed",
-                    summary="Excel bronze write failed",
-                    details={
-                        "error": str(exc),
-                        "raw_uri": raw_uri,
-                    },
-                    occurred_at=datetime.now(timezone.utc),
-                )
+            raw_uri = (payload.get("output_uris") or [None])[0]
 
-                PgEventStore.close_run(self.db, run_id, status="failed")
+            try:
+                with self.db_connection_factory() as db:
+                    with db.begin():
+                        PgEventStore.raise_alert(
+                            db,
+                            run_id=run_id,
+                            severity="high",
+                            category="excel_bronze_write_failed",
+                            summary="Excel bronze write failed",
+                            details={
+                                "error": str(exc),
+                                "raw_uri": raw_uri,
+                            },
+                            occurred_at=datetime.now(timezone.utc),
+                        )
+
+                        PgEventStore.close_run(db, run_id, status="failed")
+            except Exception:
+                # Terminal processing failures still return non-success so offsets can advance.
+                logger.exception("failed to persist excel_bronze_write_failed alert run_id=%s", run_id)
             return False
-

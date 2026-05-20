@@ -19,7 +19,7 @@ from typing import Any
 import clamd  # type: ignore[import-untyped]
 from confluent_kafka import Consumer, KafkaException
 
-from meridian.libs.event_store import ManagedConnection, build_event_store_conn
+from meridian.libs.event_store import open_event_store_conn
 from meridian.libs.minio_store import MinioObjectStore, build_minio_client
 from meridian.libs.redpanda_events.envelope import Envelope
 from meridian.libs.redpanda_events.producer import EventProducer
@@ -52,7 +52,7 @@ class ProducerAdapter:
         return self._producer.produce(topic, envelope, key=key)
 
 
-def build_scanner() -> tuple[ExcelScanner, ManagedConnection, EventProducer, Consumer]:
+def build_scanner() -> tuple[ExcelScanner, EventProducer, Consumer]:
     """
     Build the ExcelScanner, along with its dependencies (RedPanda consumer and
     event producer, Minio client, and event store connection).
@@ -68,8 +68,6 @@ def build_scanner() -> tuple[ExcelScanner, ManagedConnection, EventProducer, Con
     )
 
     scan_version = clamd_client.version()
-
-    db = build_event_store_conn()
 
     producer = build_event_producer(
         client_id="excel-scanner",
@@ -92,7 +90,7 @@ def build_scanner() -> tuple[ExcelScanner, ManagedConnection, EventProducer, Con
         object_store=MinioObjectStore(minio_client),
         clamd_client=clamd_client,
         producer=ProducerAdapter(producer),
-        db=db,
+        db_connection_factory=open_event_store_conn,
         config=ScannerConfig(
             max_bytes=int(os.environ.get("EXCEL_MAX_BYTES", str(25 * 1024 * 1024))),
             allowed_content_types=DEFAULT_ALLOWED_CONTENT_TYPES,
@@ -100,7 +98,7 @@ def build_scanner() -> tuple[ExcelScanner, ManagedConnection, EventProducer, Con
         ),
     )
 
-    return scanner, db, producer, consumer
+    return scanner, producer, consumer
 
 
 def run() -> None:
@@ -111,7 +109,7 @@ def run() -> None:
     """
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 
-    scanner, db, producer, consumer = build_scanner()
+    scanner, producer, consumer = build_scanner()
     shutdown = {"stop": False}
 
     def _handle_signal(signum: int, _frame: Any) -> None:
@@ -121,7 +119,7 @@ def run() -> None:
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
 
-    with closing(db), closing(consumer):
+    with closing(consumer):
         while not shutdown["stop"]:
             msg = consumer.poll(1.0)
 
@@ -140,6 +138,8 @@ def run() -> None:
 
             records = notification.get("Records") or []
 
+            message_failed = False
+
             for record in records:
                 try:
                     scanner.handle_record(
@@ -155,8 +155,16 @@ def run() -> None:
                         msg.partition(),
                         msg.offset(),
                     )
+                    message_failed = True
 
-                    raise
+            if message_failed:
+                logger.warning(
+                    "message failed; leaving offset uncommitted for replay topic=%s partition=%s offset=%s",
+                    msg.topic(),
+                    msg.partition(),
+                    msg.offset(),
+                )
+                continue
 
             consumer.commit(message=msg, asynchronous=False)
 

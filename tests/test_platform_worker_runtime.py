@@ -57,8 +57,9 @@ def test_build_event_store_engine_uses_expected_env(monkeypatch) -> None:
 
     captured = {}
 
-    def _fake_create_engine(url):  # noqa: ANN001
+    def _fake_create_engine(url, **kwargs):  # noqa: ANN001
         captured["url"] = url
+        captured["kwargs"] = kwargs
         return object()
 
     import sqlalchemy
@@ -74,6 +75,8 @@ def test_build_event_store_engine_uses_expected_env(monkeypatch) -> None:
     assert captured["url"].database == "event_store"
     assert captured["url"].username == "app"
     assert captured["url"].password == "secret"
+    assert captured["kwargs"]["pool_pre_ping"] is True
+    assert captured["kwargs"]["pool_recycle"] == 1800
 
 
 def test_build_event_store_conn_wraps_engine_connection(monkeypatch) -> None:
