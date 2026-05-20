@@ -40,7 +40,7 @@ docker run --rm minio/kes:latest identity new
 Use this Compose file stack for direct `docker compose` commands:
 
 ```bash
-COMPOSE_FILES="-f infra/docker-compose.yaml -f infra/compose/foundation.yaml -f infra/compose/orchestration.yaml -f infra/compose/excel-pipeline.yaml -f infra/compose/api.yaml -f infra/compose/ui.yaml"
+COMPOSE_FILES="-f infra/docker-compose.yaml -f infra/compose/foundation.yaml -f infra/compose/orchestration.yaml -f infra/compose/excel-pipeline.yaml -f infra/compose/cdc-pipeline.yaml -f infra/compose/salesforce-pipeline.yaml -f infra/compose/curated-pipeline.yaml -f infra/compose/api.yaml -f infra/compose/ui.yaml"
 ```
 
 Run the staged infra bootstrap first (single command):
@@ -49,21 +49,24 @@ Run the staged infra bootstrap first (single command):
 make infra-up
 ```
 
-Or run individual steps:
+Or run individual steps (1-12):
 
 ```bash
-make infra-up 1
-make infra-up 2
-make infra-up 3
-make infra-up 4
-make infra-up 5
-make infra-up 6
-make infra-up 7
-make infra-up 8
-make infra-up 9
+make infra-up 1     # terraform init (bootstrap + identity phases)
+make infra-up 2     # postgres, event-store, vault, kes, minio, redpanda
+make infra-up 3     # terraform bootstrap apply
+make infra-up 4     # keycloak
+make infra-up 5     # terraform identity apply
+make infra-up 6     # excel pipeline (airflow + scanner/trigger/bronze writer)
+make infra-up 7     # cdc pipeline (oltp_db, load gen, Debezium, fraud worker, bronze writer)
+make infra-up 8     # salesforce pipeline (mock service + bronze writer)
+make infra-up 9     # curated pipeline (iceberg-rest, trino, curated init)
+make infra-up 10    # read-only UI query API
+make infra-up 11    # demo UI
+make infra-up 12    # status (docker compose ps)
 ```
 
-The staged flow includes the read-only UI query API (`make infra-up 7`) and demo UI (`make infra-up 8`).
+The staged flow includes the read-only UI query API (`make infra-up 10`) and demo UI (`make infra-up 11`).
 The API is exposed at `http://localhost:8000` and the UI is exposed at `http://localhost:3000`.
 
 ### Development override: MinIO console on host
@@ -74,7 +77,7 @@ By default, MinIO remains internal-only. For local development that needs browse
 make infra-up-dev
 ```
 
-This enables the dev override compose file (`infra/compose/dev-ui-access.yaml`) and publishes:
+This enables the dev override compose file (`infra/compose/dev/minio-console-access.yaml`) and publishes:
 - `http://localhost:9000` (S3 API)
 - `http://localhost:9001` (MinIO Console)
 
@@ -158,8 +161,9 @@ make db-psql-event-store
 ### Bring-up
 
 ```bash
-make infra-up            # base stack (steps 1-6)
-make infra-cdc-pipeline  # step 7: oltp_db, load gen, Debezium, fraud worker, bronze writer
+make infra-up            # full local stack (staged steps 1-12; CDC pipeline is step 7)
+# or bring up just the CDC pipeline against an already-running base:
+make infra-cdc-pipeline  # oltp_db, load gen, Debezium, fraud worker, bronze writer
 ```
 
 The OLTP load generator runs continuously with randomized cadence
@@ -198,7 +202,7 @@ The OLTP load generator runs continuously with randomized cadence
 5. Confirm the idempotent `risk_flag` row is persisted:
 
    ```sql
-   SELECT transaction_id, risk_score, risk_flags, fraud_rule_version
+   SELECT transaction_id, risk_score, risk_flags
    FROM trading.risk_flag ORDER BY flagged_at DESC LIMIT 3;
    ```
 
@@ -235,13 +239,17 @@ Verify no duplicate `trading.risk_flag` rows (idempotency holds) and distinct
 
 - Replication slot growth: sustained Debezium downtime + active OLTP writes
   grow WAL. Monitor with `SELECT slot_name, active, pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) AS backlog FROM pg_replication_slots;`.
-- Demo model label: `fraud_rule_version` is stored as a static label
-  (`demo_continuous_risk`) for traceability.
+- Fraud scoring is versionless in this demo; assessed events and `trading.risk_flag` rows carry no rule-version label.
 
-### Pending pipelines (later roadmap phases)
+### Salesforce and curated pipelines
 
-- Salesforce pull validation is Phase 5.
-- Curated promotion validation is Phase 6.
+- The Salesforce pull (Phase 5) and curated promotion (Phase 6) pipelines are implemented and are
+  brought up by `make infra-up` (steps 8 and 9), or standalone via `make infra-salesforce-pipeline`
+  and `make infra-curated-pipeline`.
+- Salesforce: a scheduled `salesforce_incremental_pull` Airflow DAG pulls from the mock service,
+  persists raw artifacts, and emits `ingest.salesforce.bronze.ready.v1`.
+- Curated: `*.bronze.ready.v1` events drive the listener/transform DAG pairs
+  (`silver_curated_promotion` -> `gold_curated_aggregation`) into Iceberg via Trino.
 
 ## Replay and Backfill
 

@@ -54,7 +54,8 @@ All source pipelines are event-driven and write audit events to the dedicated ev
 - Debezium Server (single container, `pgoutput` plugin) writes directly to Redpanda. A `ByLogicalTableRouter` SMT collapses per-table topics onto one canonical contract topic (`cdc.oltp.raw.v1`); Debezium offsets live on a named volume.
 - Fraud worker (`group.id=fraud-worker-v1`, 12-partition topic) consumes raw events, scores with pure functional rules, and emits `cdc.oltp.assessed.v1`.
 - CDC bronze writer batches assessed events, writes zero-transformation Parquet to `bronze/source=cdc/table=<table>/year=YYYY/month=MM/day=DD/hour=HH/run_id=<run_id>/...`, and emits `cdc.oltp.bronze.ready.v1`.
-- Internal load generator is the only writer into the OLTP. Each cycle emits one primary event type (`transaction`, `loan`, `loan_payment`, or `loan_status_history`) with required same-cycle side effects, and sleeps for a randomized 10-60s interval before the next cycle.
+- Internal load generator is the only writer into the OLTP. Each cycle emits one primary event type (`transaction`, `loan`, `loan_payment`, or `loan_status_history`) with required same-cycle side effects, and sleeps for a randomized 30-60s interval (configurable via `OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS`/`OLTP_LOAD_GEN_INTERVAL_MAX_SECONDS`) before the next cycle.
+- A configurable fraction of generated transaction events is amount-shaped to exceed its instrument fraud threshold (`OLTP_LOAD_GEN_FRAUD_FRACTION`, default 0.05) so flagged transactions appear continuously.
 - Loan lifecycle statuses used by the generator are `current` (active, on schedule), `delinquent` (active, past due), and `paid_off` (closed). `loan_status_history` is append-only and captures lifecycle transitions; `loan.status_code` remains the current-state snapshot.
 
 ### Partition Keys and Run Boundary
@@ -64,25 +65,25 @@ All source pipelines are event-driven and write audit events to the dedicated ev
   - Fraud worker: one `pipeline_run` per consumed raw event, `trigger_event_ref = <topic>:<partition>:<offset>`.
   - CDC bronze writer: one `pipeline_run` per flushed batch, per source table.
 
-### Rule Versioning
+### Risk Scoring Model
 
-- `fraud_rule_version` is a static model label (`demo_continuous_risk`) in this demo, persisted on every `trading.risk_flag` row and assessed envelope payload for traceability only (not version governance).
+- The fraud scorer is intentionally versionless in this demo; assessed events and `trading.risk_flag` rows carry no rule-version label.
 - Continuous risk model (bounded in `[0, 1)`) per instrument:
   - Risk score function: `r(x) = -r_f/(x+r_f) + 1`
-  - Factor calibration at platform threshold `r_t=0.7`: `r_f(X) = X*(1-r_t)/r_t`
+  - Factor calibration at platform threshold `r_t=0.8` (`PLATFORM_RISK_THRESHOLD`): `r_f(X) = X*(1-r_t)/r_t`
   - A row is flagged when `r(x) >= r_t`.
-- Instrument calibration (`X` is dollar amount at which risk crosses `0.7`):
+- Instrument calibration (`X` is dollar amount at which risk crosses `0.8`):
 
 | Instrument | `X` (USD) | `r_f` |
 | --- | ---: | ---: |
-| `AAPL` | 10000 | 4285.714 |
-| `MSFT` | 14000 | 6000.000 |
-| `GOOG` | 30000 | 12857.143 |
-| `AMZN` | 22000 | 9428.571 |
-| `TSLA` | 8000 | 3428.571 |
-| `JPM` | 5000 | 2142.857 |
-| `BAC` | 3000 | 1285.714 |
-| `NVDA` | 1000 | 428.571 |
+| `AAPL` | 10000 | 2500.000 |
+| `MSFT` | 14000 | 3500.000 |
+| `GOOG` | 30000 | 7500.000 |
+| `AMZN` | 22000 | 5500.000 |
+| `TSLA` | 8000 | 2000.000 |
+| `JPM` | 5000 | 1250.000 |
+| `BAC` | 3000 | 750.000 |
+| `NVDA` | 1000 | 250.000 |
 
 ### Idempotency and At-Least-Once
 
@@ -92,7 +93,7 @@ All source pipelines are event-driven and write audit events to the dedicated ev
 
 ### Legal Defensibility Rules
 
-- Bronze Parquet columns include `op`, `source_lsn`, `source_ts_ms`, `kafka_topic`, `kafka_partition`, `kafka_offset`, `event_id`, `fraud_rule_version`, `risk_score`, `risk_flags`, plus the full assessed payload JSON verbatim.
+- Bronze Parquet columns include `op`, `source_lsn`, `source_ts_ms`, `kafka_topic`, `kafka_partition`, `kafka_offset`, `event_id`, `risk_score`, `risk_flags`, plus the full assessed payload JSON verbatim.
 - No business transformation before bronze write; batches are sorted by LSN, then Kafka offset.
 - `event_store.cdc_checkpoint` records first/last LSN, Kafka offset range, and record count per flush to prove coverage.
 - Replay from topic offsets reconstructs identical bronze records with new run IDs; prior runs remain untouched.

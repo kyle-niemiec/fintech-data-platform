@@ -69,7 +69,6 @@ export interface RecentTransactionItem {
   executed_at: string;
   risk_score: string | null;
   risk_flags: string[] | null;
-  fraud_rule_version: string | null;
 }
 
 export interface DemoUploadResponse {

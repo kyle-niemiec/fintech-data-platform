@@ -1,8 +1,16 @@
 """Shared pytest fixtures.
 
-Adds service roots to sys.path so tests can import `workers` and `libs`
-without requiring editable installs. Integration-tier fixtures (redpanda,
-minio, event-store) are added in later slices under the `integration` marker.
+Adds service roots to sys.path so tests can import worker and pipeline modules
+(`workers.*`, pipeline DAG modules) without an editable install.
+
+Shared libraries are imported through the `meridian.libs.*` namespace, matching
+the runtime images (worker Dockerfiles `COPY services/libs -> /app/meridian/libs`;
+the orchestrator uses `/opt/airflow/meridian/libs`). That namespace is provided
+by the environment, not fabricated here: run the suite inside the container image,
+or locally with the libraries available as `meridian` (for example a `PYTHONPATH`
+entry whose `meridian/libs` resolves to `services/libs`). Integration-tier fixtures
+(redpanda, minio, event-store) are added in later slices under the `integration`
+marker.
 """
 
 from __future__ import annotations

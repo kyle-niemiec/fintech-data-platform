@@ -29,6 +29,16 @@
 ## Behavioral Compatibility
 - DAG identifiers, task identifiers, event types, trigger references, and run lifecycle behavior are preserved through modularization and packaging changes.
 
+## Shared Library Namespace
+- The `services/libs/` tree is deployed into runtime images under the `meridian` namespace
+  (worker Dockerfiles `COPY services/libs -> /app/meridian/libs`; the orchestrator image places it at
+  `/opt/airflow/meridian/libs` on `PYTHONPATH`), so application and DAG code imports shared libraries
+  as `meridian.libs.*` (for example `meridian.libs.event_store`, `meridian.libs.minio_store`,
+  `meridian.libs.redpanda_events`).
+- Tests import the same `meridian.libs.*` namespace; it is supplied by the environment (the container
+  image, or a `PYTHONPATH` whose `meridian/libs` resolves to `services/libs`), not fabricated by the
+  test harness. `tests/conftest.py` only adds worker/pipeline source roots for `workers.*` imports.
+
 ## Worker Runtime Modularity
 - Shared worker bootstrap/runtime helpers are centralized in `services/libs/service_runtime/runtime.py` for:
   - Kafka consumer config construction

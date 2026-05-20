@@ -41,8 +41,8 @@ def test_each_instrument_is_below_threshold_just_under_calibrated_amount() -> No
 
 def test_aapl_continuous_score_is_between_zero_and_threshold_midway() -> None:
     result = score_transaction({"instrument": "AAPL", "amount": "5000"})
-    # With r_t=0.7 and X=10000 -> r_f=4285.714..., midpoint score is ~0.5385.
-    assert result.risk_score == Decimal("0.5385")
+    # With r_t=0.8 and X=10000 -> r_f=2500, score at $5000 is 1 - 2500/7500 = ~0.6667.
+    assert result.risk_score == Decimal("0.6667")
     assert result.risk_flags == []
 
 

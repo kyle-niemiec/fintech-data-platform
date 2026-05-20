@@ -92,11 +92,10 @@ def list_recent_transactions(
                 t.amount,
                 t.executed_at,
                 rf.risk_score,
-                rf.risk_flags,
-                rf.fraud_rule_version
+                rf.risk_flags
             FROM trading.transaction AS t
             LEFT JOIN LATERAL (
-                SELECT risk_score, risk_flags, fraud_rule_version
+                SELECT risk_score, risk_flags
                 FROM trading.risk_flag r
                 WHERE r.transaction_id = t.transaction_id
                 ORDER BY r.flagged_at DESC

@@ -89,7 +89,7 @@ Required payload fields by stage:
 
 Required payload fields:
 - raw: `topic`, `partition`, `offset`, `lsn`, `op`, `before`, `after`, `source_ts_ms`
-- assessed: `risk_score`, `risk_flags[]`, `fraud_rule_version`, `original_topic_metadata`
+- assessed: `risk_score`, `risk_flags[]`, `original_topic_metadata`
 - bronze_ready: `stage`, `input_uris[]`, `output_uris[]`, `record_count`, `first_lsn`, `last_lsn`
 
 ### Salesforce

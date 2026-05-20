@@ -29,7 +29,6 @@ def test_assessed_payload_required_fields() -> None:
     payload = {
         "risk_score": 0.9,
         "risk_flags": ["risk_threshold_exceeded"],
-        "fraud_rule_version": "demo_continuous_risk",
         "loan_id": "loan-123",
         "payment_amount": 1250.25,
         "payment_due_date": "2026-05-01",
@@ -47,7 +46,6 @@ def test_assessed_payload_required_fields() -> None:
     for field in (
         "risk_score",
         "risk_flags",
-        "fraud_rule_version",
         "loan_id",
         "payment_amount",
         "payment_due_date",

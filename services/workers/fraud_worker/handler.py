@@ -37,7 +37,6 @@ TOPIC_ASSESSED_STARTED = "cdc.oltp.assessed.started.v1"
 TRIGGER_TYPE = "cdc_raw_event"
 INITIATOR = "fraud_worker"
 SOURCE_SYSTEM = "cdc"
-FRAUD_RULE_LABEL = "demo_continuous_risk"
 
 
 class EventEmitter(Protocol):
@@ -126,14 +125,13 @@ def _upsert_risk_flag(
         text(
             """
             INSERT INTO trading.risk_flag (
-                transaction_id, event_id, fraud_rule_version,
+                transaction_id, event_id,
                 risk_score, risk_flags,
                 raw_topic, raw_partition, raw_offset
             )
             VALUES (
                 :transaction_id,
                 :event_id,
-                :fraud_rule_version,
                 :risk_score,
                 CAST(:risk_flags AS jsonb),
                 :raw_topic,
@@ -147,7 +145,6 @@ def _upsert_risk_flag(
         {
             "transaction_id": transaction_id,
             "event_id": str(event_id),
-            "fraud_rule_version": FRAUD_RULE_LABEL,
             "risk_score": assessment.risk_score,
             "risk_flags": json.dumps(assessment.risk_flags, separators=(",", ":")),
             "raw_topic": raw.topic,
@@ -282,7 +279,6 @@ class FraudHandler:
                 payload={
                     "risk_score": _decimal_to_float(assessment.risk_score),
                     "risk_flags": assessment.risk_flags,
-                    "fraud_rule_version": FRAUD_RULE_LABEL,
                     "transaction_id": transaction_id,
                     "account_id": row.get("account_id"),
                     "loan_id": row.get("loan_id"),

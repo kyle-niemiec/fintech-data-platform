@@ -57,7 +57,6 @@ class BatchRow:
     kafka_partition: int
     kafka_offset: int
     event_id: str
-    fraud_rule_version: str | None
     risk_score: float | None
     risk_flags: list[str]
     account_id: str | None
@@ -102,7 +101,6 @@ def assessed_record_to_row(rec: AssessedRecord) -> BatchRow:
         kafka_partition=rec.kafka_partition,
         kafka_offset=rec.kafka_offset,
         event_id=str(env.get("event_id")),
-        fraud_rule_version=payload.get("fraud_rule_version"),
         risk_score=_coerce_float(payload.get("risk_score")),
         risk_flags=list(payload.get("risk_flags") or []),
         account_id=payload.get("account_id"),
@@ -161,7 +159,6 @@ def rows_to_parquet_bytes(rows: list[BatchRow]) -> bytes:
         "kafka_partition": [r.kafka_partition for r in rows],
         "kafka_offset": [r.kafka_offset for r in rows],
         "event_id": [r.event_id for r in rows],
-        "fraud_rule_version": [r.fraud_rule_version for r in rows],
         "risk_score": [r.risk_score for r in rows],
         "risk_flags": [r.risk_flags for r in rows],
         "account_id": [r.account_id for r in rows],

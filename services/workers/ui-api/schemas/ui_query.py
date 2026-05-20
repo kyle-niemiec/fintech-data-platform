@@ -70,7 +70,6 @@ class RecentTransactionItem(BaseModel):
     executed_at: datetime
     risk_score: Decimal | None
     risk_flags: list[str] | None
-    fraud_rule_version: str | None
 
 
 class AlertItem(BaseModel):

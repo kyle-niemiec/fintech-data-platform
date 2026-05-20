@@ -133,8 +133,8 @@ def _now_utc() -> datetime:
 
 
 def _read_interval_bounds_seconds() -> tuple[int, int]:
-    min_seconds = int(os.environ.get("OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS"))
-    max_seconds = int(os.environ.get("OLTP_LOAD_GEN_INTERVAL_MAX_SECONDS"))
+    min_seconds = int(os.environ.get("OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS", "30"))
+    max_seconds = int(os.environ.get("OLTP_LOAD_GEN_INTERVAL_MAX_SECONDS", "60"))
 
     if min_seconds < 1:
         raise ValueError("OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS must be >= 1")
@@ -413,7 +413,7 @@ def run() -> None:
     """
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
     min_interval_s, max_interval_s = _read_interval_bounds_seconds()
-    fraud_fraction = float(os.environ.get("OLTP_LOAD_GEN_FRAUD_FRACTION", "0.1"))
+    fraud_fraction = float(os.environ.get("OLTP_LOAD_GEN_FRAUD_FRACTION", "0.05"))
     rng = random.Random()
     shutdown = {"stop": False}
 

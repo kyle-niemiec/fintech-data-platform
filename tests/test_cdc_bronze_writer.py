@@ -24,7 +24,6 @@ def _assessed(lsn: str, offset: int, risk_flags: list[str] | None = None) -> Ass
     payload = {
         "risk_score": 0.9 if risk_flags else 0.0,
         "risk_flags": risk_flags or [],
-        "fraud_rule_version": "demo_continuous_risk",
         "transaction_id": f"txn-{offset}",
         "op": "c",
         "source_table": "trading.transaction",
@@ -110,7 +109,7 @@ def test_parquet_columns_cover_contract_fields() -> None:
     expected_cols = {
         "op", "transaction_id", "source_table", "source_lsn", "source_ts_ms",
         "kafka_topic", "kafka_partition", "kafka_offset", "event_id",
-        "fraud_rule_version", "risk_score", "risk_flags", "assessed_payload",
+        "risk_score", "risk_flags", "assessed_payload",
     }
     assert expected_cols.issubset(set(table.column_names))
     assert table.num_rows == 1

@@ -55,7 +55,6 @@ CREATE TABLE IF NOT EXISTS trading.risk_flag (
     risk_flag_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     transaction_id UUID NOT NULL REFERENCES trading.transaction (transaction_id),
     event_id UUID NOT NULL,
-    fraud_rule_version TEXT NOT NULL,
     risk_score NUMERIC(5, 4) NOT NULL,
     risk_flags JSONB NOT NULL,
     raw_topic TEXT NOT NULL,
