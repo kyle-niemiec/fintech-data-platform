@@ -10,13 +10,14 @@ import sys
 
 from confluent_kafka import Consumer, KafkaException
 
-from meridian.libs.event_store import build_event_store_conn
+from meridian.libs.event_store import open_event_store_conn
 from meridian.libs.minio_store import MinioObjectStore, build_minio_client
 from meridian.libs.redpanda_events.producer import EventProducer
 from meridian.libs.service_runtime import build_consumer_config, build_event_producer
 
 from .writer import (
     RawReadyMessage,
+    RetryableFinalizationError,
     SalesforceBronzeWriter,
     TOPIC_RAW_READY,
 )
@@ -48,8 +49,6 @@ def build_writer() -> tuple[SalesforceBronzeWriter, Consumer, EventProducer]:
         secret_key_var="MINIO_TRANSFORM_SECRET",
     )
 
-    db = build_event_store_conn()
-
     producer = build_event_producer(
         client_id="salesforce-bronze-writer",
         username_var="REDPANDA_SALESFORCE_BRONZE_USER",
@@ -59,7 +58,7 @@ def build_writer() -> tuple[SalesforceBronzeWriter, Consumer, EventProducer]:
     writer = SalesforceBronzeWriter(
         store=MinioObjectStore(minio_client),
         producer=producer,
-        db=db,
+        db_connection_factory=open_event_store_conn,
         kms_key_id=os.environ["MINIO_KMS_KEY_ID"],
     )
 
@@ -108,12 +107,20 @@ def run() -> None:
 
             try:
                 handled = writer.handle_raw_ready(raw)
+            except RetryableFinalizationError:
+                logger.exception(
+                    "retryable finalization failure topic=%s partition=%s offset=%s",
+                    msg.topic(),
+                    msg.partition(),
+                    msg.offset(),
+                )
+                continue
             except Exception:
                 logger.exception(
-                    "unhandled bronze writer failure topic=%s partition=%s offset=%s",
+                    "terminal bronze writer failure topic=%s partition=%s offset=%s",
                     msg.topic(), msg.partition(), msg.offset(),
                 )
-
+                consumer.commit(message=msg, asynchronous=False)
                 continue
 
             if handled:

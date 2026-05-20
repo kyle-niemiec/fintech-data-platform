@@ -17,7 +17,7 @@ from confluent_kafka import Consumer, KafkaException
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 
-from meridian.libs.event_store import ManagedConnection, build_event_store_conn
+from meridian.libs.event_store import ManagedConnection, open_event_store_conn
 from meridian.libs.redpanda_events.producer import EventProducer
 from meridian.libs.service_runtime import build_consumer_config, build_event_producer
 
@@ -65,7 +65,6 @@ def _build_handler() -> tuple[FraudHandler, Consumer, EventProducer]:
     Build the FraudHandler along with its dependencies (OLTP connection, event store connection, and event producer).
     """
     oltp_conn = _build_oltp_conn()
-    event_store_conn = build_event_store_conn()
 
     producer = build_event_producer(
         client_id="fraud-worker",
@@ -78,7 +77,7 @@ def _build_handler() -> tuple[FraudHandler, Consumer, EventProducer]:
 
     handler = FraudHandler(
         oltp_conn=oltp_conn,
-        event_store_conn=event_store_conn,
+        event_store_connection_factory=open_event_store_conn,
         producer=producer,
     )
 
@@ -163,10 +162,7 @@ def run() -> None:
             try:
                 producer.close()
             finally:
-                try:
-                    handler.event_store_conn.close()
-                finally:
-                    handler.oltp_conn.close()
+                handler.oltp_conn.close()
 
 
 if __name__ == "__main__":

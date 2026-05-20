@@ -15,6 +15,12 @@
   - `tests/test_excel_worker_main_loops.py`
   - `tests/test_excel_bronze_writer.py`
   - `tests/test_scanner.py`
+- Salesforce/CDC/Fraud worker runtime resilience and connection-factory adoption are covered by:
+  - `tests/test_worker_main_loops_additional.py`
+  - `tests/test_salesforce_bronze_writer.py`
+  - `tests/test_cdc_bronze_writer_main.py`
+  - `tests/test_fraud_handler.py`
+  - `tests/test_event_store_connection_factory_audit.py`
 
 ## Latest Round Verification
 - Tests import shared libraries via `meridian.libs.*`, matching the runtime image layout

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from workers.fraud_worker.handler import (
@@ -87,3 +88,16 @@ def test_cdc_source_system_matches_event_store_domain_contract() -> None:
 def test_fraud_started_event_contract_constants_are_stable() -> None:
     assert TOPIC_INTERNAL == "event_store.internal"
     assert TOPIC_ASSESSED_STARTED == "cdc.oltp.assessed.started.v1"
+
+
+def test_fraud_handler_uses_event_store_connection_factory() -> None:
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "services"
+        / "workers"
+        / "fraud_worker"
+        / "handler.py"
+    ).read_text()
+
+    assert "event_store_connection_factory" in source
+    assert "with self.event_store_connection_factory() as event_store_conn:" in source

@@ -36,3 +36,6 @@
 - `fraud_worker` now decodes Debezium NUMERIC payloads for CDC loan/payment fields before assessed-envelope assembly; envelope-build failures after `cdc.oltp.assessed.started.v1` are explicitly alerted (`cdc_assessed_envelope_build_failed`) and the run is closed `failed` instead of lingering in `running`.
 - `excel_scanner` no longer crashes the process for per-record persistence failures; failed messages remain uncommitted so Kafka replay can recover once event-store connectivity returns.
 - `excel_bronze_writer` now treats post-publish event-store finalization failures as retryable (offset left uncommitted) while terminal conversion/write failures still attempt alert+failed close and then commit.
+- `salesforce_bronze_writer` now uses event-store connection factories per persistence phase and treats post-publish finalization failures as retryable (offset left uncommitted) while terminal conversion/write failures still attempt alert+failed close and commit.
+- `cdc_bronze_writer` now opens fresh event-store connections for prepare/finalize/failure-mark phases instead of reusing one long-lived connection; flush failures continue to replay without committing offsets.
+- `fraud_worker` now opens fresh event-store connections for started/failure/completion persistence phases while preserving no-commit replay behavior on handler failures.

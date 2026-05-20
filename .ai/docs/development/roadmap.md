@@ -46,6 +46,8 @@ Legend:
 - [x] Event-store DDL adds `event_store.cdc_checkpoint`; `append_cdc_checkpoint` helper is part of `event_store.PgEventStore`.
 - [x] Root UI runs view is generalized across pipelines with a multi-select pipeline pill filter and a Recent Transactions tab backed by `oltp_ui_reader`.
 - [x] `fraud_worker` persists an internal `cdc.oltp.assessed.started.v1` event_log row in the same transaction as `open_run`, satisfying deferred `pipeline_run`/`event_log` commit invariants.
+- [x] `fraud_worker` event-store writes now use fresh connection-factory sessions per persistence phase; handler failures continue to leave Kafka offsets uncommitted for replay.
+- [x] `cdc_bronze_writer` event-store prepare/finalize/failure-mark phases now use fresh connection-factory sessions instead of a long-lived connection.
 
 ## Phase 5 - Salesforce Pipeline
 
@@ -55,6 +57,7 @@ Legend:
 - [x] Pull cursor history and raw response artifacts are persisted.
 - [x] Bronze-ready events for CRM objects are emitted.
 - [x] `salesforce_incremental_pull.pull_sobject` now persists a `ingest.sf.pull.started.v1` event_log row in the same transaction as `open_run`, satisfying the deferred run/event_log commit invariant before `raw.ready` publish.
+- [x] `salesforce_bronze_writer` now uses fresh event-store connection-factory sessions, and treats post-publish finalization failures as retryable (offset left uncommitted for replay).
 
 ## Phase 6 - Curated Layer Orchestration
 

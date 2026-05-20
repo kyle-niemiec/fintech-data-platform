@@ -26,3 +26,17 @@ def test_cdc_bronze_writer_records_explicit_publish_failure():
     assert "_mark_batch_failed" in source
     assert "cdc_bronze_ready_publish_failed" in source
     assert 'status="failed"' in source
+
+
+def test_cdc_bronze_writer_uses_event_store_connection_factory():
+    source = MAIN_FILE.read_text()
+    assert "open_event_store_conn" in source
+    assert "_prepare_batch_run(" in source
+    assert "_finalize_published_batch(" in source
+    assert "event_store_connection_factory" in source
+    assert "with event_store_connection_factory() as conn:" in source
+
+
+def test_cdc_bronze_writer_no_long_lived_event_store_conn():
+    source = MAIN_FILE.read_text()
+    assert "build_event_store_conn" not in source

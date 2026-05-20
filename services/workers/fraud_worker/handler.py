@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 import json
 import logging
-from typing import Any, Protocol
+from typing import Any, Callable, ContextManager, Protocol
 from uuid import UUID, uuid4
 
 from sqlalchemy import text
@@ -167,7 +167,7 @@ class FraudHandler:
     5. Log event in event-store with dedupe key (topic+partition+offset) to prevent duplicate emits on replay.
     """
     oltp_conn: ManagedConnection
-    event_store_conn: ManagedConnection
+    event_store_connection_factory: Callable[[], ContextManager[ManagedConnection]]
     producer: EventEmitter
 
 
@@ -228,43 +228,44 @@ class FraudHandler:
                 raise
 
         # Open run and write a first internal event-log row in one transaction.
-        with self.event_store_conn.begin():
-            effective_run_id = PgEventStore.open_run(
-                self.event_store_conn,
-                run_id=run_id,
-                pipeline_class=PipelineClass.ingestion,
-                pipeline_name=PipelineName.cdc_ingestion,
-                source_system=SOURCE_SYSTEM,
-                trigger_type=TRIGGER_TYPE,
-                trigger_event_ref=trigger_event_ref,
-                initiator=INITIATOR,
-            )
+        with self.event_store_connection_factory() as event_store_conn:
+            with event_store_conn.begin():
+                effective_run_id = PgEventStore.open_run(
+                    event_store_conn,
+                    run_id=run_id,
+                    pipeline_class=PipelineClass.ingestion,
+                    pipeline_name=PipelineName.cdc_ingestion,
+                    source_system=SOURCE_SYSTEM,
+                    trigger_type=TRIGGER_TYPE,
+                    trigger_event_ref=trigger_event_ref,
+                    initiator=INITIATOR,
+                )
 
-            started_envelope = Envelope.build(
-                event_type=TOPIC_ASSESSED_STARTED,
-                source=EventSource.cdc,
-                run_id=effective_run_id,
-                pipeline_class=PipelineClass.ingestion,
-                pipeline_name=PipelineName.cdc_ingestion,
-                trigger_event_ref=trigger_event_ref,
-                trace_id=trace_id,
-                payload={
-                    "stage": "assessed",
-                    "state": "started",
-                    "source_table": parsed["source_table"],
-                    "topic": raw.topic,
-                    "partition": raw.partition,
-                    "offset": raw.offset,
-                },
-            )
+                started_envelope = Envelope.build(
+                    event_type=TOPIC_ASSESSED_STARTED,
+                    source=EventSource.cdc,
+                    run_id=effective_run_id,
+                    pipeline_class=PipelineClass.ingestion,
+                    pipeline_name=PipelineName.cdc_ingestion,
+                    trigger_event_ref=trigger_event_ref,
+                    trace_id=trace_id,
+                    payload={
+                        "stage": "assessed",
+                        "state": "started",
+                        "source_table": parsed["source_table"],
+                        "topic": raw.topic,
+                        "partition": raw.partition,
+                        "offset": raw.offset,
+                    },
+                )
 
-            PgEventStore.append_event(
-                self.event_store_conn,
-                started_envelope,
-                topic=TOPIC_INTERNAL,
-                partition=-1,
-                kafka_offset=-1,
-            )
+                PgEventStore.append_event(
+                    event_store_conn,
+                    started_envelope,
+                    topic=TOPIC_INTERNAL,
+                    partition=-1,
+                    kafka_offset=-1,
+                )
 
         try:
             envelope = Envelope.build(
@@ -304,17 +305,18 @@ class FraudHandler:
                 },
             )
         except Exception as exc:
-            with self.event_store_conn.begin():
-                PgEventStore.raise_alert(
-                    self.event_store_conn,
-                    run_id=effective_run_id,
-                    severity="high",
-                    category="cdc_assessed_envelope_build_failed",
-                    summary="fraud worker failed to build assessed envelope",
-                    details={"raw": trigger_event_ref, "error": str(exc)},
-                    occurred_at=datetime.now(timezone.utc),
-                )
-                PgEventStore.close_run(self.event_store_conn, effective_run_id, status="failed")
+            with self.event_store_connection_factory() as event_store_conn:
+                with event_store_conn.begin():
+                    PgEventStore.raise_alert(
+                        event_store_conn,
+                        run_id=effective_run_id,
+                        severity="high",
+                        category="cdc_assessed_envelope_build_failed",
+                        summary="fraud worker failed to build assessed envelope",
+                        details={"raw": trigger_event_ref, "error": str(exc)},
+                        occurred_at=datetime.now(timezone.utc),
+                    )
+                    PgEventStore.close_run(event_store_conn, effective_run_id, status="failed")
             raise
 
         try:
@@ -322,29 +324,31 @@ class FraudHandler:
                 TOPIC_ASSESSED, envelope, key=f"{parsed['source_table']}:{business_key}"
             )
         except Exception:
-            with self.event_store_conn.begin():
-                PgEventStore.raise_alert(
-                    self.event_store_conn,
-                    run_id=effective_run_id,
-                    severity="high",
-                    category="cdc_assessed_produce_failed",
-                    summary="fraud worker failed to produce assessed event",
-                    details={"raw": trigger_event_ref},
-                    occurred_at=datetime.now(timezone.utc),
-                )
-                PgEventStore.close_run(self.event_store_conn, effective_run_id, status="failed")
+            with self.event_store_connection_factory() as event_store_conn:
+                with event_store_conn.begin():
+                    PgEventStore.raise_alert(
+                        event_store_conn,
+                        run_id=effective_run_id,
+                        severity="high",
+                        category="cdc_assessed_produce_failed",
+                        summary="fraud worker failed to produce assessed event",
+                        details={"raw": trigger_event_ref},
+                        occurred_at=datetime.now(timezone.utc),
+                    )
+                    PgEventStore.close_run(event_store_conn, effective_run_id, status="failed")
             raise
 
-        with self.event_store_conn.begin():
-            PgEventStore.append_event(
-                self.event_store_conn,
-                envelope,
-                topic=TOPIC_ASSESSED,
-                partition=partition,
-                kafka_offset=offset,
-            )
+        with self.event_store_connection_factory() as event_store_conn:
+            with event_store_conn.begin():
+                PgEventStore.append_event(
+                    event_store_conn,
+                    envelope,
+                    topic=TOPIC_ASSESSED,
+                    partition=partition,
+                    kafka_offset=offset,
+                )
 
-            PgEventStore.close_run(self.event_store_conn, effective_run_id, status="completed")
+                PgEventStore.close_run(event_store_conn, effective_run_id, status="completed")
 
         return True
 

@@ -23,7 +23,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Protocol
+from typing import Any, Callable, ContextManager, Protocol
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -39,6 +39,12 @@ TOPIC_RAW_READY = "ingest.salesforce.raw.ready.v1"
 TOPIC_BRONZE_READY = "ingest.salesforce.bronze.ready.v1"
 TRANSFORM_ID = "salesforce_json_to_parquet"
 TRANSFORM_VERSION = "v1"
+
+
+class RetryableFinalizationError(RuntimeError):
+    """
+    Raised when bronze-ready publish succeeded but event-store finalization failed.
+    """
 
 
 def split_s3_uri(uri: str) -> tuple[str, str]:
@@ -150,7 +156,7 @@ class SalesforceBronzeWriter:
     """
     store: ObjectStore
     producer: EventEmitter
-    db: ManagedConnection
+    db_connection_factory: Callable[[], ContextManager[ManagedConnection]]
     kms_key_id: str
 
 
@@ -168,8 +174,9 @@ class SalesforceBronzeWriter:
         row_count_reported = int(payload.get("row_count") or 0)
 
         if row_count_reported == 0 or not raw_uris:
-            with self.db.begin():
-                PgEventStore.close_run(self.db, run_id, status="completed")
+            with self.db_connection_factory() as db:
+                with db.begin():
+                    PgEventStore.close_run(db, run_id, status="completed")
 
             logger.info("salesforce raw.ready with zero rows closed run run_id=%s sobject=%s", run_id, sobject)
             return True
@@ -183,8 +190,9 @@ class SalesforceBronzeWriter:
                 records.extend(page.get("records") or [])
 
             if not records:
-                with self.db.begin():
-                    PgEventStore.close_run(self.db, run_id, status="completed")
+                with self.db_connection_factory() as db:
+                    with db.begin():
+                        PgEventStore.close_run(db, run_id, status="completed")
 
                 return True
 
@@ -229,47 +237,56 @@ class SalesforceBronzeWriter:
                 TOPIC_BRONZE_READY, bronze_envelope, key=f"{sobject}:{run_id}"
             )
 
-            with self.db.begin():
-                PgEventStore.append_event(
-                    self.db,
-                    bronze_envelope,
-                    topic=TOPIC_BRONZE_READY,
-                    partition=partition,
-                    kafka_offset=offset,
-                )
+            try:
+                with self.db_connection_factory() as db:
+                    with db.begin():
+                        PgEventStore.append_event(
+                            db,
+                            bronze_envelope,
+                            topic=TOPIC_BRONZE_READY,
+                            partition=partition,
+                            kafka_offset=offset,
+                        )
 
-                PgEventStore.append_sf_cursor_checkpoint(
-                    self.db,
-                    run_id=run_id,
-                    sobject=sobject,
-                    cursor_ts=cursor_ts,
-                    cursor_id=cursor_id,
-                    kafka_partition=msg.kafka_partition,
-                    offset_start=msg.kafka_offset,
-                    offset_end=msg.kafka_offset,
-                    record_count=len(records),
-                )
+                        PgEventStore.append_sf_cursor_checkpoint(
+                            db,
+                            run_id=run_id,
+                            sobject=sobject,
+                            cursor_ts=cursor_ts,
+                            cursor_id=cursor_id,
+                            kafka_partition=msg.kafka_partition,
+                            offset_start=msg.kafka_offset,
+                            offset_end=msg.kafka_offset,
+                            record_count=len(records),
+                        )
 
-                PgEventStore.close_run(self.db, run_id, status="completed")
+                        PgEventStore.close_run(db, run_id, status="completed")
+            except Exception as exc:
+                raise RetryableFinalizationError(
+                    f"salesforce bronze ready published but finalization failed run_id={run_id}"
+                ) from exc
 
             return True
 
+        except RetryableFinalizationError:
+            raise
         except Exception as exc:
             logger.exception("salesforce bronze write failed run_id=%s sobject=%s", run_id, sobject)
 
             try:
-                with self.db.begin():
-                    PgEventStore.raise_alert(
-                        self.db,
-                        run_id=run_id,
-                        severity="high",
-                        category="salesforce_bronze_write_failed",
-                        summary="Salesforce bronze write failed",
-                        details={"error": str(exc), "sobject": sobject, "raw_uris": raw_uris},
-                        occurred_at=datetime.now(timezone.utc),
-                    )
+                with self.db_connection_factory() as db:
+                    with db.begin():
+                        PgEventStore.raise_alert(
+                            db,
+                            run_id=run_id,
+                            severity="high",
+                            category="salesforce_bronze_write_failed",
+                            summary="Salesforce bronze write failed",
+                            details={"error": str(exc), "sobject": sobject, "raw_uris": raw_uris},
+                            occurred_at=datetime.now(timezone.utc),
+                        )
 
-                    PgEventStore.close_run(self.db, run_id, status="failed")
+                        PgEventStore.close_run(db, run_id, status="failed")
             except Exception:
                 logger.exception("alert/close_run also failed for run_id=%s", run_id)
 

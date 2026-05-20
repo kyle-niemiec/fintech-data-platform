@@ -10,9 +10,11 @@ from typing import Any
 from uuid import uuid4
 
 import pyarrow.parquet as pq
+import pytest
 
 from workers.salesforce_bronze_writer.writer import (
     RawReadyMessage,
+    RetryableFinalizationError,
     SalesforceBronzeWriter,
     TOPIC_BRONZE_READY,
     raw_uri_to_bronze_uri,
@@ -95,6 +97,10 @@ class _FakeConn:
     calls: list[_Call] = field(default_factory=list)
 
     @contextmanager
+    def session(self):
+        yield self
+
+    @contextmanager
     def begin(self):
         yield self
 
@@ -162,7 +168,12 @@ def test_handle_raw_ready_success_writes_bronze_and_advances_cursor(monkeypatch)
     store.pages = [{"records": [_sf_record(1), _sf_record(2, ts="2026-04-15T01:00:05.000Z")]}]
     producer = _FakeProducer()
     conn = _FakeConn()
-    writer = SalesforceBronzeWriter(store=store, producer=producer, db=conn, kms_key_id="kms-1")
+    writer = SalesforceBronzeWriter(
+        store=store,
+        producer=producer,
+        db_connection_factory=conn.session,
+        kms_key_id="kms-1",
+    )
 
     msg = RawReadyMessage(envelope=envelope, kafka_topic="ingest.salesforce.raw.ready.v1", kafka_partition=0, kafka_offset=42)
     ok = writer.handle_raw_ready(msg)
@@ -201,7 +212,12 @@ def test_handle_raw_ready_zero_rows_closes_without_checkpoint(monkeypatch) -> No
     monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.close_run", _close_run)
 
     envelope = _raw_ready_envelope(row_count=0, output_uris=[])
-    writer = SalesforceBronzeWriter(store=_FakeStore(), producer=_FakeProducer(), db=_FakeConn(), kms_key_id="k")
+    writer = SalesforceBronzeWriter(
+        store=_FakeStore(),
+        producer=_FakeProducer(),
+        db_connection_factory=_FakeConn().session,
+        kms_key_id="k",
+    )
     msg = RawReadyMessage(envelope=envelope, kafka_topic="ingest.salesforce.raw.ready.v1", kafka_partition=0, kafka_offset=1)
 
     assert writer.handle_raw_ready(msg) is True
@@ -236,7 +252,10 @@ def test_handle_raw_ready_failure_alerts_and_closes_failed(monkeypatch) -> None:
 
     envelope = _raw_ready_envelope(row_count=5)
     writer = SalesforceBronzeWriter(
-        store=_FailingStore(), producer=_FakeProducer(), db=_FakeConn(), kms_key_id="k"
+        store=_FailingStore(),
+        producer=_FakeProducer(),
+        db_connection_factory=_FakeConn().session,
+        kms_key_id="k",
     )
     msg = RawReadyMessage(envelope=envelope, kafka_topic="ingest.salesforce.raw.ready.v1", kafka_partition=0, kafka_offset=9)
 
@@ -244,3 +263,40 @@ def test_handle_raw_ready_failure_alerts_and_closes_failed(monkeypatch) -> None:
     assert any(c.name == "raise_alert" for c in calls)
     assert any(c.name == "close_run" and c.kwargs["status"] == "failed" for c in calls)
     assert not any(c.name == "append_sf_cursor_checkpoint" for c in calls)
+
+
+def test_handle_raw_ready_finalization_failure_is_retryable(monkeypatch) -> None:
+    calls: list[_Call] = []
+
+    def _append_event(conn, envelope, **kwargs):  # noqa: ANN001
+        calls.append(_Call("append_event", kwargs))
+        raise RuntimeError("db down during finalize")
+
+    def _close_run(conn, run_id, **kwargs):  # noqa: ANN001
+        calls.append(_Call("close_run", {"run_id": str(run_id), **kwargs}))
+
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.append_event", _append_event)
+    monkeypatch.setattr("workers.salesforce_bronze_writer.writer.PgEventStore.close_run", _close_run)
+
+    run_id = str(uuid4())
+    envelope = _raw_ready_envelope(sobject="Account", run_id=run_id, row_count=2)
+    store = _FakeStore()
+    store.pages = [{"records": [_sf_record(1), _sf_record(2, ts="2026-04-15T01:00:05.000Z")]}]
+    writer = SalesforceBronzeWriter(
+        store=store,
+        producer=_FakeProducer(),
+        db_connection_factory=_FakeConn().session,
+        kms_key_id="k",
+    )
+
+    msg = RawReadyMessage(
+        envelope=envelope,
+        kafka_topic="ingest.salesforce.raw.ready.v1",
+        kafka_partition=0,
+        kafka_offset=9,
+    )
+
+    with pytest.raises(RetryableFinalizationError):
+        writer.handle_raw_ready(msg)
+
+    assert any(c.name == "append_event" for c in calls)
