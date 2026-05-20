@@ -1,6 +1,6 @@
 # Roadmap Progress Tracker
 
-Last audited against repository state: **May 14, 2026**.
+Last audited against repository state: **May 19, 2026**.
 
 Legend:
 - `[x]` complete
@@ -71,6 +71,7 @@ Legend:
 - [x] Curated Excel path.
 - [x] Gold listener ignores unsupported silver-domain completions instead of triggering unmapped gold runs.
 - [x] CDC bronze-ready handoff persists parent run visibility before Kafka publish and records explicit failed status/alerts when publish/finalize steps fail.
+- [x] Airflow runtime upgraded to 3.2.1 architecture (`api-server` + standalone `dag-processor`), with FAB auth manager and API v2-trigger compatibility for `excel_validation_trigger`.
 
 ## Phase 7 - Query Plane and UI
 

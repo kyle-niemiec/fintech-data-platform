@@ -76,11 +76,14 @@ services:
           --conn-schema silver
     environment: &airflow_env
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow_api_server:8080/execution/
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow_postgres/${AIRFLOW_DB}
-      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
-      AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.session,airflow.api.auth.backend.basic_auth
+      AIRFLOW__API__BASE_URL: ${AIRFLOW_PUBLIC_BASE_URL:-http://localhost:8080}
+      AIRFLOW__API__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY}
+      AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_WEBSERVER_SECRET_KEY}
       AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER}
       AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
       REDPANDA_BOOTSTRAP_SERVERS: ${REDPANDA_BOOTSTRAP_SERVERS}
@@ -117,6 +120,30 @@ services:
       EVENT_APPEND_DB_PASSWORD: ${EVENT_APPEND_DB_PASSWORD}
     depends_on:
       airflow_postgres:
+        condition: service_healthy
+    networks:
+      - platform_internal
+
+  # The airflow_dag_processor service parses DAG files independently in Airflow 3.x.
+  airflow_dag_processor:
+    build:
+      context: ..
+      dockerfile: infra/docker/pipeline-orchestrator/Dockerfile
+      network: host
+    container_name: fintech_airflow_dag_processor
+    restart: unless-stopped
+    command: dag-processor
+    environment: *airflow_env
+    depends_on:
+      airflow_init:
+        condition: service_completed_successfully
+      trino_curated_init:
+        condition: service_completed_successfully
+      event_store_db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      redpanda:
         condition: service_healthy
     networks:
       - platform_internal
@@ -169,15 +196,15 @@ services:
     networks:
       - platform_internal
 
-  # The airflow_webserver service provides the Airflow UI for monitoring DAGs and task execution.
-  airflow_webserver:
+  # The airflow_api_server service provides the Airflow UI/API for monitoring and control.
+  airflow_api_server:
     build:
       context: ..
       dockerfile: infra/docker/pipeline-orchestrator/Dockerfile
       network: host
-    container_name: fintech_airflow_webserver
+    container_name: fintech_airflow_api_server
     restart: unless-stopped
-    command: webserver
+    command: api-server
     environment: *airflow_env
     depends_on:
       airflow_init:
@@ -185,7 +212,7 @@ services:
       trino_curated_init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health | grep -q healthy"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/v2/monitor/health | grep -q healthy"]
       interval: 15s
       timeout: 5s
       retries: 10

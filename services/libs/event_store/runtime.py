@@ -57,7 +57,8 @@ def build_event_store_engine(
     Build a SQLAlchemy engine for event-store connections, using credentials
     from env vars.
     """
-    from sqlalchemy import URL, create_engine
+    from sqlalchemy import create_engine
+    from sqlalchemy.engine import URL
 
     url = URL.create(
         drivername="postgresql+psycopg",
@@ -88,8 +89,8 @@ def build_event_store_conn(
 @contextmanager
 def open_event_store_conn(
     *,
-    user_var: str,
-    password_var: str,
+    user_var: str = "EVENT_APPEND_DB_USER",
+    password_var: str = "EVENT_APPEND_DB_PASSWORD",
 ) -> Iterator[ManagedConnection]:
     """
     Context manager for event-store connections, using credentials from env vars.

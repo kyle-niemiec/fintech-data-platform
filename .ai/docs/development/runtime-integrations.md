@@ -7,6 +7,11 @@
   - SQLAlchemy-backed event-store connection setup via `meridian.libs.event_store.open_event_store_conn`
   - MinIO client creation via `meridian.libs.minio_store.build_minio_client`
   - Redpanda producer creation
+- Airflow 3.x runtime topology uses `api-server` plus a standalone `dag-processor` service; orchestrator compose health checks now target `/api/v2/monitor/health`.
+- Airflow 3.x scheduler/worker task SDK is pinned to `AIRFLOW__CORE__EXECUTION_API_SERVER_URL=http://airflow_api_server:8080/execution/` so task-start API calls do not default to `localhost` inside non-API containers.
+- Airflow 3.x API-auth JWT signing is pinned via shared `AIRFLOW__API_AUTH__JWT_SECRET` so scheduler/triggerer/worker execution tokens validate consistently across containers.
+- Airflow API UI redirect host is controlled by `AIRFLOW__API__BASE_URL`, which is set to `${AIRFLOW_PUBLIC_BASE_URL:-http://localhost:8080}` to keep browser redirects on the local host instead of Docker-internal DNS names.
+- Airflow 3.x trigger import resolution requires the DAG bundle path on interpreter `sys.path`; orchestrator image sets `PYTHONPATH=/opt/airflow:/opt/airflow/dags:${PYTHONPATH}` so deferrable triggers can import module paths like `silver_curated.listener.apply_bronze_event`.
 
 ## Shared Worker Runtime Services
 - Worker runtime helpers are centralized in `services/libs/service_runtime/runtime.py`.

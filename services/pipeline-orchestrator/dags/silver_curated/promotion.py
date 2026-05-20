@@ -12,8 +12,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pendulum
-from airflow import DAG
-from airflow.decorators import task
+from airflow.sdk import DAG, task
 from curated_dag_helpers import safe_emit_curated_failure_event
 
 from silver_curated.common import (

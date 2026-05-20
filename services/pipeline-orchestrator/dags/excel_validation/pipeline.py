@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 import pendulum
-from airflow import DAG
-from airflow.decorators import task
-from airflow.operators.empty import EmptyOperator
-from airflow.operators.python import BranchPythonOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
+from airflow.providers.standard.operators.python import BranchPythonOperator
+from airflow.sdk import DAG, task
 
 from excel_validation.common import default_args
 from excel_validation.tasks.download_object import download_object as download_object_task

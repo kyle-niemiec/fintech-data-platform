@@ -11,6 +11,7 @@ from workers.excel_validation_trigger.trigger import (
     DEFAULT_SCHEMA_CONTRACT_ID,
     build_dag_run_id,
     build_dag_run_payload,
+    fetch_api_bearer_token,
     trigger_dag_run,
 )
 
@@ -67,8 +68,11 @@ def test_build_dag_run_payload_uses_contract_from_event_when_present():
 class _FakeResponse:
     status_code: int
     text: str = ""
+    payload: dict[str, Any] | None = None
 
     def json(self) -> dict[str, Any]:
+        if self.payload is not None:
+            return self.payload
         return {"status_code": self.status_code}
 
     def raise_for_status(self) -> None:
@@ -79,10 +83,16 @@ class _FakeResponse:
 class _FakeSession:
     def __init__(self, response: _FakeResponse):
         self.response = response
-        self.called_with: dict[str, Any] | None = None
+        self.called_with: list[dict[str, Any]] = []
 
-    def post(self, url: str, json: dict[str, Any], timeout: float):  # noqa: A003
-        self.called_with = {"url": url, "json": json, "timeout": timeout}
+    def post(
+        self,
+        url: str,
+        json: dict[str, Any],  # noqa: A003
+        timeout: float,
+        headers: dict[str, str] | None = None,
+    ):
+        self.called_with.append({"url": url, "json": json, "timeout": timeout, "headers": headers})
         return self.response
 
 
@@ -90,10 +100,11 @@ def test_trigger_dag_run_treats_201_as_success():
     session = _FakeSession(_FakeResponse(status_code=201))
     assert trigger_dag_run(
         session=session,
-        airflow_base_url="http://airflow-webserver:8080",
+        airflow_base_url="http://airflow-api-server:8080",
         dag_id="excel_validation",
         dag_run_id="excel_validation__r1",
         conf={"run_id": "r1"},
+        bearer_token="token-1",
     )
 
 
@@ -101,10 +112,11 @@ def test_trigger_dag_run_treats_409_as_idempotent_success():
     session = _FakeSession(_FakeResponse(status_code=409, text="already exists"))
     assert trigger_dag_run(
         session=session,
-        airflow_base_url="http://airflow-webserver:8080",
+        airflow_base_url="http://airflow-api-server:8080",
         dag_id="excel_validation",
         dag_run_id="excel_validation__r1",
         conf={"run_id": "r1"},
+        bearer_token="token-1",
     )
 
 
@@ -113,8 +125,35 @@ def test_trigger_dag_run_raises_on_other_errors():
     with pytest.raises(RuntimeError):
         trigger_dag_run(
             session=session,
-            airflow_base_url="http://airflow-webserver:8080",
+            airflow_base_url="http://airflow-api-server:8080",
             dag_id="excel_validation",
             dag_run_id="excel_validation__r1",
             conf={"run_id": "r1"},
+            bearer_token="token-1",
         )
+
+
+def test_trigger_dag_run_uses_api_v2_and_bearer_token():
+    session = _FakeSession(_FakeResponse(status_code=201))
+    trigger_dag_run(
+        session=session,
+        airflow_base_url="http://airflow-api-server:8080",
+        dag_id="excel_validation",
+        dag_run_id="excel_validation__r1",
+        conf={"run_id": "r1"},
+        bearer_token="token-abc",
+    )
+    assert session.called_with[0]["url"] == "http://airflow-api-server:8080/api/v2/dags/excel_validation/dagRuns"
+    assert session.called_with[0]["headers"] == {"Authorization": "Bearer token-abc"}
+
+
+def test_fetch_api_bearer_token_returns_access_token():
+    session = _FakeSession(_FakeResponse(status_code=200, payload={"access_token": "token-xyz"}))
+    token = fetch_api_bearer_token(
+        session=session,
+        airflow_base_url="http://airflow-api-server:8080",
+        username="admin",
+        password="secret",
+    )
+    assert token == "token-xyz"
+    assert session.called_with[0]["url"] == "http://airflow-api-server:8080/auth/token"

@@ -3,8 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import pendulum
-from airflow import DAG
-from airflow.decorators import task
+from airflow.sdk import DAG, task
 
 from salesforce_pull.common import default_args
 from salesforce_pull.tasks.list_sobjects import list_sobjects as list_sobjects_task

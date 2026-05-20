@@ -33,11 +33,13 @@ def trigger_dag_run(
     dag_id: str,
     dag_run_id: str,
     conf: dict[str, Any],
+    bearer_token: str,
     timeout: float = 10.0,
 ) -> bool:
-    url = f"{airflow_base_url.rstrip('/')}/api/v1/dags/{dag_id}/dagRuns"
+    url = f"{airflow_base_url.rstrip('/')}/api/v2/dags/{dag_id}/dagRuns"
     response = session.post(
         url,
+        headers={"Authorization": f"Bearer {bearer_token}"},
         json={"dag_run_id": dag_run_id, "conf": conf},
         timeout=timeout,
     )
@@ -46,3 +48,25 @@ def trigger_dag_run(
     response.raise_for_status()
     return False
 
+
+def fetch_api_bearer_token(
+    *,
+    session: Any,
+    airflow_base_url: str,
+    username: str,
+    password: str,
+    timeout: float = 10.0,
+) -> str:
+    response = session.post(
+        f"{airflow_base_url.rstrip('/')}/auth/token",
+        json={"username": username, "password": password},
+        timeout=timeout,
+    )
+
+    response.raise_for_status()
+    token = str((response.json() or {}).get("access_token") or "")
+
+    if not token:
+        raise RuntimeError("Airflow auth token response missing access_token")
+
+    return token

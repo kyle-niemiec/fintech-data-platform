@@ -19,7 +19,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import URL, create_engine, text
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL
 
 logger = logging.getLogger("oltp_load_generator")
 

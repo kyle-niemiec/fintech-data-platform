@@ -12,7 +12,7 @@ import logging
 from typing import Any
 from uuid import UUID, uuid4
 
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
 
 from dag_runtime import open_event_store_conn
 

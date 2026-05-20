@@ -159,22 +159,22 @@ infra-tf-apply:
 
 infra-excel-pipeline:
 	$(call banner,Starting Airflow + ClamAV + Excel scanner/trigger/bronze writer services...)
-	$(COMPOSE) up -d --build airflow_postgres airflow_init airflow_scheduler airflow_triggerer airflow_webserver clamav excel_scanner excel_validation_trigger excel_bronze_writer
+	$(COMPOSE) up -d --build airflow_postgres airflow_init airflow_dag_processor airflow_scheduler airflow_triggerer airflow_api_server clamav excel_scanner excel_validation_trigger excel_bronze_writer
 	@attempt=1; max_attempts=60; \
 	while true; do \
-		airflow_health=$$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' fintech_airflow_webserver 2>/dev/null || echo missing); \
+		airflow_health=$$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' fintech_airflow_api_server 2>/dev/null || echo missing); \
 		clamav_health=$$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' fintech_clamav 2>/dev/null || echo missing); \
 		if [ "$$airflow_health" = "healthy" ] && [ "$$clamav_health" = "healthy" ]; then \
 			break; \
 		fi; \
 		if [ $$attempt -ge $$max_attempts ]; then \
-			printf "infra-excel-pipeline timed out waiting for health checks (airflow_webserver=%s clamav=%s).\n" "$$airflow_health" "$$clamav_health" >&2; \
+			printf "infra-excel-pipeline timed out waiting for health checks (airflow_api_server=%s clamav=%s).\n" "$$airflow_health" "$$clamav_health" >&2; \
 			exit 1; \
 		fi; \
 		attempt=$$((attempt + 1)); \
 		sleep 5; \
 	done; \
-	for container in fintech_airflow_scheduler fintech_airflow_triggerer fintech_excel_scanner fintech_excel_validation_trigger fintech_excel_bronze_writer; do \
+	for container in fintech_airflow_dag_processor fintech_airflow_scheduler fintech_airflow_triggerer fintech_excel_scanner fintech_excel_validation_trigger fintech_excel_bronze_writer; do \
 		state=$$(docker inspect -f '{{.State.Status}}' $$container 2>/dev/null || echo missing); \
 		if [ "$$state" != "running" ]; then \
 			printf "infra-excel-pipeline service check failed: %s state=%s\n" "$$container" "$$state" >&2; \
@@ -287,7 +287,7 @@ infra-ps-dev:
 	$(call banner,Showing infrastructure container status...)
 	@$(COMPOSE_DEV) ps --format 'table {{.Name}}\t{{.Service}}\t{{.CreatedAt}}\t{{.Status}}\t{{.Ports}}'
 
-infra-ps-watch:
+infra-watch:
 	@clear
 	@while true; do \
 		clear; \
@@ -295,7 +295,7 @@ infra-ps-watch:
 		sleep 5; \
 	done
 
-infra-ps-watch-dev:
+infra-watch-dev:
 	@clear
 	@while true; do \
 		clear; \

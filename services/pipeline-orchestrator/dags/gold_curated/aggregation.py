@@ -4,8 +4,7 @@ import logging
 import pendulum
 from typing import Any
 from uuid import UUID, uuid4
-from airflow import DAG
-from airflow.decorators import task
+from airflow.sdk import DAG, task
 from curated_dag_helpers import safe_emit_curated_failure_event
 from gold_curated.common import (
     TOPIC_GOLD_FAILED,

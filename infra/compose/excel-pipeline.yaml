@@ -69,11 +69,11 @@ services:
       REDPANDA_AIRFLOW_PASSWORD: ${REDPANDA_AIRFLOW_PASSWORD}
       REDPANDA_SECURITY_PROTOCOL: ${REDPANDA_SECURITY_PROTOCOL:-PLAINTEXT}
       REDPANDA_SASL_MECHANISM: ${REDPANDA_SASL_MECHANISM:-SCRAM-SHA-256}
-      AIRFLOW_BASE_URL: http://airflow_webserver:8080
+      AIRFLOW_BASE_URL: http://airflow_api_server:8080
       AIRFLOW_API_USER: ${AIRFLOW_ADMIN_USER}
       AIRFLOW_API_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
     depends_on:
-      airflow_webserver:
+      airflow_api_server:
         condition: service_healthy
       redpanda:
         condition: service_healthy

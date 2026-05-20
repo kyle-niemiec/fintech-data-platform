@@ -14,7 +14,12 @@ from confluent_kafka import Consumer, KafkaException
 import requests
 from meridian.libs.service_runtime import build_consumer_config
 
-from .trigger import build_dag_run_id, build_dag_run_payload, trigger_dag_run
+from .trigger import (
+    build_dag_run_id,
+    build_dag_run_payload,
+    fetch_api_bearer_token,
+    trigger_dag_run,
+)
 
 logger = logging.getLogger("excel_validation_trigger")
 
@@ -40,12 +45,11 @@ def run() -> None:
     Main loop for the consumer. Polls for messages and triggers Airflow DAG runs accordingly.
     """
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
-    airflow_base_url = os.environ.get("AIRFLOW_BASE_URL", "http://airflow_webserver:8080")
+    airflow_base_url = os.environ.get("AIRFLOW_BASE_URL", "http://airflow_api_server:8080")
     airflow_user = os.environ["AIRFLOW_API_USER"]
     airflow_password = os.environ["AIRFLOW_API_PASSWORD"]
 
     session = requests.Session()
-    session.auth = (airflow_user, airflow_password)
 
     consumer = Consumer(_consumer_config())
     consumer.subscribe([TOPIC_SCAN_PASS])
@@ -88,12 +92,20 @@ def run() -> None:
 
             # Trigger the Airflow DAG
             try:
+                bearer_token = fetch_api_bearer_token(
+                    session=session,
+                    airflow_base_url=airflow_base_url,
+                    username=airflow_user,
+                    password=airflow_password,
+                )
+
                 trigger_dag_run(
                     session=session,
                     airflow_base_url=airflow_base_url,
                     dag_id=DAG_ID,
                     dag_run_id=dag_run_id,
                     conf=conf,
+                    bearer_token=bearer_token,
                 )
             except Exception:
                 logger.exception(

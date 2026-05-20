@@ -14,7 +14,8 @@ import signal
 import sys
 
 from confluent_kafka import Consumer, KafkaException
-from sqlalchemy import URL, create_engine
+from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 
 from meridian.libs.event_store import ManagedConnection, build_event_store_conn
 from meridian.libs.redpanda_events.producer import EventProducer

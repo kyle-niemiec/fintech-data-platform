@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pendulum
-from airflow import DAG
 from airflow.providers.apache.kafka.sensors.kafka import AwaitMessageTriggerFunctionSensor
+from airflow.sdk import DAG
 
 from curated_dag_helpers import (
     attach_trigger_metadata,

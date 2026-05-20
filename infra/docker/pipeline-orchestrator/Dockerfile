@@ -1,4 +1,4 @@
-FROM apache/airflow:2.10.4-python3.12
+FROM apache/airflow:3.2.1-python3.12
 
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -8,10 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 USER airflow
 
 COPY services/pipeline-orchestrator/requirements.txt /tmp/worker-requirements.txt
-RUN pip install --no-cache-dir -r /tmp/worker-requirements.txt
+RUN AIRFLOW_VERSION="$(python -c 'import airflow; print(airflow.__version__)')" \
+    && pip install --no-cache-dir "apache-airflow==${AIRFLOW_VERSION}" -r /tmp/worker-requirements.txt
 
 # Place shared lib files on PYTHONPATH so DAGs can import `meridian.libs.*`.
 COPY --chown=airflow:airflow services/libs /opt/airflow/meridian/libs
-ENV PYTHONPATH=/opt/airflow:${PYTHONPATH}
+ENV PYTHONPATH=/opt/airflow:/opt/airflow/dags:${PYTHONPATH}
 
 COPY --chown=airflow:airflow services/pipeline-orchestrator/dags /opt/airflow/dags

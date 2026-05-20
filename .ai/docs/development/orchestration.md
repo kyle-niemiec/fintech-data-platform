@@ -24,6 +24,8 @@
 - `gold_curated.listener.apply_silver_event` now drops unsupported `silver_domain` values (no `resolve_gold_metric` match) so non-routable silver completions do not open failing gold DAG runs.
 - `cdc_bronze_writer` persists parent `pipeline_run` visibility before publishing `cdc.oltp.bronze.ready.v1`, then records publish metadata/checkpoint and closes the run; publish/finalize failures explicitly alert and mark the run `failed`.
 - Airflow runtime startup is gated on curated Trino bootstrap completion (`trino_curated_init`) so curated DAGs do not start before required lakehouse tables exist.
-- Airflow API auth backend configuration now explicitly includes session auth plus basic auth in compose env to align with Airflow UI requirements ahead of Airflow 3.0.
+- Airflow runtime runs on 3.x service topology: `airflow api-server` replaces `webserver`, and a dedicated `airflow dag-processor` service is started alongside scheduler/triggerer.
+- Airflow auth manager is explicitly set to FAB (`airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager`) so existing `airflow users` bootstrap flow and UI login continue to work after 3.x migration.
+- Excel validation trigger worker now targets Airflow REST API v2 (`/api/v2/dags/.../dagRuns`) with bearer token authentication via `/auth/token`.
 - Trino readiness gating checks `/v1/info/state == ACTIVE` before marking the Trino service healthy, preventing `trino_curated_init` from running while the coordinator is still initializing.
 - `trino_curated_init` retries each migration command up to 30 times (2s backoff) to tolerate transient Trino startup race conditions during fresh infra boot.
