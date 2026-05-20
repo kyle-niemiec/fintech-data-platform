@@ -164,7 +164,7 @@ make infra-cdc-pipeline  # step 7: oltp_db, load gen, Debezium, fraud worker, br
 
 The OLTP load generator runs continuously with randomized cadence
 (`OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS`..`OLTP_LOAD_GEN_INTERVAL_MAX_SECONDS`,
-10-60s by default) so no manual data writes are required.
+30-60s by default) so no manual data writes are required.
 
 ### Happy-path validation
 

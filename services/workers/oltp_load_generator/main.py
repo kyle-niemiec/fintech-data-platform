@@ -133,8 +133,8 @@ def _now_utc() -> datetime:
 
 
 def _read_interval_bounds_seconds() -> tuple[int, int]:
-    min_seconds = int(os.environ.get("OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS", "10"))
-    max_seconds = int(os.environ.get("OLTP_LOAD_GEN_INTERVAL_MAX_SECONDS", "60"))
+    min_seconds = int(os.environ.get("OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS"))
+    max_seconds = int(os.environ.get("OLTP_LOAD_GEN_INTERVAL_MAX_SECONDS"))
 
     if min_seconds < 1:
         raise ValueError("OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS must be >= 1")

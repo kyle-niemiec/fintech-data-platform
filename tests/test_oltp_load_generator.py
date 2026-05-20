@@ -185,7 +185,7 @@ def test_interval_bounds_use_new_seconds_variables(monkeypatch) -> None:
     monkeypatch.setenv("OLTP_LOAD_GEN_INTERVAL_MS", "1")
     monkeypatch.delenv("OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS", raising=False)
     monkeypatch.delenv("OLTP_LOAD_GEN_INTERVAL_MAX_SECONDS", raising=False)
-    assert _read_interval_bounds_seconds() == (10, 60)
+    assert _read_interval_bounds_seconds() == (30, 60)
 
     monkeypatch.setenv("OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS", "13")
     monkeypatch.setenv("OLTP_LOAD_GEN_INTERVAL_MAX_SECONDS", "17")
@@ -193,7 +193,7 @@ def test_interval_bounds_use_new_seconds_variables(monkeypatch) -> None:
 
 
 def test_next_delay_seconds_is_inclusive_on_bounds() -> None:
-    low_rng = _SequenceRng(randint_values=[10])
+    low_rng = _SequenceRng(randint_values=[30])
     high_rng = _SequenceRng(randint_values=[60])
-    assert _next_delay_seconds(low_rng, min_seconds=10, max_seconds=60) == 10
-    assert _next_delay_seconds(high_rng, min_seconds=10, max_seconds=60) == 60
+    assert _next_delay_seconds(low_rng, min_seconds=30, max_seconds=60) == 30
+    assert _next_delay_seconds(high_rng, min_seconds=30, max_seconds=60) == 60
