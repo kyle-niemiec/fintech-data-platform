@@ -27,7 +27,7 @@ from sqlalchemy import text
 from meridian.libs.redpanda_events.envelope import Envelope, EventSource, PipelineClass, PipelineName
 from meridian.libs.event_store import ManagedConnection, PgEventStore
 
-from .scorer import RiskAssessment, score_transaction
+from .scorer import RiskAssessment, _parse_amount, score_transaction
 
 logger = logging.getLogger(__name__)
 
@@ -269,43 +269,57 @@ class FraudHandler:
                 kafka_offset=-1,
             )
 
-        envelope = Envelope.build(
-            event_id=event_id,
-            event_type=TOPIC_ASSESSED,
-            source=EventSource.cdc,
-            run_id=effective_run_id,
-            pipeline_class=PipelineClass.ingestion,
-            pipeline_name=PipelineName.cdc_ingestion,
-            trigger_event_ref=trigger_event_ref,
-            trace_id=trace_id,
-            payload={
-                "risk_score": _decimal_to_float(assessment.risk_score),
-                "risk_flags": assessment.risk_flags,
-                "fraud_rule_version": FRAUD_RULE_LABEL,
-                "transaction_id": transaction_id,
-                "account_id": row.get("account_id"),
-                "loan_id": row.get("loan_id"),
-                "payment_id": row.get("payment_id"),
-                "payment_amount": _decimal_to_float(row.get("amount")) if source_table == "trading.loan_payment" else None,
-                "payment_due_date": str(row.get("due_date")) if row.get("due_date") is not None else None,
-                "payment_posted_at": str(row.get("posted_at")) if row.get("posted_at") is not None else None,
-                "status_code": row.get("status_code"),
-                "status_at": str(row.get("status_at")) if row.get("status_at") is not None else None,
-                "principal_balance": _decimal_to_float(row.get("principal_balance")) if row.get("principal_balance") is not None else None,
-                "days_past_due": int(row.get("days_past_due")) if row.get("days_past_due") is not None else None,
-                "commission_adjustment_amount": None,
-                "commission_reason": None,
-                "op": parsed["op"],
-                "source_table": parsed["source_table"],
-                "original_topic_metadata": {
-                    "topic": raw.topic,
-                    "partition": raw.partition,
-                    "offset": raw.offset,
-                    "lsn": parsed["lsn"],
-                    "source_ts_ms": parsed["source_ts_ms"],
+        try:
+            envelope = Envelope.build(
+                event_id=event_id,
+                event_type=TOPIC_ASSESSED,
+                source=EventSource.cdc,
+                run_id=effective_run_id,
+                pipeline_class=PipelineClass.ingestion,
+                pipeline_name=PipelineName.cdc_ingestion,
+                trigger_event_ref=trigger_event_ref,
+                trace_id=trace_id,
+                payload={
+                    "risk_score": _decimal_to_float(assessment.risk_score),
+                    "risk_flags": assessment.risk_flags,
+                    "fraud_rule_version": FRAUD_RULE_LABEL,
+                    "transaction_id": transaction_id,
+                    "account_id": row.get("account_id"),
+                    "loan_id": row.get("loan_id"),
+                    "payment_id": row.get("payment_id"),
+                    "payment_amount": _raw_numeric_to_float(row.get("amount")) if source_table == "trading.loan_payment" else None,
+                    "payment_due_date": str(row.get("due_date")) if row.get("due_date") is not None else None,
+                    "payment_posted_at": str(row.get("posted_at")) if row.get("posted_at") is not None else None,
+                    "status_code": row.get("status_code"),
+                    "status_at": str(row.get("status_at")) if row.get("status_at") is not None else None,
+                    "principal_balance": _raw_numeric_to_float(row.get("principal_balance")),
+                    "days_past_due": int(row.get("days_past_due")) if row.get("days_past_due") is not None else None,
+                    "commission_adjustment_amount": None,
+                    "commission_reason": None,
+                    "op": parsed["op"],
+                    "source_table": parsed["source_table"],
+                    "original_topic_metadata": {
+                        "topic": raw.topic,
+                        "partition": raw.partition,
+                        "offset": raw.offset,
+                        "lsn": parsed["lsn"],
+                        "source_ts_ms": parsed["source_ts_ms"],
+                    },
                 },
-            },
-        )
+            )
+        except Exception as exc:
+            with self.event_store_conn.begin():
+                PgEventStore.raise_alert(
+                    self.event_store_conn,
+                    run_id=effective_run_id,
+                    severity="high",
+                    category="cdc_assessed_envelope_build_failed",
+                    summary="fraud worker failed to build assessed envelope",
+                    details={"raw": trigger_event_ref, "error": str(exc)},
+                    occurred_at=datetime.now(timezone.utc),
+                )
+                PgEventStore.close_run(self.event_store_conn, effective_run_id, status="failed")
+            raise
 
         try:
             partition, offset = self.producer.produce(
@@ -343,6 +357,23 @@ def _decimal_to_float(value: Decimal) -> float:
     # payload JSON must round-trip; floats are acceptable here because the
     # authoritative numeric is stored in risk_flag.risk_score (NUMERIC).
     return float(value)
+
+
+def _raw_numeric_to_float(value: Any) -> float | None:
+    """
+    Convert Debezium NUMERIC payload fields to float.
+
+    Debezium may encode NUMERIC as base64 decimal bytes; the scorer parser
+    already handles both plain decimal strings and base64 encoded values.
+    """
+    if value is None:
+        return None
+
+    try:
+        return float(_parse_amount(value))
+    except (ArithmeticError, ValueError, TypeError):
+        logger.warning("failed to parse numeric payload value=%r", value)
+        return None
 
 
 def decode_message(value_bytes: bytes) -> dict[str, Any]:
