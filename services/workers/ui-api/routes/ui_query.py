@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.db import get_oltp_db, get_query_db
-from app.schemas.ui_query import (
+from db import get_oltp_db, get_query_db
+from schemas.ui_query import (
     AlertItem,
     ArtifactTrailItem,
     LineageTrailItem,

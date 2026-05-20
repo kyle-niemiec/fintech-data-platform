@@ -10,12 +10,12 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.config import settings
-from app.services.demo_xlsx import (
+from config import settings
+from services.demo_xlsx import (
     generate_commission_adjustment_xlsx,
     generate_payroll_xlsx,
 )
-from app.services.minio_upload import MinioUploadError, put_xlsx
+from services.minio_upload import MinioUploadError, put_xlsx
 
 router = APIRouter(prefix="/ui/demo", tags=["ui-demo"])
 

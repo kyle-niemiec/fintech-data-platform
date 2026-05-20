@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-DAGS_ROOT = Path(__file__).resolve().parents[1] / "services" / "pipeline-orchestrator" / "dags"
+DAGS_ROOT = Path(__file__).resolve().parents[1] / "services" / "pipeline"
 DAG_FILE = DAGS_ROOT / "excel_validation" / "pipeline.py"
 COMMON_FILE = DAGS_ROOT / "excel_validation" / "common.py"
 VALIDATE_TASK_FILE = DAGS_ROOT / "excel_validation" / "tasks" / "validate.py"

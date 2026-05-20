@@ -4,7 +4,7 @@ React + TypeScript + Vite + Tailwind SPA for the Meridian Fintech Data Platform.
 
 Served by nginx in the `fintech_ui` container on `http://localhost:3000`.
 All data comes from the read-only query API at `http://localhost:8000` (see
-[services/ui-api](../../services/ui-api)). The only write action is the demo
+[services/workers/ui-api](../../services/workers/ui-api)). The only write action is the demo
 upload endpoint (`POST /ui/demo/upload`), which the API performs on MinIO
 using the `minio_ingest` principal.
 
@@ -22,7 +22,7 @@ using the `minio_ingest` principal.
 src/
 ├── main.tsx, App.tsx, index.css
 ├── lib/         # apiClient, formatters, queryKeys
-├── types/       # API response types (mirrors services/ui-api schemas)
+├── types/       # API response types (mirrors services/workers/ui-api schemas)
 ├── hooks/       # useRuns, useRun, useDemoUpload
 ├── components/
 │   ├── layout/      # TopNav, PageContainer

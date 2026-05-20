@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 USER airflow
 
-COPY services/pipeline-orchestrator/requirements.txt /tmp/worker-requirements.txt
+COPY infra/python-reqs/pipeline-orchestrator.txt /tmp/worker-requirements.txt
 RUN AIRFLOW_VERSION="$(python -c 'import airflow; print(airflow.__version__)')" \
     && pip install --no-cache-dir "apache-airflow==${AIRFLOW_VERSION}" -r /tmp/worker-requirements.txt
 
@@ -15,4 +15,4 @@ RUN AIRFLOW_VERSION="$(python -c 'import airflow; print(airflow.__version__)')" 
 COPY --chown=airflow:airflow services/libs /opt/airflow/meridian/libs
 ENV PYTHONPATH=/opt/airflow:/opt/airflow/dags:${PYTHONPATH}
 
-COPY --chown=airflow:airflow services/pipeline-orchestrator/dags /opt/airflow/dags
+COPY --chown=airflow:airflow services/pipeline /opt/airflow/dags

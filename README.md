@@ -76,9 +76,9 @@ See [.ai/docs/planning/operations.md](.ai/docs/planning/operations.md) for the c
 ## Repository Structure
 
 - `apps/ui/`: public demo UI application workspace.
-- `services/ui-api/`: read-only FastAPI query API for the UI.
-- `services/pipeline-workers/`: event-driven ingestion workers (scanner, trigger bridge, bronze writer).
-- `services/pipeline-orchestrator/`: Airflow runtime and DAGs.
+- `services/workers/ui-api/`: read-only FastAPI query API for the UI.
+- `services/workers/`: event-driven ingestion workers (scanner, trigger bridge, bronze writer).
+- `services/pipeline/`: Airflow runtime and DAGs.
 - `services/libs/`: shared event contracts and runtime libraries used across services.
 - `infra/`: Docker Compose, Terraform, DB migrations, KMS bootstrap, and operational tooling.
 

@@ -1,4 +1,4 @@
--r services/ui-api/requirements.txt
+-r infra/python-reqs/ui-api.txt
 pytest
 pytest-mock
 confluent-kafka

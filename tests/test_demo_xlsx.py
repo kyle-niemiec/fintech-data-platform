@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.services.demo_xlsx import SHEET_NAME, generate_payroll_xlsx
+from services.demo_xlsx import SHEET_NAME, generate_payroll_xlsx
 from meridian.libs.excel_validation import load_contract, load_workbook, validate_dataframe
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

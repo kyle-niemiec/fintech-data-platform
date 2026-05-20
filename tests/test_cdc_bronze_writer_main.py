@@ -8,7 +8,6 @@ from pathlib import Path
 MAIN_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-workers"
     / "workers"
     / "cdc_bronze_writer"
     / "main.py"
@@ -27,4 +26,3 @@ def test_cdc_bronze_writer_records_explicit_publish_failure():
     assert "_mark_batch_failed" in source
     assert "cdc_bronze_ready_publish_failed" in source
     assert 'status="failed"' in source
-

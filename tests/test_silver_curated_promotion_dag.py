@@ -14,8 +14,7 @@ from pathlib import Path
 LISTENER_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "silver_curated"
     / "listener.py"
 )
@@ -23,8 +22,7 @@ LISTENER_FILE = (
 PROMOTION_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "silver_curated"
     / "promotion.py"
 )
@@ -32,8 +30,7 @@ PROMOTION_FILE = (
 TASKS_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "silver_curated"
     / "tasks"
     / "open_curated_run.py"
@@ -42,8 +39,7 @@ TASKS_FILE = (
 COMMON_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "silver_curated"
     / "common.py"
 )
@@ -51,8 +47,7 @@ COMMON_FILE = (
 STAGE_AND_MASK_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "silver_curated"
     / "tasks"
     / "stage_and_mask_bronze.py"
@@ -61,8 +56,7 @@ STAGE_AND_MASK_FILE = (
 MERGE_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "silver_curated"
     / "tasks"
     / "merge_into_silver.py"
@@ -71,8 +65,7 @@ MERGE_FILE = (
 RECORD_CHECKPOINT_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "silver_curated"
     / "tasks"
     / "record_checkpoint_and_emit_event.py"
@@ -81,8 +74,7 @@ RECORD_CHECKPOINT_FILE = (
 CURATED_HELPERS_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "curated_dag_helpers.py"
 )
 

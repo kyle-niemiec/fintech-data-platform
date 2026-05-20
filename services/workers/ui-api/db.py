@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.config import settings
+from config import settings
 
 query_engine = create_engine(settings.event_query_db_url, future=True)
 QuerySession = sessionmaker(bind=query_engine, autoflush=False, autocommit=False, future=True)

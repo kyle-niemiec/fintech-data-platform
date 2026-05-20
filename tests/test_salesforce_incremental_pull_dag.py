@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-DAGS_ROOT = Path(__file__).resolve().parents[1] / "services" / "pipeline-orchestrator" / "dags"
+DAGS_ROOT = Path(__file__).resolve().parents[1] / "services" / "pipeline"
 DAG_FILE = DAGS_ROOT / "salesforce_pull" / "incremental.py"
 COMMON_FILE = DAGS_ROOT / "salesforce_pull" / "common.py"
 PULL_TASK_FILE = DAGS_ROOT / "salesforce_pull" / "tasks" / "pull_sobject.py"

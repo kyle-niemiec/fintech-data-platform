@@ -23,9 +23,9 @@ services:
       MINIO_LANDING_BUCKET: ${MINIO_BUCKET_NAME}
       UI_ORIGIN: ${UI_ORIGIN:-http://localhost:3000}
       DEMO_FINANCE_USERS: ${DEMO_FINANCE_USERS:-james.beringer@meridian.example.com,kathy.winston@meridian.example.com,alex.ortiz@meridian.example.com}
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
-      - ../services/ui-api:/app
+      - ../services/workers/ui-api:/app
     depends_on:
       event_store_db:
         condition: service_healthy

@@ -23,9 +23,9 @@ from typing import Optional
 from fastapi import Depends, FastAPI, Form, HTTPException, Header, Request
 from fastapi.responses import JSONResponse
 
-from .config import Settings
-from .corpus import Corpus, MutationLoop
-from .soql import SoqlError, parse
+from config import Settings
+from corpus import Corpus, MutationLoop
+from soql import SoqlError, parse
 
 logger = logging.getLogger("salesforce_mock")
 

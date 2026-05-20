@@ -12,8 +12,7 @@ from pathlib import Path
 LISTENER_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "gold_curated"
     / "listener.py"
 )
@@ -21,8 +20,7 @@ LISTENER_FILE = (
 AGGREGATION_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "gold_curated"
     / "aggregation.py"
 )
@@ -30,8 +28,7 @@ AGGREGATION_FILE = (
 TASKS_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "gold_curated"
     / "tasks"
     / "open_curated_run.py"
@@ -40,8 +37,7 @@ TASKS_FILE = (
 COMMON_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "gold_curated"
     / "common.py"
 )
@@ -49,8 +45,7 @@ COMMON_FILE = (
 SILVER_COMMON_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "silver_curated"
     / "common.py"
 )
@@ -58,8 +53,7 @@ SILVER_COMMON_FILE = (
 RUN_AGGREGATION_SQL_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "gold_curated"
     / "tasks"
     / "run_aggregation_sql.py"
@@ -68,8 +62,7 @@ RUN_AGGREGATION_SQL_FILE = (
 RECORD_CHECKPOINT_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "gold_curated"
     / "tasks"
     / "record_checkpoint_and_emit_event.py"
@@ -78,8 +71,7 @@ RECORD_CHECKPOINT_FILE = (
 CURATED_HELPERS_FILE = (
     Path(__file__).resolve().parents[1]
     / "services"
-    / "pipeline-orchestrator"
-    / "dags"
+    / "pipeline"
     / "curated_dag_helpers.py"
 )
 

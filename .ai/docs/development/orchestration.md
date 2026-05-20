@@ -3,17 +3,17 @@
 ## Curated Workflow Topology
 - Curated orchestration is separated into listener and transformation DAG layers per curation stage.
 - Curated DAG stacks are packaged under:
-  - `services/pipeline-orchestrator/dags/gold_curated/`
-  - `services/pipeline-orchestrator/dags/silver_curated/`
-- Curated route-selection is config-driven via `services/pipeline-orchestrator/dags/curated_specs.py`; silver routing resolves by bronze topic payload (`sobject`, `source_table`, `schema_contract_id`) and gold routing resolves by `silver_domain`.
+  - `services/pipeline/gold_curated/`
+  - `services/pipeline/silver_curated/`
+- Curated route-selection is config-driven via `services/pipeline/curated_specs.py`; silver routing resolves by bronze topic payload (`sobject`, `source_table`, `schema_contract_id`) and gold routing resolves by `silver_domain`.
 - Curated DAG tasks execute transform SQL only (`MERGE`/`INSERT`); Iceberg table/schema bootstrap is no longer performed in DAG runtime code.
 - Curated task callables are split into one module per task name under each DAG's `tasks/` package (e.g. `open_curated_run.py`, `merge_into_silver.py`) instead of one monolithic task module.
 - Task-scoped transform SQL is embedded directly in the task modules that execute it (`run_aggregation_sql.py`, `merge_into_silver.py`) rather than loaded from a shared orchestrator SQL directory.
 - Curated tasks import `dag_runtime` helpers directly (`now_utc`, `open_event_store_conn`, `build_minio_client`) instead of via wrapper functions in domain `common.py`.
 
 ## Ingestion DAG Packaging
-- `excel_validation` is packaged under `services/pipeline-orchestrator/dags/excel_validation/` with task callables split under `tasks/`.
-- `salesforce_incremental_pull` is packaged under `services/pipeline-orchestrator/dags/salesforce_pull/` with task callables split under `tasks/`.
+- `excel_validation` is packaged under `services/pipeline/excel_validation/` with task callables split under `tasks/`.
+- `salesforce_incremental_pull` is packaged under `services/pipeline/salesforce_pull/` with task callables split under `tasks/`.
 - Existing DAG IDs and task IDs are preserved (`excel_validation`, `salesforce_incremental_pull`) to avoid runtime contract drift.
 
 ## Stage Handoff Bindings
