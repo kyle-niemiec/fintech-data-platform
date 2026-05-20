@@ -59,4 +59,5 @@
   - `trading.loan`
   - `trading.loan_payment`
   - `trading.loan_status_history`
+- OLTP load generation now emits one primary event type per cycle with required same-cycle side effects and randomized 10-60s delay bounds (`OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS`..`OLTP_LOAD_GEN_INTERVAL_MAX_SECONDS`).
 - Excel scan-pass payload carries `schema_contract_id`; `commission_adjustment_v1` is available as a validated schema contract for curated commission paths.

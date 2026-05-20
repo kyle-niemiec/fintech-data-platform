@@ -54,7 +54,8 @@ All source pipelines are event-driven and write audit events to the dedicated ev
 - Debezium Server (single container, `pgoutput` plugin) writes directly to Redpanda. A `ByLogicalTableRouter` SMT collapses per-table topics onto one canonical contract topic (`cdc.oltp.raw.v1`); Debezium offsets live on a named volume.
 - Fraud worker (`group.id=fraud-worker-v1`, 12-partition topic) consumes raw events, scores with pure functional rules, and emits `cdc.oltp.assessed.v1`.
 - CDC bronze writer batches assessed events, writes zero-transformation Parquet to `bronze/source=cdc/table=<table>/year=YYYY/month=MM/day=DD/hour=HH/run_id=<run_id>/...`, and emits `cdc.oltp.bronze.ready.v1`.
-- Internal load generator (container, 10s default cadence) is the only writer into the OLTP.
+- Internal load generator is the only writer into the OLTP. Each cycle emits one primary event type (`transaction`, `loan`, `loan_payment`, or `loan_status_history`) with required same-cycle side effects, and sleeps for a randomized 10-60s interval before the next cycle.
+- Loan lifecycle statuses used by the generator are `current` (active, on schedule), `delinquent` (active, past due), and `paid_off` (closed). `loan_status_history` is append-only and captures lifecycle transitions; `loan.status_code` remains the current-state snapshot.
 
 ### Partition Keys and Run Boundary
 

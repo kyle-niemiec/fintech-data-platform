@@ -1,6 +1,6 @@
 # Roadmap Progress Tracker
 
-Last audited against repository state: **May 19, 2026**.
+Last audited against repository state: **May 20, 2026**.
 
 Legend:
 - `[x]` complete
@@ -38,7 +38,7 @@ Legend:
 ## Phase 4 - CDC and Fraud Pipeline
 
 - [x] Dedicated OLTP Postgres (`wal_level=logical`) with `trading.transaction` and `trading.risk_flag` schema, per-role credentials (`oltp_app`, `cdc_replicator`, `oltp_ui_reader`), and a `cdc_pub` publication.
-- [x] Synthetic load generator seeds transactions on a configurable cadence with varied instrument/amount mixes so continuous scoring behavior is observable.
+- [x] Synthetic load generator emits one primary OLTP event type per cycle (`transaction`, `loan`, `loan_payment`, or `loan_status_history`) with required same-cycle side effects, randomized 10-60s cadence, and fraud-shaped transaction mixes for continuous scoring visibility.
 - [x] Debezium Server streams WAL changes to Redpanda and collapses `trading.*` tables onto canonical `cdc.oltp.raw.v1`.
 - [x] Fraud worker consumes raw CDC events, scores transactions with the demo continuous model, upserts `trading.risk_flag` idempotently via `(raw_topic, raw_partition, raw_offset)`, and emits `cdc.oltp.assessed.v1`.
 - [x] CDC bronze writer batches assessed events, writes zero-transformation Parquet to `bronze/source=cdc/...` with SSE-KMS, emits `cdc.oltp.bronze.ready.v1`, and records a `cdc_checkpoint` row per flush.

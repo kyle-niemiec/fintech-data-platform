@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS trading.loan (
     account_id UUID NOT NULL,
     status_code TEXT NOT NULL,
     principal_balance NUMERIC(18, 2) NOT NULL,
+    original_principal_balance NUMERIC(18, 2) NOT NULL,
     days_past_due INT NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
