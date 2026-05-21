@@ -71,7 +71,7 @@ export default function RecentTransactionsPage() {
               <tbody>
                 {data.map((tx) => {
                   const score = tx.risk_score != null ? Number(tx.risk_score) : null;
-                  const highlighted = score != null && score >= 0.7;
+                  const highlighted = score != null && score >= 0.8;
                   return (
                     <tr
                       key={tx.transaction_id}

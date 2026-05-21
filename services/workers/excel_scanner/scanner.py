@@ -253,9 +253,12 @@ class ExcelScanner:
         # Parse S3 notification
         obj = parse_minio_record(record)
 
+<<<<<<< Updated upstream
         # The business uploader is read deterministically from the canonical
         # object-metadata key (UPLOADER_PRINCIPAL_METADATA_KEY). When present it
         # overrides the ingress access-key principal parsed from the S3 event.
+=======
+>>>>>>> Stashed changes
         try:
             stat = self._objects.stat(obj.bucket, obj.object_key)
         except Exception as exc:
