@@ -5,22 +5,27 @@ import RunSummaryHeader from "../components/runs/RunSummaryHeader";
 import EventsTimeline from "../components/runDetail/EventsTimeline";
 import LineageList from "../components/runDetail/LineageList";
 import ArtifactsTable from "../components/runDetail/ArtifactsTable";
+import AlertsTable from "../components/alerts/AlertsTable";
+import EmptyState from "../components/common/EmptyState";
 import LoadingSkeleton from "../components/common/LoadingSkeleton";
 import ErrorBanner from "../components/common/ErrorBanner";
 import { useRun } from "../hooks/useRun";
+import { useAlerts } from "../hooks/useAlerts";
 
-type Tab = "events" | "lineage" | "artifacts";
+type Tab = "events" | "lineage" | "artifacts" | "alerts";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "events", label: "Events" },
   { key: "lineage", label: "Lineage" },
   { key: "artifacts", label: "Artifacts" },
+  { key: "alerts", label: "Alerts" },
 ];
 
 export default function RunDetailPage() {
   const { runId = "" } = useParams();
   const [tab, setTab] = useState<Tab>("events");
   const { run, events, lineage, artifacts } = useRun(runId);
+  const alerts = useAlerts(runId);
 
   if (run.error) {
     return (
@@ -90,6 +95,17 @@ export default function RunDetailPage() {
             <LoadingSkeleton rows={4} />
           ) : (
             <ArtifactsTable items={artifacts.data ?? []} />
+          ))}
+        {tab === "alerts" &&
+          (alerts.isLoading ? (
+            <LoadingSkeleton rows={4} />
+          ) : alerts.data && alerts.data.length > 0 ? (
+            <AlertsTable alerts={alerts.data} hideRun />
+          ) : (
+            <EmptyState
+              title="No alerts for this run"
+              description="This run has not raised any failure or risk alerts."
+            />
           ))}
       </div>
     </PageContainer>

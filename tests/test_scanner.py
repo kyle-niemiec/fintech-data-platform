@@ -83,6 +83,22 @@ class FakeObjectStore:
         return _ResettableStream(self.payload)
 
 
+class FakeObjectStoreWithUploader(FakeObjectStore):
+    """Stat exposes the canonical uploader-principal metadata key."""
+
+    def __init__(self, payload: bytes, uploader: str):
+        super().__init__(payload)
+        self._uploader = uploader
+
+    def stat(self, bucket: str, key: str) -> dict[str, Any]:
+        return {
+            "size": len(self.payload),
+            "etag": "etag-abc123",
+            "content_type": XLSX_CT,
+            "metadata": {"uploader-principal": self._uploader},
+        }
+
+
 class FakeClamd:
     def __init__(self, *, verdict: tuple[str, Any]):
         self.verdict = verdict
@@ -351,6 +367,34 @@ def test_handle_record_malware_raises_alert(fake_event_store):
 
     close_calls = [c for c in fake_event_store if c.name == "close_run"]
     assert close_calls[0].kwargs["status"] == "scan_failed"
+
+
+def test_handle_record_uses_canonical_metadata_uploader(fake_event_store):
+    # The ingress access-key principal ("minio_ingest") is overridden by the
+    # business uploader read from the canonical uploader-principal metadata key.
+    store = FakeObjectStoreWithUploader(
+        XLSX_MAGIC + b"ok", uploader="alex.ortiz@meridian.example.com"
+    )
+    scanner = ExcelScanner(
+        object_store=store,
+        clamd_client=FakeClamd(verdict=("OK", None)),
+        producer=FakeProducer(),
+        db_connection_factory=FakeConn().session,
+        config=ScannerConfig(scan_engine_version="1.0/fake"),
+    )
+
+    scanner.handle_record(
+        _minio_record(uploader="minio_ingest"),
+        source_topic=TOPIC_UPLOADED,
+        source_partition=0,
+        source_offset=1,
+    )
+
+    open_call = [c for c in fake_event_store if c.name == "open_run"][0]
+    assert open_call.kwargs["initiator"] == "alex.ortiz@meridian.example.com"
+
+    uploaded_env = [c for c in fake_event_store if c.name == "append_event"][0].args[0]
+    assert uploaded_env.payload["uploader_principal"] == "alex.ortiz@meridian.example.com"
 
 
 def test_handle_record_run_id_returned_by_open_run_is_used(monkeypatch, fake_event_store):

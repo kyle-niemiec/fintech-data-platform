@@ -1,12 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL
 
-DEFAULT_DEMO_FINANCE_USERS = (
-    "james.beringer@meridian.example.com,"
-    "kathy.winston@meridian.example.com,"
-    "alex.ortiz@meridian.example.com"
-)
-
 """
 The settings class that contains the environtment variables.
 """
@@ -23,13 +17,25 @@ class Settings(BaseSettings):
     oltp_ui_reader_user: str = ""
     oltp_ui_reader_password: str = ""
 
+    # Least-privilege identity for UI-triggered CDC demo writes; can only
+    # INSERT into trading.transaction (never the read-only query role).
+    oltp_demo_writer_user: str = ""
+    oltp_demo_writer_password: str = ""
+
     minio_endpoint: str = "http://minio:9000"
     minio_ingest_user: str = ""
     minio_ingest_secret: str = ""
     minio_landing_bucket: str = "fintech-lakehouse"
 
     ui_origin: str = "http://localhost:3000"
-    demo_finance_users: str = DEFAULT_DEMO_FINANCE_USERS
+
+    # Demo finance-user identities are resolved live from Keycloak (the
+    # `meridian-demo-service` confidential client lists `finance`-role users).
+    keycloak_url: str = "http://keycloak:8080"
+    keycloak_realm: str = "meridian"
+    keycloak_demo_service_client_id: str = "meridian-demo-service"
+    keycloak_demo_service_client_secret: str = ""
+    keycloak_finance_role: str = "finance"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -60,8 +66,15 @@ class Settings(BaseSettings):
         )
 
     @property
-    def demo_finance_users_list(self) -> list[str]:
-        return [u.strip() for u in self.demo_finance_users.split(",") if u.strip()]
+    def oltp_demo_writer_db_url(self) -> URL:
+        return URL.create(
+            drivername="postgresql+psycopg",
+            username=self.oltp_demo_writer_user,
+            password=self.oltp_demo_writer_password,
+            host=self.oltp_db_host,
+            port=self.oltp_db_port,
+            database=self.oltp_db,
+        )
 
 """
 Export the instantiated settings object

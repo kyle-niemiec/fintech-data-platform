@@ -45,6 +45,18 @@ export default function TopNav() {
             Recent Transactions
           </NavLink>
           <NavLink
+            to="/alerts"
+            className={({ isActive }) =>
+              `${linkBase} ${
+                isActive
+                  ? "bg-white/10 text-white"
+                  : "text-navy-100 hover:bg-white/5 hover:text-white"
+              }`
+            }
+          >
+            Alerts
+          </NavLink>
+          <NavLink
             to="/demo/upload"
             className={({ isActive }) =>
               `${linkBase} ${

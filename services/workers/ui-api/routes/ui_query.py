@@ -326,15 +326,26 @@ def list_events(
     return [RunEventItem(**row) for row in rows]
 
 """
-GET: Return the list of alerts from the event store.
+GET: Return the alert feed from the event store, newest first.
+
+Optionally scoped to a single run via `run_id` and bounded by `limit` so the
+read-only feed cannot return an unbounded result set.
 """
 @router.get("/alerts", response_model=list[AlertItem], status_code=status.HTTP_200_OK)
 def list_alerts(
     db: Session = Depends(get_query_db),
+    run_id: UUID | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
 ):
+    params: dict = {"limit": limit}
+    filter_sql = ""
+    if run_id is not None:
+        filter_sql = "WHERE run_id = :run_id"
+        params["run_id"] = run_id
+
     rows = db.execute(
         text(
-            """
+            f"""
             SELECT
                 alert_id,
                 run_id,
@@ -344,8 +355,11 @@ def list_alerts(
                 details,
                 occurred_at
             FROM event_store.alert_event
+            {filter_sql}
             ORDER BY occurred_at DESC
+            LIMIT :limit
             """
-        )
+        ),
+        params,
     ).mappings()
     return [AlertItem(**row) for row in rows]

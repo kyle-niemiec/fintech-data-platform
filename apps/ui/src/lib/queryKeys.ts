@@ -7,4 +7,6 @@ export const queryKeys = {
   runEvents: (runId: string) => ["run", runId, "events"] as const,
   runLineage: (runId: string) => ["run", runId, "lineage"] as const,
   runArtifacts: (runId: string) => ["run", runId, "artifacts"] as const,
+  alerts: ["alerts"] as const,
+  alertsForRun: (runId: string) => ["alerts", runId] as const,
 };

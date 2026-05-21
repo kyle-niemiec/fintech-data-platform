@@ -51,6 +51,12 @@ DEFAULT_SCHEMA_CONTRACT_ID = "payroll_v1"
 
 SCAN_ENGINE = "clamav"
 
+# Canonical object-metadata key the uploader sets so the scanner can attribute
+# the business uploader reliably. The MinIO S3 event only carries the ingress
+# access-key principal (userIdentity.principalId), which is not the business
+# uploader; that identity is read from this single well-known metadata key.
+UPLOADER_PRINCIPAL_METADATA_KEY = "uploader-principal"
+
 
 @dataclass(frozen=True)
 class UploadedObject:
@@ -114,12 +120,11 @@ def parse_minio_record(record: dict[str, Any]) -> UploadedObject:
         etag = obj.get("eTag") or obj.get("etag") or ""
         content_type = obj.get("contentType") or obj.get("content-type") or ""
 
-        # TECH-DEBT: uploader needs to be deterministically extracted from the record for proper attribution
-        uploader = (
-            record.get("userIdentity", {}).get("principalId")
-            or record.get("requestParameters", {}).get("principalId")
-            or "unknown"
-        )
+        # The S3 event principal is the ingress access-key actor (e.g. the MinIO
+        # upload identity), not necessarily the business uploader. Read it from a
+        # single canonical path; handle_record refines it from object metadata
+        # (UPLOADER_PRINCIPAL_METADATA_KEY) when the uploader provides it.
+        uploader = record.get("userIdentity", {}).get("principalId") or "unknown"
 
         event_time_str = record.get("eventTime") or datetime.now(timezone.utc).isoformat()
     except KeyError as exc:
@@ -248,11 +253,9 @@ class ExcelScanner:
         # Parse S3 notification
         obj = parse_minio_record(record)
 
-        # Attempt to enrich uploader_principal from object metadata if available, since the
-        # record's uploader extraction is best-effort and may be missing/incorrect depending
-        # on how the upload was performed.
-        #
-        # TECH-DEBT: the uploader needs to be deterministically extracted from the record or reliably included in object metadata by the uploader.
+        # The business uploader is read deterministically from the canonical
+        # object-metadata key (UPLOADER_PRINCIPAL_METADATA_KEY). When present it
+        # overrides the ingress access-key principal parsed from the S3 event.
         try:
             stat = self._objects.stat(obj.bucket, obj.object_key)
         except Exception as exc:
@@ -460,13 +463,12 @@ def _extract_uploader_from_stat(stat: dict[str, Any]) -> str | None:
 
     lowered = {str(k).lower(): v for k, v in metadata.items()}
 
-    # Check common metadata keys for uploader principal, case-insensitively.
-    # TECH-DEBT: this is brittle and relies on upstream uploader to set metadata in a consistent way; ideally the uploader would set a well-known metadata key that we can reliably read here.
+    # Read the single well-known uploader key the uploader sets. Both the bare
+    # key and the S3 `x-amz-meta-`-prefixed form are accepted because object
+    # stat metadata may surface either depending on the client.
     for key in (
-        "demo-uploader",
-        "x-amz-meta-demo-uploader",
-        "uploader-principal",
-        "x-amz-meta-uploader-principal",
+        UPLOADER_PRINCIPAL_METADATA_KEY,
+        f"x-amz-meta-{UPLOADER_PRINCIPAL_METADATA_KEY}",
     ):
         value = lowered.get(key)
 

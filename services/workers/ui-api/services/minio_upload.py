@@ -52,8 +52,9 @@ def put_xlsx(
             Key=key,
             Body=body,
             ContentType=XLSX_CONTENT_TYPE,
+            # Canonical well-known key the excel_scanner reads to attribute the
+            # business uploader (UPLOADER_PRINCIPAL_METADATA_KEY in the scanner).
             Metadata={
-                "demo-uploader": demo_uploader,
                 "uploader-principal": demo_uploader,
             },
         )

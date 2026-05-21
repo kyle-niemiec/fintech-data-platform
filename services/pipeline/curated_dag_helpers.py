@@ -184,6 +184,17 @@ def emit_curated_failure_event(
 
             PgEventStore.close_run(conn, run_id, status="failed")
 
+            # Curated failures should reach the alert feed like every other
+            # terminal pipeline failure.
+            PgEventStore.raise_alert(
+                conn,
+                run_id=run_id,
+                severity="high",
+                category="curated_promotion_failed",
+                summary=str(payload.get("message") or "Curated promotion failed"),
+                details=payload,
+            )
+
 
 def safe_emit_curated_failure_event(**kwargs: Any) -> None:
     """

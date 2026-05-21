@@ -92,3 +92,18 @@ def emit_event(*branch_outputs: dict[str, Any]) -> None:
                 UUID(outcome["run_id"]),
                 status="running" if is_raw else "quarantined",
             )
+
+            # Quarantine is a finance-facing event: surface it to the alert feed.
+            if not is_raw:
+                PgEventStore.raise_alert(
+                    conn,
+                    run_id=UUID(outcome["run_id"]),
+                    severity="medium",
+                    category="excel_schema_quarantined",
+                    summary=f"Excel upload quarantined: schema validation failed ({outcome['output_key']})",
+                    details={
+                        "object_key": outcome["object_key"],
+                        "output_key": outcome["output_key"],
+                        "errors": outcome["errors"],
+                    },
+                )

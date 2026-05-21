@@ -340,13 +340,38 @@ class FraudHandler:
 
         with self.event_store_connection_factory() as event_store_conn:
             with event_store_conn.begin():
-                PgEventStore.append_event(
+                inserted = PgEventStore.append_event(
                     event_store_conn,
                     envelope,
                     topic=TOPIC_ASSESSED,
                     partition=partition,
                     kafka_offset=offset,
                 )
+
+                # Risk-event alert: surface a flagged transaction to the alert
+                # feed. Gated on `inserted` so Kafka replays (which dedupe the
+                # assessed event) do not raise duplicate alerts. `risk_flags` is
+                # only populated for trading.transaction rows at/above the
+                # platform risk threshold (see scorer.score_transaction).
+                if inserted and assessment.risk_flags:
+                    PgEventStore.raise_alert(
+                        event_store_conn,
+                        run_id=effective_run_id,
+                        severity="high",
+                        category="cdc_fraud_high_risk",
+                        summary=(
+                            "High-risk transaction flagged "
+                            f"(score {_decimal_to_float(assessment.risk_score):.4f})"
+                        ),
+                        details={
+                            "transaction_id": transaction_id,
+                            "account_id": row.get("account_id"),
+                            "instrument": row.get("instrument"),
+                            "risk_score": _decimal_to_float(assessment.risk_score),
+                            "risk_flags": assessment.risk_flags,
+                        },
+                        occurred_at=datetime.now(timezone.utc),
+                    )
 
                 PgEventStore.close_run(event_store_conn, effective_run_id, status="completed")
 

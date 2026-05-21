@@ -39,3 +39,10 @@
 - `salesforce_bronze_writer` now uses event-store connection factories per persistence phase and treats post-publish finalization failures as retryable (offset left uncommitted) while terminal conversion/write failures still attempt alert+failed close and commit.
 - `cdc_bronze_writer` now opens fresh event-store connections for prepare/finalize/failure-mark phases instead of reusing one long-lived connection; flush failures continue to replay without committing offsets.
 - `fraud_worker` now opens fresh event-store connections for started/failure/completion persistence phases while preserving no-commit replay behavior on handler failures.
+
+## Alert-Event Wiring
+- The alert feed (`event_store.alert_event`, surfaced by `GET /ui/alerts`) is fed by `PgEventStore.raise_alert`; `details` is dict-bound to JSONB by `event_store._execute`.
+- Failure-path alerts (each paired with a `failed`/`scan_failed` close): `excel_scanner` (scan reject), `excel_bronze_writer`, `cdc_bronze_writer`, `salesforce_bronze_writer`, `salesforce_pull.pull_sobject`, and `fraud_worker` (assessed envelope-build / produce failures).
+- Risk-event alert: `fraud_worker.handle` raises `cdc_fraud_high_risk` (severity `high`) on the success path when `assessment.risk_flags` is non-empty (transaction at/above the scorer's platform risk threshold). Gated on the assessed `append_event` insert so Kafka replays do not duplicate alerts.
+- Quarantine alert: `excel_validation.tasks.emit_event` raises `excel_schema_quarantined` (severity `medium`) when a workbook fails schema validation and the run closes `quarantined`.
+- Curated-failure alert: `curated_dag_helpers.emit_curated_failure_event` raises `curated_promotion_failed` (severity `high`) alongside the `failed` close.

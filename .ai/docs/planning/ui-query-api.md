@@ -29,7 +29,8 @@ ETL must continue normally if this API is unavailable.
 | `GET` | `/ui/runs/{run_id}/artifacts` | List storage artifacts across stages |
 | `GET` | `/ui/runs/{run_id}/lineage` | Return transformation chain for the run |
 | `GET` | `/ui/runs/{run_id}/events` | Return chronological event timeline |
-| `GET` | `/ui/alerts` | List alert feed items for failures/risk events |
+| `GET` | `/ui/alerts` | List alert feed items for failures/risk events (optional `run_id` filter, bounded by `limit`) |
+| `GET` | `/ui/oltp/transactions/recent` | List recent OLTP transactions joined with latest risk flag (read-only `oltp_ui_reader`) |
 
 ## Response Model Principles
 
@@ -102,14 +103,25 @@ ETL must continue normally if this API is unavailable.
 ]
 ```
 
-## Non-API Actions
+## Demo-Data Generation (Source Ingress, not Query Reads)
 
-UI-triggered demo-data generation is handled by source-adapter services, not this query API:
-- Excel demo generator writes to the landing bucket.
-- CDC demo generator writes OLTP records that emit Debezium events.
-- Salesforce pulls are scheduled internal jobs (no API/UI trigger path).
+UI-triggered demo-data generation is exposed by this service under `/ui/demo/*`,
+kept separate from the read-only query endpoints above. These actions write to
+*source ingress* only (never to the event store or read models), each through a
+dedicated least-privilege identity, so the query/read path stays read-only:
 
-For Excel demo generation, actor identities are selected from Keycloak `finance` role users by the internal generator service so the API does not hardcode user identities.
+| Method | Path | Action | Source ingress / identity |
+| --- | --- | --- | --- |
+| `POST` | `/ui/demo/upload` | Generate a payroll/commission workbook (or, with `valid=false`, a schema-violating one to exercise quarantine) and upload it to the landing bucket | MinIO landing ingest identity |
+| `POST` | `/ui/demo/oltp/transaction` | Insert one `trading.transaction` row (`high_risk=true` forces the AAPL>$10k fraud shape) that Debezium streams into the CDC pipeline | `oltp_demo_writer` (INSERT on `trading.transaction` only) |
+
+- Excel demo generation resolves the actor identity at runtime from Keycloak
+  `finance`-role users via the `meridian-demo-service` confidential client, so no
+  user identities are hardcoded. If Keycloak is unavailable the request fails with
+  `503` (no static fallback).
+- Salesforce pulls remain scheduled internal jobs — there is no API/UI trigger path.
+
+ETL continues to run independently of these demo triggers.
 
 ## Error Conditions
 
@@ -118,3 +130,5 @@ For Excel demo generation, actor identities are selected from Keycloak `finance`
 | `404` | Run or resource not found |
 | `429` | Query rate limit exceeded |
 | `500` | Read-model/query subsystem failure |
+| `502` | Demo source-ingress write failed (MinIO/OLTP) |
+| `503` | Demo actor resolution unavailable (Keycloak) |

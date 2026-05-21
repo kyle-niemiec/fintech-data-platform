@@ -63,7 +63,29 @@ def generate_payroll_xlsx(rows: int, seed: int | None = None) -> tuple[bytes, in
     return buffer.getvalue(), len(frame)
 
 
-# TECH-DEBT: random variable?
+def build_invalid_payroll_frame(rows: int, seed: int | None = None) -> pd.DataFrame:
+    """
+    Build a payroll frame that is a structurally valid workbook (so it clears the
+    virus/MIME scan) but violates the payroll_v1 schema contract by dropping the
+    required `net_amount` column. The validation DAG quarantines it, exercising
+    the failure path end-to-end for demos.
+    """
+    return build_payroll_frame(rows, seed=seed).drop(columns=["net_amount"])
+
+
+def generate_invalid_payroll_xlsx(rows: int, seed: int | None = None) -> tuple[bytes, int]:
+    """
+    Return (xlsx_bytes, row_count) for a schema-violating payroll workbook.
+    """
+    frame = build_invalid_payroll_frame(rows, seed=seed)
+    buffer = io.BytesIO()
+
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        frame.to_excel(writer, sheet_name=SHEET_NAME, index=False)
+
+    return buffer.getvalue(), len(frame)
+
+
 COMMISSION_SHEET_NAME = "commission_adjustments"
 
 

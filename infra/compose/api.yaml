@@ -17,12 +17,18 @@ services:
       OLTP_DB_PORT: ${OLTP_DB_PORT}
       OLTP_UI_READER_USER: ${OLTP_UI_READER_USER}
       OLTP_UI_READER_PASSWORD: ${OLTP_UI_READER_PASSWORD}
+      OLTP_DEMO_WRITER_USER: ${OLTP_DEMO_WRITER_USER}
+      OLTP_DEMO_WRITER_PASSWORD: ${OLTP_DEMO_WRITER_PASSWORD}
       MINIO_ENDPOINT: http://minio:9000
       MINIO_INGEST_USER: ${MINIO_INGEST_USER}
       MINIO_INGEST_SECRET: ${MINIO_INGEST_SECRET}
       MINIO_LANDING_BUCKET: ${MINIO_BUCKET_NAME}
       UI_ORIGIN: ${UI_ORIGIN:-http://localhost:3000}
-      DEMO_FINANCE_USERS: ${DEMO_FINANCE_USERS:-james.beringer@meridian.example.com,kathy.winston@meridian.example.com,alex.ortiz@meridian.example.com}
+      KEYCLOAK_URL: ${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-meridian}
+      KEYCLOAK_DEMO_SERVICE_CLIENT_ID: ${KEYCLOAK_DEMO_SERVICE_CLIENT_ID:-meridian-demo-service}
+      KEYCLOAK_DEMO_SERVICE_CLIENT_SECRET: ${KEYCLOAK_DEMO_SERVICE_CLIENT_SECRET}
+      KEYCLOAK_FINANCE_ROLE: ${KEYCLOAK_FINANCE_ROLE:-finance}
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ../services/workers/ui-api:/app

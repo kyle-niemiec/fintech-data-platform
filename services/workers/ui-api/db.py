@@ -41,3 +41,15 @@ def get_oltp_db():
         yield db
     finally:
         db.close()
+
+
+# OLTP demo-writer engine (oltp_demo_writer role, INSERT on trading.transaction
+# only). Lazily constructed so the read-only stacks need no write credentials.
+_demo_oltp_engine = None
+
+
+def get_demo_oltp_engine():
+    global _demo_oltp_engine
+    if _demo_oltp_engine is None:
+        _demo_oltp_engine = create_engine(settings.oltp_demo_writer_db_url, future=True)
+    return _demo_oltp_engine

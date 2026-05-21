@@ -82,12 +82,13 @@ Legend:
 
 ## Phase 7 - Query Plane and UI
 
-- [ ] Read-model builders from event-store and stage events.
+- [x] Read-model builders from event-store and stage events. (The request-time event-store query layer in `ui-api` *is* the read-model layer per planning; hardened with a bounded/`run_id`-filterable `/ui/alerts` and `tests/test_ui_query.py`. No materialized builder, by design.)
 - [x] FastAPI is reframed as a read-only UI query API.
 - [x] UI run explorer, lineage trace, and artifact explorer are implemented.
-- [ ] UI alert feed is implemented end-to-end in the frontend.
+- [x] UI alert feed is implemented end-to-end in the frontend (`AlertsPage`, `useAlerts`, `AlertsTable`/`SeverityBadge`, TopNav `/alerts` route, and a per-run Alerts tab on run detail). Backend `/ui/alerts` already existed; this closed the frontend gap.
 - [x] UI-triggered demo-data generation exists for the Excel source path.
-- [ ] UI-triggered demo-data generation is expanded across source-adapter services.
+- [x] UI-triggered demo-data generation is expanded across source adapters: CDC transaction injection (normal + high-risk fraud shape) via `POST /ui/demo/oltp/transaction` using the least-privilege `oltp_demo_writer` role, and an Excel schema-fail path (`valid=false`) that exercises quarantine. Salesforce is intentionally excluded (scheduled-only per planning).
+- [x] Excel demo uploader identity is resolved at runtime from Keycloak `finance`-role users via the `meridian-demo-service` client; the static `DEMO_FINANCE_USERS` list is removed (Keycloak-unavailable returns `503`, no static fallback).
 
 ## Phase 8 - Replay and Observability Hardening
 

@@ -5,6 +5,7 @@ import GeneratedFilePreview from "./GeneratedFilePreview";
 
 export default function UploadCard() {
   const [rows, setRows] = useState(25);
+  const [generateInvalid, setGenerateInvalid] = useState(false);
   const mutation = useDemoUpload();
 
   return (
@@ -39,17 +40,32 @@ export default function UploadCard() {
               className="w-32 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-navy-500 focus:outline-none focus:ring-1 focus:ring-navy-500"
             />
           </label>
+          <label className="flex items-center gap-2 text-sm text-navy-800">
+            <input
+              type="checkbox"
+              checked={generateInvalid}
+              onChange={(e) => setGenerateInvalid(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-navy-700 focus:ring-navy-500"
+            />
+            Generate invalid workbook (exercise quarantine)
+          </label>
           <button
             type="button"
-            onClick={() => mutation.mutate(rows)}
+            onClick={() => mutation.mutate({ rows, valid: !generateInvalid })}
             disabled={mutation.isPending}
             className="btn-primary"
           >
             {mutation.isPending ? "Uploading…" : "Generate & Upload"}
           </button>
           {mutation.isSuccess ? (
-            <span className="text-sm text-emerald-700">
-              Upload accepted — pipeline triggered.
+            <span
+              className={`text-sm ${
+                mutation.data.valid ? "text-emerald-700" : "text-amber-700"
+              }`}
+            >
+              {mutation.data.valid
+                ? "Upload accepted — pipeline triggered."
+                : "Invalid workbook uploaded — expect quarantine."}
             </span>
           ) : null}
         </div>

@@ -21,6 +21,12 @@
   - `tests/test_cdc_bronze_writer_main.py`
   - `tests/test_fraud_handler.py`
   - `tests/test_event_store_connection_factory_audit.py`
+- Fraud risk-event alerting (`cdc_fraud_high_risk` raised on the high-risk success path, suppressed for normal scores and on deduped replays) is covered by `tests/test_fraud_handler.py`.
+- Query-plane and demo-trigger coverage (Phase 7):
+  - `tests/test_ui_query.py` exercises the read-model handlers directly (runs, run detail/404, events, lineage, artifacts, recent transactions, bounded/`run_id`-filtered alerts).
+  - `tests/test_demo_oltp.py` covers the CDC transaction generator's fraud-shape contract (high-risk AAPL>$10k vs normal <$10k) and single-insert behavior.
+  - `tests/test_keycloak_users.py` covers finance-user resolution: selection, list caching, email fallback, and failure modes (missing secret, empty role, bad token/response, transport error).
+  - `tests/test_demo_xlsx.py` extends to assert the invalid workbook is a real xlsx that fails the payroll_v1 contract; `tests/test_scanner.py` adds canonical `uploader-principal` metadata override coverage.
 
 ## Latest Round Verification
 - Tests import shared libraries via `meridian.libs.*`, matching the runtime image layout
@@ -29,5 +35,5 @@
 - Canonical run is inside the container image (where `meridian` already exists). To run locally,
   expose the libraries as `meridian` first, e.g.:
   `M=$(mktemp -d); mkdir "$M/meridian"; ln -s "$PWD/services/libs" "$M/meridian/libs"; PYTHONPATH="$M" python3 -m pytest -q`
-- Result: 142 passed, 3 skipped, 0 failed. The 3 skips are integration-tier tests under
+- Result: 182 passed, 3 skipped, 0 failed. The 3 skips are integration-tier tests under
   `tests/integration/` that require testcontainers/MinIO and are out of scope for the unit run.

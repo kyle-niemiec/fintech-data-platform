@@ -9,6 +9,8 @@ set -euo pipefail
 : "${OLTP_REPLICATION_PASSWORD:?OLTP_REPLICATION_PASSWORD must be set}"
 : "${OLTP_UI_READER_USER:?OLTP_UI_READER_USER must be set}"
 : "${OLTP_UI_READER_PASSWORD:?OLTP_UI_READER_PASSWORD must be set}"
+: "${OLTP_DEMO_WRITER_USER:?OLTP_DEMO_WRITER_USER must be set}"
+: "${OLTP_DEMO_WRITER_PASSWORD:?OLTP_DEMO_WRITER_PASSWORD must be set}"
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<SQL
 DO \$\$
@@ -29,6 +31,12 @@ BEGIN
         CREATE ROLE ${OLTP_UI_READER_USER} LOGIN PASSWORD '${OLTP_UI_READER_PASSWORD}';
     ELSE
         ALTER ROLE ${OLTP_UI_READER_USER} WITH LOGIN PASSWORD '${OLTP_UI_READER_PASSWORD}';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${OLTP_DEMO_WRITER_USER}') THEN
+        CREATE ROLE ${OLTP_DEMO_WRITER_USER} LOGIN PASSWORD '${OLTP_DEMO_WRITER_PASSWORD}';
+    ELSE
+        ALTER ROLE ${OLTP_DEMO_WRITER_USER} WITH LOGIN PASSWORD '${OLTP_DEMO_WRITER_PASSWORD}';
     END IF;
 END;
 \$\$;
@@ -61,4 +69,10 @@ GRANT SELECT ON
     trading.loan_status_history,
     trading.risk_flag
 TO ${OLTP_UI_READER_USER};
+
+-- Demo writer is least-privilege: it may only INSERT synthetic rows into
+-- trading.transaction for UI-triggered CDC demos. No SELECT/UPDATE/DELETE and
+-- no access to other trading tables.
+GRANT USAGE ON SCHEMA trading TO ${OLTP_DEMO_WRITER_USER};
+GRANT INSERT ON trading.transaction TO ${OLTP_DEMO_WRITER_USER};
 SQL

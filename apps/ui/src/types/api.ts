@@ -79,4 +79,31 @@ export interface DemoUploadResponse {
   rows: number;
   size_bytes: number;
   generated_at: string;
+  schema_contract_id: string;
+  valid: boolean;
+}
+
+export interface CdcTransactionRequest {
+  high_risk: boolean;
+}
+
+export interface CdcTransactionResponse {
+  transaction_id: string;
+  account_id: string;
+  instrument: string;
+  amount: string;
+  executed_at: string;
+  high_risk: boolean;
+}
+
+export type AlertSeverity = "high" | "medium" | "low" | string;
+
+export interface AlertItem {
+  alert_id: string;
+  run_id: string;
+  severity: AlertSeverity;
+  category: string;
+  summary: string;
+  details: Record<string, unknown>;
+  occurred_at: string;
 }

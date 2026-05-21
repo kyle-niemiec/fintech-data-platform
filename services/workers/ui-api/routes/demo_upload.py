@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import random
 from datetime import datetime, timezone
 from typing import Literal
 from uuid import uuid4
@@ -13,16 +12,39 @@ from pydantic import BaseModel, Field
 from config import settings
 from services.demo_xlsx import (
     generate_commission_adjustment_xlsx,
+    generate_invalid_payroll_xlsx,
     generate_payroll_xlsx,
 )
+from services.keycloak_users import FinanceUserResolver, KeycloakConfig, KeycloakError
 from services.minio_upload import MinioUploadError, put_xlsx
 
 router = APIRouter(prefix="/ui/demo", tags=["ui-demo"])
+
+_finance_resolver: FinanceUserResolver | None = None
+
+
+def _resolve_demo_user() -> str:
+    """Pick a random Keycloak `finance`-role user as the demo uploader."""
+    global _finance_resolver
+    if _finance_resolver is None:
+        _finance_resolver = FinanceUserResolver(
+            KeycloakConfig(
+                base_url=settings.keycloak_url,
+                realm=settings.keycloak_realm,
+                client_id=settings.keycloak_demo_service_client_id,
+                client_secret=settings.keycloak_demo_service_client_secret,
+                finance_role=settings.keycloak_finance_role,
+            )
+        )
+    return _finance_resolver.pick_finance_user()
 
 
 class DemoUploadRequest(BaseModel):
     rows: int = Field(default=25, ge=1, le=500)
     dataset: Literal["payroll", "commission_adjustment"] = "payroll"
+    # When false, generate a schema-violating payroll workbook that passes the
+    # scan but is quarantined by the validation DAG (demonstrates the fail path).
+    valid: bool = True
 
 
 class DemoUploadResponse(BaseModel):
@@ -34,6 +56,7 @@ class DemoUploadResponse(BaseModel):
     size_bytes: int
     generated_at: datetime
     schema_contract_id: str
+    valid: bool
 
 
 def _local_part(email: str) -> str:
@@ -44,15 +67,20 @@ def _local_part(email: str) -> str:
 def post_demo_upload(payload: DemoUploadRequest | None = None) -> DemoUploadResponse:
     req = payload or DemoUploadRequest()
 
-    users = settings.demo_finance_users_list
-    if not users:
+    try:
+        demo_user = _resolve_demo_user()
+    except KeycloakError as exc:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No demo finance users configured",
-        )
-    demo_user = random.choice(users)
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Could not resolve finance users from Keycloak: {exc}",
+        ) from exc
 
-    if req.dataset == "commission_adjustment":
+    if not req.valid:
+        # Schema-fail demo: a valid xlsx that violates payroll_v1 and quarantines.
+        xlsx_bytes, rows = generate_invalid_payroll_xlsx(req.rows)
+        contract_id = "payroll_v1"
+        file_prefix = "payroll_invalid"
+    elif req.dataset == "commission_adjustment":
         xlsx_bytes, rows = generate_commission_adjustment_xlsx(req.rows)
         contract_id = "commission_adjustment_v1"
         file_prefix = "commission_adjustment"
@@ -88,4 +116,5 @@ def post_demo_upload(payload: DemoUploadRequest | None = None) -> DemoUploadResp
         size_bytes=result.size_bytes,
         generated_at=now,
         schema_contract_id=contract_id,
+        valid=req.valid,
     )

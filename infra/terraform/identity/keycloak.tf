@@ -59,3 +59,56 @@ resource "keycloak_user_roles" "finance_demo" {
     keycloak_role.finance.id,
   ]
 }
+
+# The demo service account resolves finance-role uploaders at runtime via the
+# Admin API GET /admin/realms/{realm}/roles/{role}/users. That endpoint requires
+# BOTH `view-users` (read users) and `view-realm` (read the realm role) — verified
+# against Keycloak 26; `view-users` alone (and even `manage-users`) returns 403.
+# Because demo_service has `full_scope_allowed = false`, assigning these roles to
+# the service account is not enough: roles outside the client scope are stripped
+# from the issued token. Each role is therefore both assigned to the service
+# account and added to the client scope (keycloak_generic_client_role_mapper).
+data "keycloak_openid_client" "realm_management" {
+  realm_id  = keycloak_realm.meridian.id
+  client_id = "realm-management"
+}
+
+data "keycloak_role" "view_users" {
+  realm_id  = keycloak_realm.meridian.id
+  client_id = data.keycloak_openid_client.realm_management.id
+  name      = "view-users"
+}
+
+data "keycloak_role" "view_realm" {
+  realm_id  = keycloak_realm.meridian.id
+  client_id = data.keycloak_openid_client.realm_management.id
+  name      = "view-realm"
+}
+
+resource "keycloak_openid_client_service_account_role" "demo_service_view_users" {
+  realm_id                = keycloak_realm.meridian.id
+  service_account_user_id = keycloak_openid_client.demo_service.service_account_user_id
+  client_id               = data.keycloak_openid_client.realm_management.id
+  role                    = data.keycloak_role.view_users.name
+}
+
+resource "keycloak_openid_client_service_account_role" "demo_service_view_realm" {
+  realm_id                = keycloak_realm.meridian.id
+  service_account_user_id = keycloak_openid_client.demo_service.service_account_user_id
+  client_id               = data.keycloak_openid_client.realm_management.id
+  role                    = data.keycloak_role.view_realm.name
+}
+
+# full_scope_allowed = false on demo_service ⇒ roles must be in the client scope
+# to appear in the service-account token.
+resource "keycloak_generic_client_role_mapper" "demo_service_scope_view_users" {
+  realm_id  = keycloak_realm.meridian.id
+  client_id = keycloak_openid_client.demo_service.id
+  role_id   = data.keycloak_role.view_users.id
+}
+
+resource "keycloak_generic_client_role_mapper" "demo_service_scope_view_realm" {
+  realm_id  = keycloak_realm.meridian.id
+  client_id = keycloak_openid_client.demo_service.id
+  role_id   = data.keycloak_role.view_realm.id
+}

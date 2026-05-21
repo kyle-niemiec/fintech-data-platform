@@ -4,6 +4,7 @@ import LoadingSkeleton from "../components/common/LoadingSkeleton";
 import ErrorBanner from "../components/common/ErrorBanner";
 import MonoId from "../components/common/MonoId";
 import RelativeTime from "../components/common/RelativeTime";
+import CreateCdcTransactionCard from "../components/transactions/CreateCdcTransactionCard";
 import { useRecentTransactions } from "../hooks/useRecentTransactions";
 import type { RecentTransactionItem } from "../types/api";
 
@@ -41,6 +42,8 @@ export default function RecentTransactionsPage() {
       title="Recent Transactions"
       description="The 25 most recent rows from the OLTP trading.transaction table, joined with their latest risk flag. Polled every 5 seconds."
     >
+      <CreateCdcTransactionCard />
+
       {error ? (
         <ErrorBanner message={(error as Error).message} />
       ) : isLoading ? (
