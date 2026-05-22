@@ -1,19 +1,23 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "../lib/apiClient";
 import { queryKeys } from "../lib/queryKeys";
-import type { RunSummary } from "../types/api";
+import type { Page, RunSummary } from "../types/api";
 
-export function useRuns(pipelineNames: string[] = []) {
-  const query =
-    pipelineNames.length > 0
-      ? "?" +
-        pipelineNames
-          .map((n) => `pipeline_name=${encodeURIComponent(n)}`)
-          .join("&")
-      : "";
+export function useRuns(
+  pipelineNames: string[],
+  backfill: boolean,
+  limit: number,
+  offset: number,
+) {
+  const params = new URLSearchParams();
+  for (const name of pipelineNames) params.append("pipeline_name", name);
+  if (backfill) params.set("backfill", "true");
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
   return useQuery({
-    queryKey: queryKeys.runsFiltered(pipelineNames),
-    queryFn: () => api.get<RunSummary[]>(`/ui/runs${query}`),
-    refetchInterval: 5_000,
+    queryKey: queryKeys.runsFiltered(pipelineNames, backfill, limit, offset),
+    queryFn: () => api.get<Page<RunSummary>>(`/ui/runs?${params.toString()}`),
+    refetchInterval: 3_000,
+    placeholderData: keepPreviousData,
   });
 }

@@ -1,12 +1,16 @@
+import { useState } from "react";
 import PageContainer from "../components/layout/PageContainer";
 import EmptyState from "../components/common/EmptyState";
 import LoadingSkeleton from "../components/common/LoadingSkeleton";
 import ErrorBanner from "../components/common/ErrorBanner";
 import MonoId from "../components/common/MonoId";
 import RelativeTime from "../components/common/RelativeTime";
+import Pagination from "../components/common/Pagination";
 import CreateCdcTransactionCard from "../components/transactions/CreateCdcTransactionCard";
 import { useRecentTransactions } from "../hooks/useRecentTransactions";
 import type { RecentTransactionItem } from "../types/api";
+
+const DEFAULT_PAGE_SIZE = 25;
 
 function formatAmount(amount: string, instrument: string) {
   const n = Number(amount);
@@ -35,12 +39,17 @@ function RiskChips({ tx }: { tx: RecentTransactionItem }) {
 }
 
 export default function RecentTransactionsPage() {
-  const { data, isLoading, error, isFetching } = useRecentTransactions();
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [page, setPage] = useState(1);
+  const { data, isLoading, error } = useRecentTransactions(
+    pageSize,
+    (page - 1) * pageSize,
+  );
 
   return (
     <PageContainer
-      title="Recent Transactions"
-      description="The 25 most recent rows from the OLTP trading.transaction table, joined with their latest risk flag. Polled every 5 seconds."
+      title="Transactions"
+      description="Rows from the OLTP trading.transaction table, joined with their latest risk flag. Polled every 3 seconds."
     >
       <CreateCdcTransactionCard />
 
@@ -48,10 +57,10 @@ export default function RecentTransactionsPage() {
         <ErrorBanner message={(error as Error).message} />
       ) : isLoading ? (
         <LoadingSkeleton rows={6} />
-      ) : !data || data.length === 0 ? (
+      ) : !data || data.total === 0 ? (
         <EmptyState
           title="No transactions yet"
-          description="The OLTP load generator writes synthetic transactions once per minute. The first row should appear shortly."
+          description="The OLTP load generator writes synthetic transactions on a schedule. The first row should appear shortly."
         />
       ) : (
         <>
@@ -69,9 +78,9 @@ export default function RecentTransactionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.map((tx) => {
+                {data.items.map((tx) => {
                   const score = tx.risk_score != null ? Number(tx.risk_score) : null;
-                  const highlighted = score != null && score >= 0.8;
+                  const highlighted = (tx.risk_flags?.length ?? 0) > 0;
                   return (
                     <tr
                       key={tx.transaction_id}
@@ -102,9 +111,16 @@ export default function RecentTransactionsPage() {
               </tbody>
             </table>
           </div>
-          <div className="text-right text-xs text-navy-500">
-            {isFetching ? "Refreshing…" : `${data.length} transaction(s)`}
-          </div>
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={data.total}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
         </>
       )}
     </PageContainer>

@@ -15,7 +15,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 
-PLATFORM_RISK_THRESHOLD = Decimal("0.8")
+PLATFORM_RISK_THRESHOLD = Decimal("0.9")
 RISK_SCORE_QUANT = Decimal("0.0001")
 RISK_THRESHOLD_FLAG = "risk_threshold_exceeded"
 RISK_THRESHOLD_EPSILON = Decimal("0.000000001")

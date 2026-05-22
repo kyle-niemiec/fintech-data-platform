@@ -85,7 +85,7 @@ export default function CdcBackfillCard() {
           <span className="text-sm text-emerald-700">
             Transaction inserted for {new Date(mutation.data.executed_at).toLocaleDateString()}.{" "}
             <Link to="/oltp/transactions" className="underline">
-              View in Recent Transactions
+              View in Transactions
             </Link>
           </span>
         )}

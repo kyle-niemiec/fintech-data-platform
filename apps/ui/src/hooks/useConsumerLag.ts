@@ -7,5 +7,6 @@ export function useConsumerLag() {
     queryKey: ["metrics", "consumer-lag"],
     queryFn: () => api.get<ConsumerLagItem[]>("/ui/metrics/consumer-lag"),
     retry: false,
+    refetchInterval: 3_000,
   });
 }

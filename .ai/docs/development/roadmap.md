@@ -95,6 +95,7 @@ Legend:
 - [x] Replay tooling for topic offset and run-scoped backfills. (Synthetic backfill UI + API for Excel and CDC; `make replay-group` / `make consumer-lag` for Redpanda offset replay.)
 - [x] DAG/event lag dashboards and failure analytics. (Consumer lag API + Metrics UI page with consumer group lag table and 30-day pipeline analytics; `is_backfill` badge on Runs Explorer.)
 - [x] Deterministic recovery playbooks for each source pipeline. (Added Detect→Diagnose→Recover→Verify playbooks for Excel, CDC+Fraud, Salesforce, and Curated Promotion in `operations.md`.)
+- [x] Read-only UI refinements: server-side pagination (`Page[T]` envelope, 25/50/100 page sizes) on Runs/Transactions/Alerts; Runs `backfill` filter + filter-aware empty-state guidance; 3-second polling unified across all live surfaces including Metrics; nav relabel/reorder (Runs → Transactions → Excel Upload → Backfill → Alerts → Metrics). CDC tuning: fraud risk threshold raised to `0.9`; load-gen cadence widened to 120-180s.
 
 ## Phase 9 - Portfolio Hardening
 

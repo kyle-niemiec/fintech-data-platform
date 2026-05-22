@@ -61,7 +61,7 @@
   - `trading.loan`
   - `trading.loan_payment`
   - `trading.loan_status_history`
-- OLTP load generation now emits one primary event type per cycle with required same-cycle side effects and randomized 30-60s delay bounds (`OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS`..`OLTP_LOAD_GEN_INTERVAL_MAX_SECONDS`).
+- OLTP load generation now emits one primary event type per cycle with required same-cycle side effects and randomized 120-180s delay bounds (`OLTP_LOAD_GEN_INTERVAL_MIN_SECONDS`..`OLTP_LOAD_GEN_INTERVAL_MAX_SECONDS`).
 - Excel scan-pass payload carries `schema_contract_id`; `commission_adjustment_v1` is available as a validated schema contract for curated commission paths.
 
 ## Query-Plane Demo Triggers and Identity Resolution
@@ -71,3 +71,12 @@
 - Excel demo uploader identities are resolved at runtime from Keycloak `finance`-role users (`services/workers/ui-api/services/keycloak_users.py`) using the `meridian-demo-service` confidential client (client-credentials grant + Admin role-users lookup, short-lived cache, stdlib `urllib`). The static `DEMO_FINANCE_USERS` env list is removed; Keycloak-unavailable returns `503` with no fallback.
 - Terraform identity authorizes the `demo_service` service account for the Admin role-users lookup (`infra/terraform/identity/keycloak.tf`): the `GET /roles/{role}/users` endpoint requires **both** `realm-management` `view-users` and `view-realm` (Keycloak 26 — `view-users` alone returns 403). Because the client has `full_scope_allowed = false`, both roles are assigned to the service account **and** added to the client scope (`keycloak_generic_client_role_mapper`), or the token strips them.
 - The uploader→scanner attribution contract is a single canonical object-metadata key `uploader-principal` (`UPLOADER_PRINCIPAL_METADATA_KEY` in `excel_scanner/scanner.py`); the MinIO S3 event `principalId` is treated as the ingress access-key actor, not the business uploader.
+
+## Query-Plane Read Endpoints and UI Refresh
+- The list read endpoints (`GET /ui/runs`, `/ui/oltp/transactions/recent`, `/ui/alerts`) return a paginated `Page[T]` envelope (`items`, `total`, `limit`, `offset`) with server-side `limit`/`offset`; `total` comes from a `count(*) OVER()` window so the UI can render page controls in one request. Default page size is 25 (options 25/50/100).
+- `GET /ui/runs` also accepts a `backfill` filter (`true`/`false`) whose SQL mirrors the row-level `is_backfill` derivation (`strpos(trigger_event_ref, 'backfill_') > 0 OR trigger_type = 'backfill'`), so filtering composes correctly with pagination.
+- The frontend polls all live surfaces on a single 3-second cadence, including the Metrics page (`useConsumerLag`, `usePipelineAnalytics`). Paginated hooks keep previous data across refetches to avoid blank flicker.
+- The Transactions page marks a row high-risk from server data (`risk_flags` populated by the fraud worker), not a threshold duplicated on the client.
+
+## CDC Fraud Scoring Threshold
+- `PLATFORM_RISK_THRESHOLD` (`services/workers/fraud_worker/scorer.py`) is `0.9`. It both gates the `risk_threshold_exceeded` flag and calibrates the continuous score so a transaction at an instrument's calibrated amount scores exactly the threshold.

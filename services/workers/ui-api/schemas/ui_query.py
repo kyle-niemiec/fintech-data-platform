@@ -1,9 +1,24 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Generic, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel
+
+T = TypeVar("T")
+
+
+class Page(BaseModel, Generic[T]):
+    """Envelope for a single page of a list endpoint.
+
+    `total` is the count of rows matching the filters before `limit`/`offset`,
+    so the UI can render page controls without a second request.
+    """
+
+    items: list[T]
+    total: int
+    limit: int
+    offset: int
 
 
 class RunSummary(BaseModel):

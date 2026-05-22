@@ -86,18 +86,50 @@ def test_list_runs_maps_summaries_without_filter():
         }
     ]
     session = FakeSession(lambda *_: rows)
-    result = ui_query.list_runs(db=session, pipeline_name=None)
-    assert len(result) == 1
-    assert str(result[0].run_id) == RUN_ID
-    assert "WHERE pr.pipeline_name" not in session.calls[0][0]
+    result = ui_query.list_runs(db=session, pipeline_name=None, limit=25, offset=0)
+    assert len(result.items) == 1
+    assert result.total == 1
+    assert result.limit == 25 and result.offset == 0
+    assert str(result.items[0].run_id) == RUN_ID
+    sql = session.calls[0][0]
+    assert "WHERE pr.pipeline_name" not in sql
+    assert "LIMIT :limit OFFSET :offset" in sql
 
 
 def test_list_runs_applies_pipeline_name_filter():
     session = FakeSession(lambda *_: [])
-    ui_query.list_runs(db=session, pipeline_name=["excel_ingestion", "cdc_ingestion"])
+    ui_query.list_runs(
+        db=session,
+        pipeline_name=["excel_ingestion", "cdc_ingestion"],
+        limit=25,
+        offset=0,
+    )
     sql, params = session.calls[0]
     assert "WHERE pr.pipeline_name = ANY(:pipeline_names)" in sql
     assert params["pipeline_names"] == ["excel_ingestion", "cdc_ingestion"]
+
+
+def test_list_runs_applies_backfill_filter():
+    session = FakeSession(lambda *_: [])
+    ui_query.list_runs(db=session, pipeline_name=None, backfill=True, limit=25, offset=0)
+    sql = session.calls[0][0]
+    assert "strpos(coalesce(pr.trigger_event_ref, ''), 'backfill_') > 0" in sql
+    assert "NOT (" not in sql
+
+
+def test_list_runs_excludes_backfill_when_false():
+    session = FakeSession(lambda *_: [])
+    ui_query.list_runs(db=session, pipeline_name=None, backfill=False, limit=25, offset=0)
+    sql = session.calls[0][0]
+    assert "NOT (strpos(coalesce(pr.trigger_event_ref, ''), 'backfill_') > 0" in sql
+
+
+def test_list_runs_binds_limit_and_offset():
+    session = FakeSession(lambda *_: [])
+    ui_query.list_runs(db=session, pipeline_name=None, limit=50, offset=100)
+    sql, params = session.calls[0]
+    assert "LIMIT :limit OFFSET :offset" in sql
+    assert params["limit"] == 50 and params["offset"] == 100
 
 
 def test_list_alerts_is_bounded_and_maps():
@@ -113,19 +145,20 @@ def test_list_alerts_is_bounded_and_maps():
         }
     ]
     session = FakeSession(lambda *_: rows)
-    out = ui_query.list_alerts(db=session, run_id=None, limit=100)
+    out = ui_query.list_alerts(db=session, run_id=None, limit=100, offset=0)
     sql, params = session.calls[0]
-    assert "LIMIT :limit" in sql
+    assert "LIMIT :limit OFFSET :offset" in sql
     assert "WHERE run_id" not in sql
-    assert params["limit"] == 100
-    assert out[0].severity == "high"
-    assert out[0].details == {"risk_score": 0.97}
+    assert params["limit"] == 100 and params["offset"] == 0
+    assert out.items[0].severity == "high"
+    assert out.items[0].details == {"risk_score": 0.97}
+    assert out.total == 1
 
 
 def test_list_alerts_scopes_to_run_id():
     rid = UUID(RUN_ID)
     session = FakeSession(lambda *_: [])
-    ui_query.list_alerts(db=session, run_id=rid, limit=25)
+    ui_query.list_alerts(db=session, run_id=rid, limit=25, offset=0)
     sql, params = session.calls[0]
     assert "WHERE run_id = :run_id" in sql
     assert params["run_id"] == rid
@@ -173,10 +206,12 @@ def test_list_recent_transactions_maps_risk_fields():
         }
     ]
     session = FakeSession(lambda *_: rows)
-    out = ui_query.list_recent_transactions(db=session, limit=25)
-    assert out[0].instrument == "AAPL"
-    assert str(out[0].amount) == "12345.67"
-    assert out[0].risk_flags == ["amount_gt_10k_aapl"]
+    out = ui_query.list_recent_transactions(db=session, limit=25, offset=0)
+    sql = session.calls[0][0]
+    assert "LIMIT :limit OFFSET :offset" in sql
+    assert out.items[0].instrument == "AAPL"
+    assert str(out.items[0].amount) == "12345.67"
+    assert out.items[0].risk_flags == ["amount_gt_10k_aapl"]
 
 
 def test_list_events_and_lineage_and_artifacts_map():

@@ -9,11 +9,21 @@ from schemas.ui_query import (
     AlertItem,
     ArtifactTrailItem,
     LineageTrailItem,
+    Page,
     RecentTransactionItem,
     RunDetail,
     RunEventItem,
     RunSummary,
 )
+
+
+def _page_total(rows: list, count: int) -> int:
+    """Read the windowed `total_count` from the first row, falling back to the
+    page length when the column is absent (e.g. in unit tests with canned rows).
+    """
+    if not rows:
+        return 0
+    return int(rows[0].get("total_count", count))
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 
@@ -32,47 +42,63 @@ def _assert_run_exists(db: Session, run_id: UUID) -> None:
 """
 GET: A list of pipeline runs with their latest event status attached.
 """
-@router.get("/runs", response_model=list[RunSummary], status_code=status.HTTP_200_OK)
+@router.get("/runs", response_model=Page[RunSummary], status_code=status.HTTP_200_OK)
 def list_runs(
     db: Session = Depends(get_query_db),
     pipeline_name: list[str] | None = Query(default=None),
+    backfill: bool | None = Query(default=None),
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
 ):
-    params: dict = {}
-    filter_sql = ""
+    params: dict = {"limit": limit, "offset": offset}
+    conditions: list[str] = []
     if pipeline_name:
-        filter_sql = "WHERE pr.pipeline_name = ANY(:pipeline_names)"
+        conditions.append("pr.pipeline_name = ANY(:pipeline_names)")
         params["pipeline_names"] = pipeline_name
+    if backfill is not None:
+        # Mirror the Python `is_backfill` derivation in SQL so the filter and the
+        # row flag below always agree.
+        backfill_expr = (
+            "(strpos(coalesce(pr.trigger_event_ref, ''), 'backfill_') > 0"
+            " OR pr.trigger_type = 'backfill')"
+        )
+        conditions.append(backfill_expr if backfill else f"NOT {backfill_expr}")
+    filter_sql = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
-    rows = db.execute(
-        text(
-            f"""
-            SELECT
-                pr.run_id,
-                pr.pipeline_class,
-                pr.pipeline_name,
-                pr.source_system,
-                pr.status,
-                pr.trigger_event_ref,
-                pr.trigger_type,
-                le.event_type AS latest_stage,
-                pr.started_at,
-                pr.completed_at
-            FROM event_store.pipeline_run AS pr
-                JOIN LATERAL (
-                    SELECT event_type
-                    FROM event_store.event_log el
-                    WHERE el.run_id = pr.run_id
-                    ORDER BY el.occurred_at DESC
-                    LIMIT 1
-                ) AS le ON true
-            {filter_sql}
-            ORDER BY pr.started_at DESC
-            """
-        ),
-        params,
-    ).mappings()
+    rows = list(
+        db.execute(
+            text(
+                f"""
+                SELECT
+                    pr.run_id,
+                    pr.pipeline_class,
+                    pr.pipeline_name,
+                    pr.source_system,
+                    pr.status,
+                    pr.trigger_event_ref,
+                    pr.trigger_type,
+                    le.event_type AS latest_stage,
+                    pr.started_at,
+                    pr.completed_at,
+                    count(*) OVER() AS total_count
+                FROM event_store.pipeline_run AS pr
+                    JOIN LATERAL (
+                        SELECT event_type
+                        FROM event_store.event_log el
+                        WHERE el.run_id = pr.run_id
+                        ORDER BY el.occurred_at DESC
+                        LIMIT 1
+                    ) AS le ON true
+                {filter_sql}
+                ORDER BY pr.started_at DESC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        ).mappings()
+    )
 
-    return [
+    items = [
         RunSummary(
             run_id=row["run_id"],
             pipeline_class=row["pipeline_class"],
@@ -89,43 +115,52 @@ def list_runs(
         )
         for row in rows
     ]
+    return Page(items=items, total=_page_total(rows, len(items)), limit=limit, offset=offset)
 
 
 @router.get(
     "/oltp/transactions/recent",
-    response_model=list[RecentTransactionItem],
+    response_model=Page[RecentTransactionItem],
     status_code=status.HTTP_200_OK,
 )
 def list_recent_transactions(
     db: Session = Depends(get_oltp_db),
     limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
 ):
-    rows = db.execute(
-        text(
-            """
-            SELECT
-                t.transaction_id,
-                t.account_id,
-                t.instrument,
-                t.amount,
-                t.executed_at,
-                rf.risk_score,
-                rf.risk_flags
-            FROM trading.transaction AS t
-            LEFT JOIN LATERAL (
-                SELECT risk_score, risk_flags
-                FROM trading.risk_flag r
-                WHERE r.transaction_id = t.transaction_id
-                ORDER BY r.flagged_at DESC
-                LIMIT 1
-            ) AS rf ON true
-            ORDER BY t.executed_at DESC
-            LIMIT :limit
-            """
-        ),
-        {"limit": limit},
-    ).mappings()
-    return [RecentTransactionItem(**row) for row in rows]
+    rows = list(
+        db.execute(
+            text(
+                """
+                SELECT
+                    t.transaction_id,
+                    t.account_id,
+                    t.instrument,
+                    t.amount,
+                    t.executed_at,
+                    rf.risk_score,
+                    rf.risk_flags,
+                    count(*) OVER() AS total_count
+                FROM trading.transaction AS t
+                LEFT JOIN LATERAL (
+                    SELECT risk_score, risk_flags
+                    FROM trading.risk_flag r
+                    WHERE r.transaction_id = t.transaction_id
+                    ORDER BY r.flagged_at DESC
+                    LIMIT 1
+                ) AS rf ON true
+                ORDER BY t.executed_at DESC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            {"limit": limit, "offset": offset},
+        ).mappings()
+    )
+    items = [
+        RecentTransactionItem(**{k: v for k, v in row.items() if k != "total_count"})
+        for row in rows
+    ]
+    return Page(items=items, total=_page_total(rows, len(items)), limit=limit, offset=offset)
 
 """
 GET: A single pipeline run by ID along with the latest event status.
@@ -354,35 +389,42 @@ GET: Return the alert feed from the event store, newest first.
 Optionally scoped to a single run via `run_id` and bounded by `limit` so the
 read-only feed cannot return an unbounded result set.
 """
-@router.get("/alerts", response_model=list[AlertItem], status_code=status.HTTP_200_OK)
+@router.get("/alerts", response_model=Page[AlertItem], status_code=status.HTTP_200_OK)
 def list_alerts(
     db: Session = Depends(get_query_db),
     run_id: UUID | None = Query(default=None),
-    limit: int = Query(default=100, ge=1, le=500),
+    limit: int = Query(default=25, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
 ):
-    params: dict = {"limit": limit}
+    params: dict = {"limit": limit, "offset": offset}
     filter_sql = ""
     if run_id is not None:
         filter_sql = "WHERE run_id = :run_id"
         params["run_id"] = run_id
 
-    rows = db.execute(
-        text(
-            f"""
-            SELECT
-                alert_id,
-                run_id,
-                severity,
-                category,
-                summary,
-                details,
-                occurred_at
-            FROM event_store.alert_event
-            {filter_sql}
-            ORDER BY occurred_at DESC
-            LIMIT :limit
-            """
-        ),
-        params,
-    ).mappings()
-    return [AlertItem(**row) for row in rows]
+    rows = list(
+        db.execute(
+            text(
+                f"""
+                SELECT
+                    alert_id,
+                    run_id,
+                    severity,
+                    category,
+                    summary,
+                    details,
+                    occurred_at,
+                    count(*) OVER() AS total_count
+                FROM event_store.alert_event
+                {filter_sql}
+                ORDER BY occurred_at DESC
+                LIMIT :limit OFFSET :offset
+                """
+            ),
+            params,
+        ).mappings()
+    )
+    items = [
+        AlertItem(**{k: v for k, v in row.items() if k != "total_count"}) for row in rows
+    ]
+    return Page(items=items, total=_page_total(rows, len(items)), limit=limit, offset=offset)

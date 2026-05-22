@@ -3,6 +3,15 @@ import { NavLink } from "react-router-dom";
 const linkBase =
   "rounded-md px-3 py-1.5 text-sm font-medium transition-colors";
 
+const NAV_LINKS: { to: string; label: string; end?: boolean }[] = [
+  { to: "/", label: "Runs", end: true },
+  { to: "/oltp/transactions", label: "Transactions" },
+  { to: "/demo/upload", label: "Excel Upload" },
+  { to: "/backfill", label: "Backfill" },
+  { to: "/alerts", label: "Alerts" },
+  { to: "/metrics", label: "Metrics" },
+];
+
 export default function TopNav() {
   return (
     <header className="border-b border-navy-800 bg-navy-900 text-white">
@@ -19,79 +28,22 @@ export default function TopNav() {
           </div>
         </div>
         <nav className="flex items-center gap-1">
-          <NavLink
-            to="/"
-            end
-            className={({ isActive }) =>
-              `${linkBase} ${
-                isActive
-                  ? "bg-white/10 text-white"
-                  : "text-navy-100 hover:bg-white/5 hover:text-white"
-              }`
-            }
-          >
-            Runs
-          </NavLink>
-          <NavLink
-            to="/oltp/transactions"
-            className={({ isActive }) =>
-              `${linkBase} ${
-                isActive
-                  ? "bg-white/10 text-white"
-                  : "text-navy-100 hover:bg-white/5 hover:text-white"
-              }`
-            }
-          >
-            Recent Transactions
-          </NavLink>
-          <NavLink
-            to="/alerts"
-            className={({ isActive }) =>
-              `${linkBase} ${
-                isActive
-                  ? "bg-white/10 text-white"
-                  : "text-navy-100 hover:bg-white/5 hover:text-white"
-              }`
-            }
-          >
-            Alerts
-          </NavLink>
-          <NavLink
-            to="/backfill"
-            className={({ isActive }) =>
-              `${linkBase} ${
-                isActive
-                  ? "bg-white/10 text-white"
-                  : "text-navy-100 hover:bg-white/5 hover:text-white"
-              }`
-            }
-          >
-            Backfill
-          </NavLink>
-          <NavLink
-            to="/metrics"
-            className={({ isActive }) =>
-              `${linkBase} ${
-                isActive
-                  ? "bg-white/10 text-white"
-                  : "text-navy-100 hover:bg-white/5 hover:text-white"
-              }`
-            }
-          >
-            Metrics
-          </NavLink>
-          <NavLink
-            to="/demo/upload"
-            className={({ isActive }) =>
-              `${linkBase} ${
-                isActive
-                  ? "bg-white/10 text-white"
-                  : "text-navy-100 hover:bg-white/5 hover:text-white"
-              }`
-            }
-          >
-            Demo Upload
-          </NavLink>
+          {NAV_LINKS.map(({ to, label, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) =>
+                `${linkBase} ${
+                  isActive
+                    ? "bg-white/10 text-white"
+                    : "text-navy-100 hover:bg-white/5 hover:text-white"
+                }`
+              }
+            >
+              {label}
+            </NavLink>
+          ))}
         </nav>
         <div className="ml-auto flex items-center gap-3">
           <span className="rounded-full border border-navy-400/40 bg-navy-800 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-navy-100">

@@ -25,7 +25,7 @@ export default function RunDetailPage() {
   const { runId = "" } = useParams();
   const [tab, setTab] = useState<Tab>("events");
   const { run, events, lineage, artifacts } = useRun(runId);
-  const alerts = useAlerts(runId);
+  const alerts = useAlerts(runId, 200, 0);
 
   if (run.error) {
     return (
@@ -99,8 +99,8 @@ export default function RunDetailPage() {
         {tab === "alerts" &&
           (alerts.isLoading ? (
             <LoadingSkeleton rows={4} />
-          ) : alerts.data && alerts.data.length > 0 ? (
-            <AlertsTable alerts={alerts.data} hideRun />
+          ) : alerts.data && alerts.data.items.length > 0 ? (
+            <AlertsTable alerts={alerts.data.items} hideRun />
           ) : (
             <EmptyState
               title="No alerts for this run"
