@@ -92,15 +92,16 @@ def emit_event(*branch_outputs: dict[str, Any]) -> None:
                 kafka_offset=offset,
             )
 
+            # Handle quarantine-specific event store updates and alerting.
             if not is_raw:
+                # Close the run since it will not proceed to bronze.
                 PgEventStore.close_run(
                     conn,
                     UUID(outcome["run_id"]),
                     status="quarantined",
                 )
 
-            # Quarantine is a finance-facing event: surface it to the alert feed.
-            if not is_raw:
+                # Raise an alert for the quarantine event.
                 PgEventStore.raise_alert(
                     conn,
                     run_id=UUID(outcome["run_id"]),
