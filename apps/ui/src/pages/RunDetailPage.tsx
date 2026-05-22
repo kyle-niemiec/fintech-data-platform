@@ -11,6 +11,8 @@ import ExcelSheetPreview from "../components/runDetail/ExcelSheetPreview";
 import EmptyState from "../components/common/EmptyState";
 import LoadingSkeleton from "../components/common/LoadingSkeleton";
 import ErrorBanner from "../components/common/ErrorBanner";
+import BusinessStory from "../components/common/BusinessStory";
+import { businessStories } from "../lib/businessStories";
 import { useRun } from "../hooks/useRun";
 import { useAlerts } from "../hooks/useAlerts";
 import { usePreview } from "../hooks/usePreview";
@@ -28,7 +30,7 @@ export default function RunDetailPage() {
   const { runId = "" } = useParams();
   const [tab, setTab] = useState<Tab>("events");
   const { run, events, lineage, artifacts } = useRun(runId);
-  const alerts = useAlerts(runId, 200, 0);
+  const alerts = useAlerts(runId, undefined, 200, 0);
   const hasPreview = run.data?.preview_kind != null;
   const preview = usePreview(runId, hasPreview && tab === "preview");
 
@@ -132,6 +134,8 @@ export default function RunDetailPage() {
             />
           ))}
       </div>
+
+      <BusinessStory {...businessStories.runDetail} />
     </PageContainer>
   );
 }

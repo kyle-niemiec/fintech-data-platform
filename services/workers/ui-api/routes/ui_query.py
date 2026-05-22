@@ -29,6 +29,62 @@ def _page_total(rows: list, count: int) -> int:
         return 0
     return int(rows[0].get("total_count", count))
 
+
+# Server-side sort: each entry maps a client sort key to a fixed primary SQL
+# expression. ORDER BY is built only from these constants (never raw input), so
+# `sort`/`dir` cannot inject SQL; an unknown key falls back to `default_key`.
+RUNS_SORT = {
+    "run_id": "pr.run_id::text",
+    "pipeline": "pr.pipeline_name",
+    "status": "pr.status",
+    "started": "pr.started_at",
+    "duration": "(coalesce(pr.completed_at, now()) - pr.started_at)",
+}
+RECENT_TX_SORT = {
+    "executed": "t.executed_at",
+    "transaction": "t.transaction_id::text",
+    "account": "t.account_id::text",
+    "instrument": "t.instrument",
+    "risk_score": "rf.risk_score",
+}
+ALERTS_SORT = {
+    "occurred": "occurred_at",
+    "severity": "CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END",
+    "category": "category",
+    "run": "run_id::text",
+}
+
+
+def _order_by(
+    sort: str | None,
+    direction: str | None,
+    *,
+    spec: dict[str, str],
+    default_key: str,
+    default_dir: str,
+    recency_sql: str,
+    unique_sql: str,
+    nulls_last: tuple[str, ...] = (),
+) -> str:
+    """Build a safe ORDER BY clause from a whitelist `spec`.
+
+    The chosen column sorts in `direction` (validated to ASC/DESC); a fixed
+    recency tiebreaker is appended for non-default columns, and `unique_sql`
+    always ends the clause so pagination stays deterministic.
+    """
+    key = sort if isinstance(sort, str) and sort in spec else default_key
+    d = direction.lower() if isinstance(direction, str) else ""
+    if d not in ("asc", "desc"):
+        d = default_dir
+    primary = f"{spec[key]} {d.upper()}"
+    if key in nulls_last:
+        primary += " NULLS LAST"
+    parts = [primary]
+    if key != default_key:
+        parts.append(recency_sql)
+    parts.append(unique_sql)
+    return "ORDER BY " + ", ".join(parts)
+
 router = APIRouter(prefix="/ui", tags=["ui"])
 
 """
@@ -51,6 +107,8 @@ def list_runs(
     db: Session = Depends(get_query_db),
     pipeline_name: list[str] | None = Query(default=None),
     backfill: bool | None = Query(default=None),
+    sort: str | None = Query(default=None),
+    direction: str | None = Query(default=None, alias="dir"),
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ):
@@ -68,6 +126,15 @@ def list_runs(
         )
         conditions.append(backfill_expr if backfill else f"NOT {backfill_expr}")
     filter_sql = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    order_sql = _order_by(
+        sort,
+        direction,
+        spec=RUNS_SORT,
+        default_key="started",
+        default_dir="desc",
+        recency_sql="pr.started_at DESC",
+        unique_sql="pr.run_id",
+    )
 
     rows = list(
         db.execute(
@@ -94,7 +161,7 @@ def list_runs(
                         LIMIT 1
                     ) AS le ON true
                 {filter_sql}
-                ORDER BY pr.started_at DESC
+                {order_sql}
                 LIMIT :limit OFFSET :offset
                 """
             ),
@@ -130,13 +197,25 @@ def list_runs(
 def list_recent_transactions(
     db: Session = Depends(get_oltp_db),
     query_db: Session = Depends(get_query_db),
+    sort: str | None = Query(default=None),
+    direction: str | None = Query(default=None, alias="dir"),
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ):
+    order_sql = _order_by(
+        sort,
+        direction,
+        spec=RECENT_TX_SORT,
+        default_key="executed",
+        default_dir="desc",
+        recency_sql="t.executed_at DESC",
+        unique_sql="t.transaction_id",
+        nulls_last=("risk_score",),
+    )
     rows = list(
         db.execute(
             text(
-                """
+                f"""
                 SELECT
                     t.transaction_id,
                     t.account_id,
@@ -156,7 +235,7 @@ def list_recent_transactions(
                     ORDER BY r.flagged_at DESC
                     LIMIT 1
                 ) AS rf ON true
-                ORDER BY t.executed_at DESC
+                {order_sql}
                 LIMIT :limit OFFSET :offset
                 """
             ),
@@ -603,6 +682,8 @@ read-only feed cannot return an unbounded result set.
 def list_alerts(
     db: Session = Depends(get_query_db),
     run_id: UUID | None = Query(default=None),
+    sort: str | None = Query(default=None),
+    direction: str | None = Query(default=None, alias="dir"),
     limit: int = Query(default=25, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ):
@@ -611,6 +692,15 @@ def list_alerts(
     if run_id is not None:
         filter_sql = "WHERE run_id = :run_id"
         params["run_id"] = run_id
+    order_sql = _order_by(
+        sort,
+        direction,
+        spec=ALERTS_SORT,
+        default_key="occurred",
+        default_dir="desc",
+        recency_sql="occurred_at DESC",
+        unique_sql="alert_id",
+    )
 
     rows = list(
         db.execute(
@@ -627,7 +717,7 @@ def list_alerts(
                     count(*) OVER() AS total_count
                 FROM event_store.alert_event
                 {filter_sql}
-                ORDER BY occurred_at DESC
+                {order_sql}
                 LIMIT :limit OFFSET :offset
                 """
             ),

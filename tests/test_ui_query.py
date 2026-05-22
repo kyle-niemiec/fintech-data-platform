@@ -155,6 +155,57 @@ def test_list_alerts_is_bounded_and_maps():
     assert out.total == 1
 
 
+def test_list_runs_default_order_by():
+    session = FakeSession(lambda *_: [])
+    ui_query.list_runs(db=session, pipeline_name=None, limit=25, offset=0)
+    sql = session.calls[0][0]
+    assert "ORDER BY pr.started_at DESC, pr.run_id" in sql
+
+
+def test_list_runs_sort_duration_asc_with_tiebreakers():
+    session = FakeSession(lambda *_: [])
+    ui_query.list_runs(
+        db=session, pipeline_name=None, sort="duration", direction="asc", limit=25, offset=0
+    )
+    sql = session.calls[0][0]
+    assert (
+        "ORDER BY (coalesce(pr.completed_at, now()) - pr.started_at) ASC,"
+        " pr.started_at DESC, pr.run_id" in sql
+    )
+
+
+def test_list_runs_unknown_sort_falls_back_to_default():
+    session = FakeSession(lambda *_: [])
+    ui_query.list_runs(
+        db=session, pipeline_name=None, sort="bogus", direction="weird", limit=25, offset=0
+    )
+    sql = session.calls[0][0]
+    assert "ORDER BY pr.started_at DESC, pr.run_id" in sql
+
+
+def test_list_recent_transactions_sort_risk_score_nulls_last():
+    oltp = FakeSession(lambda *_: [])
+    query = FakeSession(lambda *_: [])
+    ui_query.list_recent_transactions(
+        db=oltp, query_db=query, sort="risk_score", direction="desc", limit=25, offset=0
+    )
+    sql = oltp.calls[0][0]
+    assert (
+        "ORDER BY rf.risk_score DESC NULLS LAST, t.executed_at DESC,"
+        " t.transaction_id" in sql
+    )
+
+
+def test_list_alerts_sort_severity_uses_rank_case():
+    session = FakeSession(lambda *_: [])
+    ui_query.list_alerts(
+        db=session, run_id=None, sort="severity", direction="asc", limit=25, offset=0
+    )
+    sql = session.calls[0][0]
+    assert "CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1" in sql
+    assert "END ASC, occurred_at DESC, alert_id" in sql
+
+
 def test_list_alerts_scopes_to_run_id():
     rid = UUID(RUN_ID)
     session = FakeSession(lambda *_: [])

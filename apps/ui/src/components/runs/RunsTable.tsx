@@ -2,25 +2,43 @@ import { useNavigate } from "react-router-dom";
 import StatusPill from "../common/StatusPill";
 import MonoId from "../common/MonoId";
 import RelativeTime from "../common/RelativeTime";
+import SortableHeader from "../common/SortableHeader";
 import PipelineBadge from "./PipelineBadge";
 import { formatDuration } from "../../lib/formatters";
 import { pipelineDisplayNameFor } from "../../lib/pipelineColors";
+import type { SortDir, SortState } from "../../lib/queryKeys";
 import type { RunSummary } from "../../types/api";
 
-export default function RunsTable({ runs }: { runs: RunSummary[] }) {
+interface Props {
+  runs: RunSummary[];
+  sort: SortState;
+  onSort: (column: string, dir: SortDir) => void;
+}
+
+export default function RunsTable({ runs, sort, onSort }: Props) {
   const navigate = useNavigate();
+  const th = (column: string, label: string, initialDir: SortDir) => (
+    <SortableHeader
+      column={column}
+      label={label}
+      active={sort.sort === column}
+      dir={sort.dir}
+      onSort={onSort}
+      initialDir={initialDir}
+    />
+  );
   return (
     <div className="card overflow-hidden">
       <table className="table-default">
         <thead className="bg-slate-50">
           <tr>
-            <th>Run</th>
-            <th>Pipeline</th>
+            {th("run_id", "Run", "asc")}
+            {th("pipeline", "Pipeline", "asc")}
             <th>Source</th>
-            <th>Status</th>
+            {th("status", "Status", "asc")}
             <th>Latest Stage</th>
-            <th>Started</th>
-            <th>Duration</th>
+            {th("started", "Started", "desc")}
+            {th("duration", "Duration", "desc")}
           </tr>
         </thead>
         <tbody>

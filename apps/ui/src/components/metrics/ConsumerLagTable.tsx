@@ -1,4 +1,6 @@
 import { useState } from "react";
+import SortableHeader from "../common/SortableHeader";
+import type { SortDir, SortState } from "../../lib/queryKeys";
 import type { ConsumerLagItem } from "../../types/api";
 
 function LagDot({ lag }: { lag: number }) {
@@ -34,10 +36,28 @@ function groupByConsumerGroup(items: ConsumerLagItem[]): LagGroup[] {
   }));
 }
 
+// Sort key → numeric field on a lag row.
+const SORT_FIELD: Record<string, keyof ConsumerLagItem> = {
+  partition: "partition",
+  committed: "current_offset",
+  high_watermark: "log_end_offset",
+  lag: "lag",
+};
+
+function sortRows(rows: ConsumerLagItem[], sort: SortState): ConsumerLagItem[] {
+  const field = SORT_FIELD[sort.sort] ?? "partition";
+  const mul = sort.dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const d = (Number(a[field]) - Number(b[field])) * mul;
+    return d !== 0 ? d : a.partition - b.partition;
+  });
+}
+
 export default function ConsumerLagTable({ items }: { items: ConsumerLagItem[] }) {
   const groups = groupByConsumerGroup(items);
-  // Default expanded: every group starts open.
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Default collapsed: a group is open only once its name is in `expanded`.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState<SortState>({ sort: "partition", dir: "asc" });
 
   if (items.length === 0) {
     return (
@@ -49,7 +69,7 @@ export default function ConsumerLagTable({ items }: { items: ConsumerLagItem[] }
   }
 
   const toggle = (group: string) =>
-    setCollapsed((prev) => {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(group)) {
         next.delete(group);
@@ -59,10 +79,23 @@ export default function ConsumerLagTable({ items }: { items: ConsumerLagItem[] }
       return next;
     });
 
+  const onSort = (column: string, dir: SortDir) => setSort({ sort: column, dir });
+  const th = (column: string, label: string, initialDir: SortDir) => (
+    <SortableHeader
+      column={column}
+      label={label}
+      active={sort.sort === column}
+      dir={sort.dir}
+      onSort={onSort}
+      initialDir={initialDir}
+      align="right"
+    />
+  );
+
   return (
     <div className="space-y-3">
       {groups.map(({ group, rows, totalLag }) => {
-        const isOpen = !collapsed.has(group);
+        const isOpen = expanded.has(group);
         return (
           <div
             key={group}
@@ -96,15 +129,15 @@ export default function ConsumerLagTable({ items }: { items: ConsumerLagItem[] }
                 <thead className="bg-white">
                   <tr>
                     <th>Topic</th>
-                    <th className="text-right">Partition</th>
-                    <th className="text-right">Committed</th>
-                    <th className="text-right">High watermark</th>
-                    <th className="text-right">Lag</th>
+                    {th("partition", "Partition", "asc")}
+                    {th("committed", "Committed", "desc")}
+                    {th("high_watermark", "High watermark", "desc")}
+                    {th("lag", "Lag", "desc")}
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((item, i) => (
+                  {sortRows(rows, sort).map((item, i) => (
                     <tr key={i}>
                       <td className="font-mono text-xs">{item.topic}</td>
                       <td className="text-right font-mono text-xs">{item.partition}</td>

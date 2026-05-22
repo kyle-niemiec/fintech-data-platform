@@ -7,8 +7,12 @@ import ErrorBanner from "../components/common/ErrorBanner";
 import MonoId from "../components/common/MonoId";
 import RelativeTime from "../components/common/RelativeTime";
 import Pagination from "../components/common/Pagination";
+import SortableHeader from "../components/common/SortableHeader";
+import BusinessStory from "../components/common/BusinessStory";
 import CreateCdcTransactionCard from "../components/transactions/CreateCdcTransactionCard";
+import { businessStories } from "../lib/businessStories";
 import { useRecentTransactions } from "../hooks/useRecentTransactions";
+import type { SortDir, SortState } from "../lib/queryKeys";
 import type { RecentTransactionItem } from "../types/api";
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -50,15 +54,33 @@ export default function RecentTransactionsPage() {
   const navigate = useNavigate();
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<SortState>({ sort: "executed", dir: "desc" });
   const { data, isLoading, error } = useRecentTransactions(
+    sort,
     pageSize,
     (page - 1) * pageSize,
+  );
+
+  const onSort = (column: string, dir: SortDir) => {
+    setSort({ sort: column, dir });
+    setPage(1);
+  };
+  const th = (column: string, label: string, initialDir: SortDir, align?: "right") => (
+    <SortableHeader
+      column={column}
+      label={label}
+      active={sort.sort === column}
+      dir={sort.dir}
+      onSort={onSort}
+      initialDir={initialDir}
+      align={align}
+    />
   );
 
   return (
     <PageContainer
       title="Transactions"
-      description="Rows from the OLTP trading.transaction table, joined with their latest risk flag. Polled every 3 seconds."
+      description="Rows from the OLTP trading.transaction table, joined with their latest risk flag."
     >
       <CreateCdcTransactionCard />
 
@@ -77,12 +99,12 @@ export default function RecentTransactionsPage() {
             <table className="table-default">
               <thead className="bg-slate-50">
                 <tr>
-                  <th>Executed</th>
-                  <th>Transaction</th>
-                  <th>Account</th>
-                  <th>Instrument</th>
+                  {th("executed", "Executed", "desc")}
+                  {th("transaction", "Transaction", "asc")}
+                  {th("account", "Account", "asc")}
+                  {th("instrument", "Instrument", "asc")}
                   <th className="text-right">Amount</th>
-                  <th>Risk Score</th>
+                  {th("risk_score", "Risk Score", "desc")}
                   <th>Flags</th>
                 </tr>
               </thead>
@@ -142,6 +164,7 @@ export default function RecentTransactionsPage() {
           />
         </>
       )}
+      <BusinessStory {...businessStories.transactions} />
     </PageContainer>
   );
 }

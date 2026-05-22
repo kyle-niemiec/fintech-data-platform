@@ -1,6 +1,8 @@
 import PageContainer from "../components/layout/PageContainer";
 import ExcelBackfillCard from "../components/backfill/ExcelBackfillCard";
 import CdcBackfillCard from "../components/backfill/CdcBackfillCard";
+import BusinessStory from "../components/common/BusinessStory";
+import { businessStories } from "../lib/businessStories";
 
 export default function BackfillPage() {
   return (
@@ -12,6 +14,7 @@ export default function BackfillPage() {
         <ExcelBackfillCard />
         <CdcBackfillCard />
       </div>
+      <BusinessStory {...businessStories.backfill} />
     </PageContainer>
   );
 }

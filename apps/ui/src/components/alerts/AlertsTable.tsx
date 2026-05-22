@@ -1,7 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import MonoId from "../common/MonoId";
 import RelativeTime from "../common/RelativeTime";
+import SortableHeader from "../common/SortableHeader";
 import SeverityBadge from "./SeverityBadge";
+import type { SortDir, SortState } from "../../lib/queryKeys";
 import type { AlertItem } from "../../types/api";
 
 function detailsPreview(details: Record<string, unknown> | null | undefined): string {
@@ -16,21 +18,38 @@ function detailsPreview(details: Record<string, unknown> | null | undefined): st
 export default function AlertsTable({
   alerts,
   hideRun = false,
+  sort,
+  onSort,
 }: {
   alerts: AlertItem[];
   hideRun?: boolean;
+  sort?: SortState;
+  onSort?: (column: string, dir: SortDir) => void;
 }) {
   const navigate = useNavigate();
+  const th = (column: string, label: string, initialDir: SortDir) =>
+    sort && onSort ? (
+      <SortableHeader
+        column={column}
+        label={label}
+        active={sort.sort === column}
+        dir={sort.dir}
+        onSort={onSort}
+        initialDir={initialDir}
+      />
+    ) : (
+      <th>{label}</th>
+    );
   return (
     <div className="card overflow-hidden">
       <table className="table-default">
         <thead className="bg-slate-50">
           <tr>
-            <th>Occurred</th>
-            <th>Severity</th>
-            <th>Category</th>
+            {th("occurred", "Occurred", "desc")}
+            {th("severity", "Severity", "asc")}
+            {th("category", "Category", "asc")}
             <th>Summary</th>
-            {hideRun ? null : <th>Run</th>}
+            {hideRun ? null : th("run", "Run", "asc")}
           </tr>
         </thead>
         <tbody>

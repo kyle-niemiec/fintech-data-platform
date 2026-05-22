@@ -3,8 +3,10 @@ import ConsumerLagTable from "../components/metrics/ConsumerLagTable";
 import PipelineAnalyticsTable from "../components/metrics/PipelineAnalyticsTable";
 import ErrorBanner from "../components/common/ErrorBanner";
 import LoadingSkeleton from "../components/common/LoadingSkeleton";
+import BusinessStory from "../components/common/BusinessStory";
 import { useConsumerLag } from "../hooks/useConsumerLag";
 import { usePipelineAnalytics } from "../hooks/usePipelineAnalytics";
+import { businessStories } from "../lib/businessStories";
 import { ApiError } from "../lib/apiClient";
 
 export default function MetricsPage() {
@@ -69,6 +71,7 @@ export default function MetricsPage() {
           {analyticsContent}
         </section>
       </div>
+      <BusinessStory {...businessStories.metrics} />
     </PageContainer>
   );
 }

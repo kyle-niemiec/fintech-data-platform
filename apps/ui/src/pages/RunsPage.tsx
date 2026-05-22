@@ -7,8 +7,10 @@ import LoadingSkeleton from "../components/common/LoadingSkeleton";
 import ErrorBanner from "../components/common/ErrorBanner";
 import PipelineFilterPills from "../components/runs/PipelineFilterPills";
 import Pagination from "../components/common/Pagination";
+import BusinessStory from "../components/common/BusinessStory";
+import { businessStories } from "../lib/businessStories";
 import { useRuns } from "../hooks/useRuns";
-import { PAGE_SIZE_OPTIONS } from "../lib/queryKeys";
+import { PAGE_SIZE_OPTIONS, type SortDir, type SortState } from "../lib/queryKeys";
 import {
   PIPELINE_ORDER,
   pipelineColors,
@@ -119,6 +121,11 @@ export default function RunsPage() {
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const offset = (page - 1) * pageSize;
 
+  const sort: SortState = {
+    sort: searchParams.get("sort") ?? "started",
+    dir: searchParams.get("dir") === "asc" ? "asc" : "desc",
+  };
+
   const update = (mutate: (params: URLSearchParams) => void) => {
     const params = new URLSearchParams(searchParams);
     mutate(params);
@@ -153,10 +160,18 @@ export default function RunsPage() {
       params.delete("page");
     });
 
+  const onSort = (column: string, dir: SortDir) =>
+    update((params) => {
+      params.set("sort", column);
+      params.set("dir", dir);
+      params.delete("page");
+    });
+
   const pipelineNames = pipelineNamesFor(selected);
   const { data, isLoading, error } = useRuns(
     pipelineNames,
     backfill,
+    sort,
     pageSize,
     offset,
   );
@@ -166,7 +181,7 @@ export default function RunsPage() {
   return (
     <PageContainer
       title="Pipeline Runs"
-      description="Unified view of every pipeline run across sources, polled every 3 seconds. Use the pills to filter by pipeline."
+      description="Unified view of every pipeline run across sources. Use the pills to filter by pipeline."
     >
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <PipelineFilterPills selected={selected} onToggle={toggle} />
@@ -195,7 +210,7 @@ export default function RunsPage() {
         />
       ) : (
         <>
-          <RunsTable runs={data.items} />
+          <RunsTable runs={data.items} sort={sort} onSort={onSort} />
           <Pagination
             page={page}
             pageSize={pageSize}
@@ -205,6 +220,7 @@ export default function RunsPage() {
           />
         </>
       )}
+      <BusinessStory {...businessStories.runs} />
     </PageContainer>
   );
 }
