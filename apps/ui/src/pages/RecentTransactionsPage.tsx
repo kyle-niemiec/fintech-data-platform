@@ -15,7 +15,7 @@ import { useRecentTransactions } from "../hooks/useRecentTransactions";
 import type { SortDir, SortState } from "../lib/queryKeys";
 import type { RecentTransactionItem } from "../types/api";
 
-const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 10;
 
 function formatAmount(amount: string, instrument: string) {
   const n = Number(amount);

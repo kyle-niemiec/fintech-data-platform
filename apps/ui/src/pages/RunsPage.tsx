@@ -19,7 +19,7 @@ import {
 } from "../lib/pipelineColors";
 
 const ALLOWED = new Set<PipelineKind>(PIPELINE_ORDER);
-const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 10;
 
 interface EmptyContent {
   title: string;

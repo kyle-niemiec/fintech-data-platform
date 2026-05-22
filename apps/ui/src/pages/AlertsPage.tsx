@@ -10,7 +10,7 @@ import { useAlerts } from "../hooks/useAlerts";
 import { businessStories } from "../lib/businessStories";
 import type { SortDir, SortState } from "../lib/queryKeys";
 
-const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 10;
 
 export default function AlertsPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);

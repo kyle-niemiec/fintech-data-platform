@@ -14,7 +14,7 @@ const DEFAULT_SORT: SortState = { sort: "occurred", dir: "desc" };
 export function useAlerts(
   runId?: string,
   sort: SortState = DEFAULT_SORT,
-  limit = 25,
+  limit = 10,
   offset = 0,
 ) {
   const params = new URLSearchParams();

@@ -1,4 +1,4 @@
-export const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
 export type SortDir = "asc" | "desc";
 
