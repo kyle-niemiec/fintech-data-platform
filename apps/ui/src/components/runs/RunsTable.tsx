@@ -37,8 +37,13 @@ export default function RunsTable({ runs }: { runs: RunSummary[] }) {
                 <div className="flex items-center gap-2">
                   <PipelineBadge pipelineName={r.pipeline_name} />
                   <div>
-                    <div className="font-medium">
+                    <div className="flex items-center gap-1.5 font-medium">
                       {pipelineDisplayNameFor(r.pipeline_name)}
+                      {r.is_backfill && (
+                        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-violet-100 text-violet-800">
+                          Backfill
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-navy-500">{r.pipeline_class}</div>
                   </div>

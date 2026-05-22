@@ -41,6 +41,7 @@ INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))
 	infra-api-up infra-ui-up infra-pgadmin-up \
 	terraform-plan terraform-plan-bootstrap terraform-plan-identity \
 	db-psql-core db-psql-event-store db-psql-oltp \
+	replay-group consumer-lag \
 	1 2 3 4 5 6 7 8 9 10 11 12
 
 help:
@@ -73,6 +74,8 @@ help:
 	@printf "  terraform-plan-identity  Show Terraform plan for identity phase\n"
 	@printf "  db-psql-core             Open a psql shell in the core Postgres instance\n"
 	@printf "  db-psql-event-store      Open a psql shell in the event-store Postgres instance\n"
+	@printf "  consumer-lag             Show live consumer group lag for all known groups (rpk)\n"
+	@printf "  replay-group             Seek a consumer group back to offset 0 — usage: make replay-group GROUP=<name>\n"
 
 infra-up:
 	@if [ -z "$(INFRA_UP_STEP)" ]; then \
@@ -337,3 +340,16 @@ db-psql-event-store:
 
 db-psql-oltp:
 	$(COMPOSE) exec oltp_db psql -U '$(value OLTP_ROOT_USER)' -d '$(value OLTP_DB)' -p '$(value OLTP_DB_PORT)'
+
+consumer-lag:
+	$(call banner,Showing consumer group lag for all known groups...)
+	docker exec fintech_redpanda rpk group describe \
+		excel-scanner-v1 excel-trigger-v1 excel-bronze-writer-v1 \
+		cdc-fraud-worker-v1 cdc-bronze-writer-v1 \
+		salesforce-bronze-writer-v1 \
+		airflow-curated-silver-v1 airflow-curated-gold-v1
+
+replay-group:
+	$(call banner,Seeking consumer group $(GROUP) back to offset 0...)
+	@if [ -z "$(GROUP)" ]; then printf "Usage: make replay-group GROUP=<consumer-group-name>\n" >&2; exit 1; fi
+	docker exec fintech_redpanda rpk group seek $(GROUP) --to start

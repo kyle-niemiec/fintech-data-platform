@@ -52,4 +52,7 @@ def test_emit_task_handles_run_state_boundaries():
     assert "ingest.excel.raw.ready.v1" in common_source
     assert "ingest.excel.quarantined.v1" in common_source
     assert "close_run" in task_source
-    assert 'status="running" if is_raw else "quarantined"' in task_source
+    assert 'status="quarantined"' in task_source
+    # The raw-ready path intentionally does NOT call close_run; the bronze
+    # writer closes the run as "completed" to avoid a race condition.
+    assert 'status="running"' not in task_source

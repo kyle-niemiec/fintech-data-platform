@@ -15,7 +15,7 @@ steps 3-4 are idempotent via the event-log dedupe key.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
 import logging
@@ -156,6 +156,35 @@ def _upsert_risk_flag(
     return row is not None
 
 
+_BACKFILL_LAG_THRESHOLD = timedelta(hours=1)
+
+
+def _resolve_trigger_type(row: dict[str, Any], source_table: str) -> str:
+    """
+    Return 'backfill' for transactions whose executed_at is more than 1 hour
+    in the past relative to now (late-data / backfill inserts). All other rows
+    use the default CDC trigger type.
+
+    The threshold distinguishes the load-generator's live transactions
+    (executed_at ≈ now) from the backfill endpoint's historical inserts
+    (executed_at is at least 1 day old per validation rules).
+    """
+    if source_table != "trading.transaction":
+        return TRIGGER_TYPE
+    executed_at_raw = row.get("executed_at")
+    if not executed_at_raw:
+        return TRIGGER_TYPE
+    try:
+        executed_at = datetime.fromisoformat(
+            str(executed_at_raw).replace("Z", "+00:00")
+        )
+        if datetime.now(timezone.utc) - executed_at > _BACKFILL_LAG_THRESHOLD:
+            return "backfill"
+    except (ValueError, TypeError):
+        pass
+    return TRIGGER_TYPE
+
+
 @dataclass
 class FraudHandler:
     """
@@ -207,6 +236,7 @@ class FraudHandler:
         run_id = uuid4()
         trace_id = uuid4()
         trigger_event_ref = f"{raw.topic}:{raw.partition}:{raw.offset}"
+        trigger_type = _resolve_trigger_type(row, source_table)
 
         if source_table == "trading.transaction":
             # Idempotent OLTP write first; replays no-op here.
@@ -236,7 +266,7 @@ class FraudHandler:
                     pipeline_class=PipelineClass.ingestion,
                     pipeline_name=PipelineName.cdc_ingestion,
                     source_system=SOURCE_SYSTEM,
-                    trigger_type=TRIGGER_TYPE,
+                    trigger_type=trigger_type,
                     trigger_event_ref=trigger_event_ref,
                     initiator=INITIATOR,
                 )

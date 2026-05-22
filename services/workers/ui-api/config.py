@@ -29,6 +29,9 @@ class Settings(BaseSettings):
 
     ui_origin: str = "http://localhost:3000"
 
+    redpanda_admin_host: str = "redpanda"
+    redpanda_admin_port: int = 9644
+
     # Demo finance-user identities are resolved live from Keycloak (the
     # `meridian-demo-service` confidential client lists `finance`-role users).
     keycloak_url: str = "http://keycloak:8080"

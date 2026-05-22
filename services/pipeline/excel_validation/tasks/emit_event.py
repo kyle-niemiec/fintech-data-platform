@@ -76,7 +76,12 @@ def emit_event(*branch_outputs: dict[str, Any]) -> None:
     finally:
         producer.close()
 
-    # Persist the emitted event to the event store and close the run with the appropriate status based on the validation outcome
+    # Persist the emitted event to the event store; for quarantine, also close
+    # the run and raise an alert. For the raw-ready path the run stays open —
+    # the bronze writer closes it as "completed" after writing the Parquet.
+    # Calling close_run here on the success path created a race condition where
+    # a fast bronze writer would commit "completed" before this transaction,
+    # which would then overwrite it with the intermediate "running" state.
     with open_event_store_conn() as conn:
         with conn.begin():
             PgEventStore.append_event(
@@ -87,11 +92,12 @@ def emit_event(*branch_outputs: dict[str, Any]) -> None:
                 kafka_offset=offset,
             )
 
-            PgEventStore.close_run(
-                conn,
-                UUID(outcome["run_id"]),
-                status="running" if is_raw else "quarantined",
-            )
+            if not is_raw:
+                PgEventStore.close_run(
+                    conn,
+                    UUID(outcome["run_id"]),
+                    status="quarantined",
+                )
 
             # Quarantine is a finance-facing event: surface it to the alert feed.
             if not is_raw:

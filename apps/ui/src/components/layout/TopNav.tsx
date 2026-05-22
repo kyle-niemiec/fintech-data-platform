@@ -57,6 +57,30 @@ export default function TopNav() {
             Alerts
           </NavLink>
           <NavLink
+            to="/backfill"
+            className={({ isActive }) =>
+              `${linkBase} ${
+                isActive
+                  ? "bg-white/10 text-white"
+                  : "text-navy-100 hover:bg-white/5 hover:text-white"
+              }`
+            }
+          >
+            Backfill
+          </NavLink>
+          <NavLink
+            to="/metrics"
+            className={({ isActive }) =>
+              `${linkBase} ${
+                isActive
+                  ? "bg-white/10 text-white"
+                  : "text-navy-100 hover:bg-white/5 hover:text-white"
+              }`
+            }
+          >
+            Metrics
+          </NavLink>
+          <NavLink
             to="/demo/upload"
             className={({ isActive }) =>
               `${linkBase} ${

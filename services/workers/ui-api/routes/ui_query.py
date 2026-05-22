@@ -52,6 +52,8 @@ def list_runs(
                 pr.pipeline_name,
                 pr.source_system,
                 pr.status,
+                pr.trigger_event_ref,
+                pr.trigger_type,
                 le.event_type AS latest_stage,
                 pr.started_at,
                 pr.completed_at
@@ -70,7 +72,23 @@ def list_runs(
         params,
     ).mappings()
 
-    return [RunSummary(**row) for row in rows]
+    return [
+        RunSummary(
+            run_id=row["run_id"],
+            pipeline_class=row["pipeline_class"],
+            pipeline_name=row["pipeline_name"],
+            source_system=row["source_system"],
+            status=row["status"],
+            latest_stage=row["latest_stage"],
+            started_at=row["started_at"],
+            completed_at=row["completed_at"],
+            is_backfill=(
+                "backfill_" in (row.get("trigger_event_ref") or "")
+                or row.get("trigger_type") == "backfill"
+            ),
+        )
+        for row in rows
+    ]
 
 
 @router.get(
@@ -155,8 +173,13 @@ def get_run(
             detail="Run exists without events; event-first invariant violated",
         )
 
-    # Pass all row fields as parameters to the RunDetail model
-    return RunDetail(**row)
+    return RunDetail(
+        **row,
+        is_backfill=(
+            "backfill_" in (row["trigger_event_ref"] or "")
+            or row.get("trigger_type") == "backfill"
+        ),
+    )
 
 """
 GET: Retrieve all artifacts for a given run ID.

@@ -9,35 +9,16 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from config import settings
 from services.demo_xlsx import (
     generate_commission_adjustment_xlsx,
     generate_invalid_payroll_xlsx,
     generate_payroll_xlsx,
 )
-from services.keycloak_users import FinanceUserResolver, KeycloakConfig, KeycloakError
+from services.demo_finance import local_part, resolve_demo_user
+from services.keycloak_users import KeycloakError
 from services.minio_upload import MinioUploadError, put_xlsx
 
 router = APIRouter(prefix="/ui/demo", tags=["ui-demo"])
-
-_finance_resolver: FinanceUserResolver | None = None
-
-
-def _resolve_demo_user() -> str:
-    """Pick a random Keycloak `finance`-role user as the demo uploader."""
-    global _finance_resolver
-    if _finance_resolver is None:
-        _finance_resolver = FinanceUserResolver(
-            KeycloakConfig(
-                base_url=settings.keycloak_url,
-                realm=settings.keycloak_realm,
-                client_id=settings.keycloak_demo_service_client_id,
-                client_secret=settings.keycloak_demo_service_client_secret,
-                finance_role=settings.keycloak_finance_role,
-            )
-        )
-    return _finance_resolver.pick_finance_user()
-
 
 class DemoUploadRequest(BaseModel):
     rows: int = Field(default=25, ge=1, le=500)
@@ -59,16 +40,12 @@ class DemoUploadResponse(BaseModel):
     valid: bool
 
 
-def _local_part(email: str) -> str:
-    return email.split("@", 1)[0]
-
-
 @router.post("/upload", response_model=DemoUploadResponse, status_code=status.HTTP_200_OK)
 def post_demo_upload(payload: DemoUploadRequest | None = None) -> DemoUploadResponse:
     req = payload or DemoUploadRequest()
 
     try:
-        demo_user = _resolve_demo_user()
+        demo_user = resolve_demo_user()
     except KeycloakError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -90,7 +67,7 @@ def post_demo_upload(payload: DemoUploadRequest | None = None) -> DemoUploadResp
         file_prefix = "payroll"
 
     now = datetime.now(timezone.utc)
-    uploader_segment = _local_part(demo_user)
+    uploader_segment = local_part(demo_user)
     object_run_id = uuid4()
     key = (
         f"landing/source=excel/year={now:%Y}/month={now:%m}/day={now:%d}/"

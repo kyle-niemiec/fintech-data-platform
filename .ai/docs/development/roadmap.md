@@ -92,9 +92,9 @@ Legend:
 
 ## Phase 8 - Replay and Observability Hardening
 
-- [ ] Replay tooling for topic offset and run-scoped backfills.
-- [ ] DAG/event lag dashboards and failure analytics.
-- [ ] Deterministic recovery playbooks for each source pipeline.
+- [x] Replay tooling for topic offset and run-scoped backfills. (Synthetic backfill UI + API for Excel and CDC; `make replay-group` / `make consumer-lag` for Redpanda offset replay.)
+- [x] DAG/event lag dashboards and failure analytics. (Consumer lag API + Metrics UI page with consumer group lag table and 30-day pipeline analytics; `is_backfill` badge on Runs Explorer.)
+- [x] Deterministic recovery playbooks for each source pipeline. (Added Detect→Diagnose→Recover→Verify playbooks for Excel, CDC+Fraud, Salesforce, and Curated Promotion in `operations.md`.)
 
 ## Phase 9 - Portfolio Hardening
 

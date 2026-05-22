@@ -15,6 +15,7 @@ class RunSummary(BaseModel):
     latest_stage: str | None
     started_at: datetime
     completed_at: datetime | None
+    is_backfill: bool = False
 
 
 class RunDetail(BaseModel):
@@ -30,6 +31,7 @@ class RunDetail(BaseModel):
     started_at: datetime
     completed_at: datetime | None
     latest_stage: str | None
+    is_backfill: bool = False
 
 
 class ArtifactTrailItem(BaseModel):

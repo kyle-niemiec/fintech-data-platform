@@ -285,6 +285,104 @@ SELECT event_store.run_partman_maintenance();
 - Bronze conversion failures raise `ui.alert.raised.v1` and close runs as `failed`.
 - Airflow trigger worker commits Kafka offsets only after DAG trigger success or idempotent 409.
 
+## Recovery Playbooks
+
+Each playbook follows the same structure: **Detect → Diagnose → Recover → Verify**.
+
+### Excel Ingestion
+
+**Scan failure** (`scan_failed` run)
+- Detect: `GET /ui/alerts?limit=50` shows `excel_scanner` alert; run status is `scan_failed`.
+- Diagnose: `docker logs fintech_excel_scanner --tail=100` for MIME/size/ClamAV error detail.
+- Recover: Fix the source file, re-upload via `POST /ui/demo/upload` (or `POST /ui/demo/backfill/excel` for a historical date). Kafka offsets were left uncommitted, so the scanner will retry automatically on container restart if the original message is still in the topic.
+- Verify: New run appears; status reaches `completed`; no `scan_failed` alert on the new run.
+
+**Schema quarantine** (`quarantined` run)
+- Detect: `GET /ui/alerts` shows `excel_schema_quarantined`; run status is `quarantined`.
+- Diagnose: Check artifact at `quarantine/` path in MinIO for the rejected file; validate against the schema contract in `services/libs/event_schemas/`.
+- Recover: Correct the workbook schema and re-upload. Each upload creates a new run; the quarantined run is preserved as audit history.
+- Verify: New run reaches `completed`; bronze Parquet written to `bronze/source=excel/...`.
+
+**Bronze write failure** (`failed` run)
+- Detect: `GET /ui/alerts` shows `excel_bronze_write_failed`; run status is `failed`.
+- Diagnose: `docker logs fintech_excel_bronze_writer --tail=100`; check MinIO/event-store connectivity.
+- Recover: The bronze writer left Kafka offsets uncommitted. Restart the container after fixing the underlying issue — it will reprocess from the uncommitted offset.
+  ```bash
+  docker compose $COMPOSE_FILES --env-file infra/.env restart excel_bronze_writer
+  ```
+- Verify: Existing run closes `completed`; bronze Parquet appears; no new alert.
+
+---
+
+### CDC + Fraud Pipeline
+
+**Debezium not capturing / lag growing**
+- Detect: `make consumer-lag` shows growing lag on `cdc.oltp.raw.v1`; `docker logs fintech_debezium_server` shows connector errors.
+- Diagnose: Check replication slot backlog:
+  ```sql
+  SELECT slot_name, active, pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) AS backlog
+  FROM pg_replication_slots;
+  ```
+- Recover: Restart Debezium. On fresh re-snapshot, the fraud worker's idempotency guard (`(raw_topic, raw_partition, raw_offset)` upsert key on `trading.risk_flag`) prevents duplicate flags.
+  ```bash
+  docker compose $COMPOSE_FILES --env-file infra/.env restart debezium_server
+  ```
+- Verify: Lag on `cdc.oltp.raw.v1` trends to zero; new assessed events appear on `cdc.oltp.assessed.v1`.
+
+**Fraud worker failure**
+- Detect: `GET /ui/alerts` shows `cdc_fraud_worker_failed` or `cdc_assessed_envelope_build_failed`; Kafka offsets uncommitted.
+- Diagnose: `docker logs fintech_fraud_worker --tail=100`.
+- Recover: Fix the underlying issue (e.g. event-store connectivity) then restart. Uncommitted offsets cause the worker to reprocess from the last committed position. Idempotency ensures no duplicate flags.
+  ```bash
+  docker compose $COMPOSE_FILES --env-file infra/.env restart fraud_worker
+  ```
+- Verify: Runs for pending CDC events reach `completed`; `trading.risk_flag` rows are correct with no duplicates.
+
+**CDC bronze write failure**
+- Detect: Alert `cdc_bronze_write_failed`; `cdc_bronze_writer` logs show MinIO or event-store error.
+- Recover: Restart after fixing connectivity. Uncommitted offsets replay the batch.
+  ```bash
+  docker compose $COMPOSE_FILES --env-file infra/.env restart cdc_bronze_writer
+  ```
+- Full replay from start (e.g. after rule update): `make replay-group GROUP=cdc-bronze-writer-v1` then restart.
+- Verify: Bronze Parquet files under `bronze/source=cdc/...` reappear; `cdc_checkpoint` rows are updated.
+
+---
+
+### Salesforce Pipeline
+
+**Pull DAG failure**
+- Detect: `GET /ui/alerts` shows `salesforce_pull_failed`; Airflow shows failed `salesforce_incremental_pull` run.
+- Diagnose: Check Airflow logs for the failed task; check mock Salesforce service availability.
+- Recover: Trigger a fresh DAG run from the Airflow UI (or wait for the next scheduled interval — the cursor checkpoint persists the last successful pull). The pull is incremental; it resumes from `latest_sf_cursor`.
+- Verify: New pull run reaches `completed`; `ingest.salesforce.bronze.ready.v1` is emitted; new bronze Parquet appears.
+
+**Salesforce bronze write failure**
+- Detect: Alert `salesforce_bronze_write_failed`; run status is `failed`.
+- Recover: Kafka offsets left uncommitted; restart the writer after fixing the issue.
+  ```bash
+  docker compose $COMPOSE_FILES --env-file infra/.env restart salesforce_bronze_writer
+  ```
+- Verify: Run closes `completed`; Parquet written to `bronze/source=salesforce/...`.
+
+---
+
+### Curated Promotion (Silver / Gold)
+
+**Silver DAG failure**
+- Detect: `GET /ui/alerts` shows `curated_promotion_failed` (severity `high`); Airflow shows failed `silver_curated_promotion` run.
+- Diagnose: Check Airflow logs for the failed task (usually Trino connectivity or SCD2 merge SQL issue).
+- Recover: Re-emit the bronze-ready event for the failed run by re-triggering the source pipeline run (Excel or Salesforce backfill). The curated listener will fan out a new silver transform run. The `(pipeline_name, trigger_event_ref)` idempotency key prevents duplicate runs for the same bronze ref.
+- Verify: New silver run reaches `completed`; `event_store.silver_checkpoint` row is recorded; `pipeline.silver.completed.v1` is emitted.
+
+**Gold DAG failure**
+- Detect: Alert `curated_promotion_failed` from gold; Airflow `gold_curated_aggregation` run failed.
+- Diagnose: Check Airflow task logs for Trino INSERT error.
+- Recover: Re-emit `pipeline.silver.completed.v1` from the failed silver run by re-triggering the silver transform. The gold listener will pick it up and open a new gold run.
+- Verify: New gold run reaches `completed`; `event_store.gold_checkpoint` row is recorded; Iceberg gold table is updated.
+
+---
+
 ## Operational Constraints
 
 - ETL must keep running if FastAPI is down.

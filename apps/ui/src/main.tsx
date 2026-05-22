@@ -7,6 +7,8 @@ import App from "./App";
 import RunsPage from "./pages/RunsPage";
 import RunDetailPage from "./pages/RunDetailPage";
 import DemoUploadPage from "./pages/DemoUploadPage";
+import BackfillPage from "./pages/BackfillPage";
+import MetricsPage from "./pages/MetricsPage";
 import RecentTransactionsPage from "./pages/RecentTransactionsPage";
 import AlertsPage from "./pages/AlertsPage";
 import NotFoundPage from "./pages/NotFoundPage";
@@ -30,6 +32,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route index element={<RunsPage />} />
             <Route path="runs/:runId" element={<RunDetailPage />} />
             <Route path="demo/upload" element={<DemoUploadPage />} />
+            <Route path="backfill" element={<BackfillPage />} />
+            <Route path="metrics" element={<MetricsPage />} />
             <Route path="oltp/transactions" element={<RecentTransactionsPage />} />
             <Route path="alerts" element={<AlertsPage />} />
             <Route path="*" element={<NotFoundPage />} />

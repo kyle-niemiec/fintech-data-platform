@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import io
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 import pandas as pd
 
@@ -17,24 +17,35 @@ SHEET_NAME = "payroll"
 CURRENCIES = ("USD", "EUR", "GBP")
 
 
-def _random_period_end(rng: random.Random, now: datetime) -> datetime:
-    """
-    Return a random date within the last 180 days.
-    """
-    days_back = rng.randint(0, 180)
-    d = (now - timedelta(days=days_back)).date()
+def _random_period_end(rng: random.Random, anchor: datetime, window_days: int = 180) -> datetime:
+    """Return a random date within `window_days` before `anchor`."""
+    days_back = rng.randint(0, window_days)
+    d = (anchor - timedelta(days=days_back)).date()
     return datetime(d.year, d.month, d.day)
 
 
-def build_payroll_frame(rows: int, seed: int | None = None) -> pd.DataFrame:
+def build_payroll_frame(
+    rows: int,
+    seed: int | None = None,
+    target_date: date | None = None,
+) -> pd.DataFrame:
     """
     Build a DataFrame with synthetic payroll data.
+
+    When `target_date` is given, `pay_period_end` dates are drawn from the 30
+    days before that date (backfill mode). Otherwise they span the last 180
+    days from now (live-demo mode).
     """
     rng = random.Random(seed)
-    now = datetime.now(timezone.utc)
+    if target_date is not None:
+        anchor = datetime.combine(target_date, time.min).replace(tzinfo=timezone.utc)
+        window_days = 30
+    else:
+        anchor = datetime.now(timezone.utc)
+        window_days = 180
 
     employee_ids = [f"E{rng.randint(10_000, 99_999)}" for _ in range(rows)]
-    pay_period_end = [_random_period_end(rng, now) for _ in range(rows)]
+    pay_period_end = [_random_period_end(rng, anchor, window_days) for _ in range(rows)]
     gross = [round(rng.uniform(2500.0, 18000.0), 2) for _ in range(rows)]
     net = [round(g * rng.uniform(0.62, 0.82), 2) for g in gross]
     currency = [rng.choice(CURRENCIES) for _ in range(rows)]
@@ -50,11 +61,13 @@ def build_payroll_frame(rows: int, seed: int | None = None) -> pd.DataFrame:
     )
 
 
-def generate_payroll_xlsx(rows: int, seed: int | None = None) -> tuple[bytes, int]:
-    """
-    Return (xlsx_bytes, row_count). Caller clamps `rows`.
-    """
-    frame = build_payroll_frame(rows, seed=seed)
+def generate_payroll_xlsx(
+    rows: int,
+    seed: int | None = None,
+    target_date: date | None = None,
+) -> tuple[bytes, int]:
+    """Return (xlsx_bytes, row_count). Caller clamps `rows`."""
+    frame = build_payroll_frame(rows, seed=seed, target_date=target_date)
     buffer = io.BytesIO()
 
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -89,14 +102,27 @@ def generate_invalid_payroll_xlsx(rows: int, seed: int | None = None) -> tuple[b
 COMMISSION_SHEET_NAME = "commission_adjustments"
 
 
-def build_commission_adjustment_frame(rows: int, seed: int | None = None) -> pd.DataFrame:
+def build_commission_adjustment_frame(
+    rows: int,
+    seed: int | None = None,
+    target_date: date | None = None,
+) -> pd.DataFrame:
     """
     Build a DataFrame with synthetic commission adjustment data.
+
+    When `target_date` is given, `adjustment_date` values fall within the 30
+    days before that date (backfill mode). Otherwise they span the last 180
+    days from now (live-demo mode).
     """
     rng = random.Random(seed)
-    now = datetime.now(timezone.utc)
+    if target_date is not None:
+        anchor = datetime.combine(target_date, time.min).replace(tzinfo=timezone.utc)
+        window_days = 30
+    else:
+        anchor = datetime.now(timezone.utc)
+        window_days = 180
     advisor_ids = [f"A{rng.randint(10_000, 99_999)}" for _ in range(rows)]
-    adjustment_date = [_random_period_end(rng, now) for _ in range(rows)]
+    adjustment_date = [_random_period_end(rng, anchor, window_days) for _ in range(rows)]
     adjustment_amount = [round(rng.uniform(-900.0, 2400.0), 2) for _ in range(rows)]
     reasons = [rng.choice(("retro_credit", "chargeback", "manual_override")) for _ in range(rows)]
     currency = [rng.choice(CURRENCIES) for _ in range(rows)]
@@ -112,11 +138,13 @@ def build_commission_adjustment_frame(rows: int, seed: int | None = None) -> pd.
     )
 
 
-def generate_commission_adjustment_xlsx(rows: int, seed: int | None = None) -> tuple[bytes, int]:
-    """
-    Return (xlsx_bytes, row_count) for a commission adjustment sheet.
-    """
-    frame = build_commission_adjustment_frame(rows, seed=seed)
+def generate_commission_adjustment_xlsx(
+    rows: int,
+    seed: int | None = None,
+    target_date: date | None = None,
+) -> tuple[bytes, int]:
+    """Return (xlsx_bytes, row_count) for a commission adjustment sheet."""
+    frame = build_commission_adjustment_frame(rows, seed=seed, target_date=target_date)
     buffer = io.BytesIO()
 
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:

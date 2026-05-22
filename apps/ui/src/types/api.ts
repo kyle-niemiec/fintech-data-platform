@@ -22,6 +22,7 @@ export interface RunSummary {
   latest_stage: string | null;
   started_at: string;
   completed_at: string | null;
+  is_backfill: boolean;
 }
 
 export interface RunDetail extends RunSummary {
@@ -94,6 +95,59 @@ export interface CdcTransactionResponse {
   amount: string;
   executed_at: string;
   high_risk: boolean;
+}
+
+export interface ExcelBackfillRequest {
+  target_date: string;
+  rows?: number;
+  dataset?: "payroll" | "commission_adjustment";
+}
+
+export interface ExcelBackfillResponse {
+  run_trigger_ref: string;
+  object_key: string;
+  bucket: string;
+  demo_user: string;
+  rows: number;
+  size_bytes: number;
+  target_date: string;
+  dataset: string;
+  generated_at: string;
+}
+
+export interface CdcBackfillRequest {
+  target_date: string;
+  high_risk?: boolean;
+}
+
+export interface CdcBackfillResponse {
+  transaction_id: string;
+  account_id: string;
+  instrument: string;
+  amount: string;
+  executed_at: string;
+  high_risk: boolean;
+  target_date: string;
+}
+
+export interface ConsumerLagItem {
+  group: string;
+  topic: string;
+  partition: number;
+  current_offset: number;
+  log_end_offset: number;
+  lag: number;
+}
+
+export interface PipelineAnalyticsItem {
+  pipeline_name: string;
+  completed: number;
+  failed: number;
+  quarantined: number;
+  scan_failed: number;
+  avg_duration_seconds: number | null;
+  alerts_high: number;
+  alerts_medium: number;
 }
 
 export type AlertSeverity = "high" | "medium" | "low" | string;
