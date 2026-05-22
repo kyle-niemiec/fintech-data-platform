@@ -29,8 +29,14 @@ class Settings(BaseSettings):
 
     ui_origin: str = "http://localhost:3000"
 
-    redpanda_admin_host: str = "redpanda"
-    redpanda_admin_port: int = 9644
+    # Kafka-protocol access for consumer-group lag (same broker the workers use).
+    # PLAINTEXT by default to match the local stack; SASL fields are read only
+    # when redpanda_security_protocol is not PLAINTEXT.
+    redpanda_bootstrap_servers: str = "redpanda:9092"
+    redpanda_security_protocol: str = "PLAINTEXT"
+    redpanda_sasl_mechanism: str = "SCRAM-SHA-256"
+    redpanda_ui_service_user: str = ""
+    redpanda_ui_service_password: str = ""
 
     # Demo finance-user identities are resolved live from Keycloak (the
     # `meridian-demo-service` confidential client lists `finance`-role users).

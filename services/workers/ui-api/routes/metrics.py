@@ -1,38 +1,21 @@
 """GET /ui/metrics/* — consumer-group lag and pipeline analytics.
 
-Consumer lag endpoint calls the Redpanda Admin HTTP API (port 9644) to get
-live consumer group offset data. Pipeline analytics are derived from the
+Consumer lag is read over the Kafka protocol (see `services/consumer_lag.py`),
+matching `make consumer-lag`. Pipeline analytics are derived from the
 event-store read model (same read-only DB role used by ui_query).
 """
 
 from __future__ import annotations
-
-import urllib.error
-import urllib.request
-from datetime import datetime
-from json import JSONDecodeError
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from config import settings
 from db import get_query_db
+from services.consumer_lag import ConsumerLagUnavailable, fetch_consumer_lag
 
 router = APIRouter(prefix="/ui/metrics", tags=["ui-metrics"])
-
-_KNOWN_GROUPS = [
-    "excel-scanner-v1",
-    "excel-trigger-v1",
-    "excel-bronze-writer-v1",
-    "cdc-fraud-worker-v1",
-    "cdc-bronze-writer-v1",
-    "salesforce-bronze-writer-v1",
-    "airflow-curated-silver-v1",
-    "airflow-curated-gold-v1",
-]
 
 
 class ConsumerLagItem(BaseModel):
@@ -55,20 +38,6 @@ class PipelineAnalyticsItem(BaseModel):
     alerts_medium: int
 
 
-def _fetch_redpanda_groups() -> list[dict[str, Any]]:
-    url = f"http://{settings.redpanda_admin_host}:{settings.redpanda_admin_port}/v1/groups"
-    req = urllib.request.Request(url, headers={"Accept": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            import json
-            return json.loads(resp.read())
-    except (urllib.error.URLError, TimeoutError, JSONDecodeError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Redpanda admin API unavailable: {exc}",
-        ) from exc
-
-
 @router.get(
     "/consumer-lag",
     response_model=list[ConsumerLagItem],
@@ -76,39 +45,14 @@ def _fetch_redpanda_groups() -> list[dict[str, Any]]:
 )
 def get_consumer_lag() -> list[ConsumerLagItem]:
     """Return per-partition consumer lag for all known platform consumer groups."""
-    groups_data = _fetch_redpanda_groups()
-
-    lag_items: list[ConsumerLagItem] = []
-    known = set(_KNOWN_GROUPS)
-
-    for group in groups_data:
-        group_id = group.get("group_id", "")
-        if group_id not in known:
-            continue
-        for member in group.get("members", []):
-            for assignment in member.get("client_host", []):
-                pass
-        # Redpanda /v1/groups returns partition assignment; lag is in committed
-        # vs high-watermark. Flatten all partition entries.
-        for partition_offset in group.get("members", []):
-            for pa in partition_offset.get("member_assignment", {}).get("topic_partitions", []):
-                topic = pa.get("topic", "")
-                for p in pa.get("partitions", []):
-                    partition = p.get("partition_index", 0)
-                    committed = p.get("committed_offset", 0)
-                    hw = p.get("high_watermark", committed)
-                    lag_items.append(
-                        ConsumerLagItem(
-                            group=group_id,
-                            topic=topic,
-                            partition=partition,
-                            current_offset=committed,
-                            log_end_offset=hw,
-                            lag=max(0, hw - committed),
-                        )
-                    )
-
-    return lag_items
+    try:
+        rows = fetch_consumer_lag()
+    except ConsumerLagUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Redpanda unavailable: {exc}",
+        ) from exc
+    return [ConsumerLagItem(**row) for row in rows]
 
 
 @router.get(

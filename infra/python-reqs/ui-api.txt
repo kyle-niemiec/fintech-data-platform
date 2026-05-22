@@ -6,3 +6,4 @@ pydantic-settings
 boto3
 pandas
 openpyxl
+confluent-kafka
