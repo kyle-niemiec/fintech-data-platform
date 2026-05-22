@@ -107,7 +107,7 @@ export default function ExcelBackfillCard() {
         {mutation.isSuccess && (
           <span className="text-sm text-emerald-700">
             Backfill triggered for {mutation.data.target_date}.{" "}
-            <Link to="/" className="underline">
+            <Link to="/runs" className="underline">
               Track in Runs Explorer
             </Link>
           </span>

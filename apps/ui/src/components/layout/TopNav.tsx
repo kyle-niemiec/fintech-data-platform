@@ -1,10 +1,11 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, Link } from "react-router-dom";
 
 const linkBase =
   "rounded-md px-3 py-1.5 text-sm font-medium transition-colors";
 
 const NAV_LINKS: { to: string; label: string; end?: boolean }[] = [
-  { to: "/", label: "Runs", end: true },
+  { to: "/", label: "Overview", end: true },
+  { to: "/runs", label: "Runs" },
   { to: "/oltp/transactions", label: "Transactions" },
   { to: "/demo/upload", label: "Excel Upload" },
   { to: "/backfill", label: "Backfill" },
@@ -16,7 +17,7 @@ export default function TopNav() {
   return (
     <header className="border-b border-navy-800 bg-navy-900 text-white">
       <div className="mx-auto flex max-w-7xl items-center gap-8 px-6 py-3">
-        <div className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white font-bold text-navy-900">
             M
           </div>
@@ -26,7 +27,7 @@ export default function TopNav() {
               Data Platform
             </div>
           </div>
-        </div>
+        </Link>
         <nav className="flex items-center gap-1">
           {NAV_LINKS.map(({ to, label, end }) => (
             <NavLink

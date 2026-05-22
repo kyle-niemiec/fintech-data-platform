@@ -5,7 +5,7 @@ export default function NotFoundPage() {
   return (
     <PageContainer title="Not found" description="This page doesn't exist.">
       <Link to="/" className="btn-primary">
-        Back to runs
+        Back to overview
       </Link>
     </PageContainer>
   );

@@ -43,7 +43,7 @@ export default function RunDetailPage() {
       <PageContainer title="Run">
         <ErrorBanner message={(run.error as Error).message} />
         <div className="mt-4">
-          <Link to="/" className="btn-ghost">
+          <Link to="/runs" className="btn-ghost">
             ← Back to runs
           </Link>
         </div>
@@ -61,7 +61,7 @@ export default function RunDetailPage() {
         </>
       }
       actions={
-        <Link to="/" className="btn-ghost">
+        <Link to="/runs" className="btn-ghost">
           ← All runs
         </Link>
       }
