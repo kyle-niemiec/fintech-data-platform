@@ -212,6 +212,183 @@ def test_list_recent_transactions_maps_risk_fields():
     assert out.items[0].instrument == "AAPL"
     assert str(out.items[0].amount) == "12345.67"
     assert out.items[0].risk_flags == ["amount_gt_10k_aapl"]
+    # Unscored canned row (no event_id) → no run link and no event-store query.
+    assert out.items[0].run_id is None
+
+
+EVENT_ID = UUID("77777777-7777-7777-7777-777777777777")
+TXN_ID = "33333333-3333-3333-3333-333333333333"
+
+
+def _recent_tx_row(**overrides):
+    row = {
+        "transaction_id": TXN_ID,
+        "account_id": "44444444-4444-4444-4444-444444444444",
+        "instrument": "AAPL",
+        "amount": "12345.67",
+        "executed_at": "2026-05-20T12:00:00+00:00",
+        "origin": None,
+        "risk_score": "0.9700",
+        "risk_flags": ["amount_gt_10k_aapl"],
+        "event_id": None,
+    }
+    row.update(overrides)
+    return row
+
+
+def test_list_recent_transactions_attaches_run_id_and_origin():
+    tx_rows = [_recent_tx_row(origin="manual_demo", event_id=EVENT_ID)]
+    link_rows = [{"event_id": EVENT_ID, "run_id": UUID(RUN_ID)}]
+
+    def router(sql, _params):
+        if "trading.transaction" in sql:
+            return tx_rows
+        if "event_store.event_log" in sql:
+            return link_rows
+        return []
+
+    oltp = FakeSession(router)
+    query = FakeSession(router)
+    out = ui_query.list_recent_transactions(db=oltp, query_db=query, limit=25, offset=0)
+
+    assert str(out.items[0].run_id) == RUN_ID
+    assert out.items[0].origin == "manual_demo"
+    # The link lookup is an exact event_id IN-list against the event store.
+    link_sql, link_params = query.calls[0]
+    assert "WHERE event_id = ANY(:event_ids)" in link_sql
+    assert link_params["event_ids"] == [EVENT_ID]
+
+
+def test_list_recent_transactions_skips_link_query_when_unscored():
+    oltp = FakeSession(lambda *_: [_recent_tx_row(event_id=None)])
+    query = FakeSession(lambda *_: [])
+    out = ui_query.list_recent_transactions(db=oltp, query_db=query, limit=25, offset=0)
+    assert out.items[0].run_id is None
+    # No event_ids → the (separate) event-store DB is never touched.
+    assert query.calls == []
+
+
+def _run_detail_row(**overrides):
+    detail = {
+        "run_id": RUN_ID,
+        "pipeline_class": "ingestion",
+        "pipeline_name": "cdc_ingestion",
+        "source_system": "cdc",
+        "trigger_type": "cdc",
+        "trigger_event_ref": "topic:0:1",
+        "status": "completed",
+        "initiator": "cdc_fraud_worker",
+        "parent_run_id": None,
+        "started_at": "2026-05-20T12:00:00+00:00",
+        "completed_at": "2026-05-20T12:00:05+00:00",
+        "latest_stage": "cdc.assessed.v1",
+    }
+    detail.update(overrides)
+    return detail
+
+
+def test_get_run_preview_kind_cdc_transaction():
+    detail = _run_detail_row()
+
+    def router(sql, _params):
+        if "SELECT 1 FROM event_store.pipeline_run WHERE run_id" in sql:
+            return [{"x": 1}]
+        if "source_table" in sql:  # is-transaction probe
+            return [{"x": 1}]
+        return [detail]
+
+    result = ui_query.get_run(run_id=UUID(RUN_ID), db=FakeSession(router))
+    assert result.preview_kind == "cdc_transaction"
+
+
+def test_get_run_preview_kind_none_for_loan_cdc_run():
+    detail = _run_detail_row()
+
+    def router(sql, _params):
+        if "SELECT 1 FROM event_store.pipeline_run WHERE run_id" in sql:
+            return [{"x": 1}]
+        if "source_table" in sql:  # not a transaction → empty
+            return []
+        return [detail]
+
+    result = ui_query.get_run(run_id=UUID(RUN_ID), db=FakeSession(router))
+    assert result.preview_kind is None
+
+
+def test_get_run_preview_kind_none_for_quarantined_excel():
+    detail = _run_detail_row(
+        pipeline_name="excel_ingestion", source_system="excel", status="quarantined"
+    )
+    result = ui_query.get_run(run_id=UUID(RUN_ID), db=FakeSession(_exists_router([detail])))
+    assert result.preview_kind is None
+
+
+def test_get_run_preview_404_for_non_previewable_run():
+    def router(sql, _params):
+        if "SELECT 1 FROM event_store.pipeline_run WHERE run_id" in sql:
+            return [{"x": 1}]
+        if "SELECT pipeline_name, status" in sql:
+            return [{"pipeline_name": "salesforce_ingestion", "status": "completed"}]
+        return []
+
+    with pytest.raises(HTTPException) as exc:
+        ui_query.get_run_preview(
+            run_id=UUID(RUN_ID), db=FakeSession(router), oltp_db=FakeSession(lambda *_: [])
+        )
+    assert exc.value.status_code == 404
+
+
+def test_get_run_preview_returns_cdc_transaction():
+    def query_router(sql, _params):
+        if "SELECT 1 FROM event_store.pipeline_run WHERE run_id" in sql:
+            return [{"x": 1}]
+        if "SELECT pipeline_name, status" in sql:
+            return [{"pipeline_name": "cdc_ingestion", "status": "completed"}]
+        if "transaction_id' AS transaction_id" in sql:
+            return [{"transaction_id": TXN_ID}]
+        if "source_table" in sql:  # is-transaction probe
+            return [{"x": 1}]
+        return []
+
+    def oltp_router(sql, _params):
+        if "trading.transaction" in sql:
+            return [_recent_tx_row(origin="manual_demo")]
+        return []
+
+    out = ui_query.get_run_preview(
+        run_id=UUID(RUN_ID), db=FakeSession(query_router), oltp_db=FakeSession(oltp_router)
+    )
+    assert out.kind == "cdc_transaction"
+    assert out.transaction is not None
+    assert out.transaction.origin == "manual_demo"
+    assert str(out.transaction.run_id) == RUN_ID
+
+
+def test_get_run_preview_returns_excel(monkeypatch):
+    monkeypatch.setattr(ui_query, "read_object", lambda **_: b"fake-xlsx-bytes")
+    monkeypatch.setattr(
+        ui_query,
+        "parse_xlsx_preview",
+        lambda data, max_rows=10: ("payroll", ["employee_id", "gross_amount"], [["E1", 100.0]]),
+    )
+
+    def query_router(sql, _params):
+        if "SELECT 1 FROM event_store.pipeline_run WHERE run_id" in sql:
+            return [{"x": 1}]
+        if "SELECT pipeline_name, status" in sql:
+            return [{"pipeline_name": "excel_ingestion", "status": "completed"}]
+        if "LIKE '%.xlsx'" in sql:
+            return [{"uri": "s3://fintech-lakehouse/landing/payroll.xlsx"}]
+        return []
+
+    out = ui_query.get_run_preview(
+        run_id=UUID(RUN_ID), db=FakeSession(query_router), oltp_db=FakeSession(lambda *_: [])
+    )
+    assert out.kind == "excel"
+    assert out.excel is not None
+    assert out.excel.sheet_name == "payroll"
+    assert out.excel.columns == ["employee_id", "gross_amount"]
+    assert out.excel.rows == [["E1", 100.0]]
 
 
 def test_list_events_and_lineage_and_artifacts_map():

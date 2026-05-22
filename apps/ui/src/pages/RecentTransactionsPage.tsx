@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import PageContainer from "../components/layout/PageContainer";
 import EmptyState from "../components/common/EmptyState";
 import LoadingSkeleton from "../components/common/LoadingSkeleton";
@@ -21,12 +22,19 @@ function formatAmount(amount: string, instrument: string) {
 }
 
 function RiskChips({ tx }: { tx: RecentTransactionItem }) {
-  if (!tx.risk_flags || tx.risk_flags.length === 0) {
+  const riskFlags = tx.risk_flags ?? [];
+  const isManual = tx.origin === "manual_demo";
+  if (riskFlags.length === 0 && !isManual) {
     return <span className="text-xs text-navy-400">—</span>;
   }
   return (
     <div className="flex flex-wrap gap-1">
-      {tx.risk_flags.map((f) => (
+      {isManual && (
+        <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+          Manual
+        </span>
+      )}
+      {riskFlags.map((f) => (
         <span
           key={f}
           className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700"
@@ -39,6 +47,7 @@ function RiskChips({ tx }: { tx: RecentTransactionItem }) {
 }
 
 export default function RecentTransactionsPage() {
+  const navigate = useNavigate();
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [page, setPage] = useState(1);
   const { data, isLoading, error } = useRecentTransactions(
@@ -81,10 +90,20 @@ export default function RecentTransactionsPage() {
                 {data.items.map((tx) => {
                   const score = tx.risk_score != null ? Number(tx.risk_score) : null;
                   const highlighted = (tx.risk_flags?.length ?? 0) > 0;
+                  const clickable = tx.run_id != null;
                   return (
                     <tr
                       key={tx.transaction_id}
-                      className={highlighted ? "bg-rose-50/60" : undefined}
+                      onClick={
+                        clickable ? () => navigate(`/runs/${tx.run_id}`) : undefined
+                      }
+                      title={clickable ? "View the CDC run that scored this transaction" : undefined}
+                      className={[
+                        highlighted ? "bg-rose-50/60" : "",
+                        clickable ? "cursor-pointer" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ") || undefined}
                     >
                       <td>
                         <RelativeTime iso={tx.executed_at} />

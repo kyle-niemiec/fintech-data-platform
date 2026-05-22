@@ -8,13 +8,17 @@ from db import get_oltp_db, get_query_db
 from schemas.ui_query import (
     AlertItem,
     ArtifactTrailItem,
+    ExcelPreview,
     LineageTrailItem,
     Page,
     RecentTransactionItem,
     RunDetail,
     RunEventItem,
+    RunPreviewResponse,
     RunSummary,
 )
+from services.minio_upload import MinioUploadError, read_object, split_s3_uri
+from services.run_preview import PREVIEW_ROW_LIMIT, parse_xlsx_preview
 
 
 def _page_total(rows: list, count: int) -> int:
@@ -125,6 +129,7 @@ def list_runs(
 )
 def list_recent_transactions(
     db: Session = Depends(get_oltp_db),
+    query_db: Session = Depends(get_query_db),
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ):
@@ -138,12 +143,14 @@ def list_recent_transactions(
                     t.instrument,
                     t.amount,
                     t.executed_at,
+                    t.origin,
                     rf.risk_score,
                     rf.risk_flags,
+                    rf.event_id,
                     count(*) OVER() AS total_count
                 FROM trading.transaction AS t
                 LEFT JOIN LATERAL (
-                    SELECT risk_score, risk_flags
+                    SELECT risk_score, risk_flags, event_id
                     FROM trading.risk_flag r
                     WHERE r.transaction_id = t.transaction_id
                     ORDER BY r.flagged_at DESC
@@ -156,11 +163,37 @@ def list_recent_transactions(
             {"limit": limit, "offset": offset},
         ).mappings()
     )
+
+    # Resolve each scored transaction's CDC run. rf.event_id is the assessed
+    # event's id (fraud_worker writes it to both risk_flag and event_log), so
+    # this is an exact PK lookup against the (separate) event-store database.
+    run_by_event = _runs_for_event_ids(
+        query_db, [row["event_id"] for row in rows if row.get("event_id")]
+    )
+
     items = [
-        RecentTransactionItem(**{k: v for k, v in row.items() if k != "total_count"})
+        RecentTransactionItem(
+            **{k: v for k, v in row.items() if k not in ("total_count", "event_id")},
+            run_id=run_by_event.get(row.get("event_id")),
+        )
         for row in rows
     ]
     return Page(items=items, total=_page_total(rows, len(items)), limit=limit, offset=offset)
+
+
+def _runs_for_event_ids(query_db: Session, event_ids: list) -> dict:
+    """Map assessed event_ids to their run_id via the event-store PK. Returns an
+    empty map (and issues no query) when there are no scored transactions."""
+    if not event_ids:
+        return {}
+    link_rows = query_db.execute(
+        text(
+            "SELECT event_id, run_id FROM event_store.event_log "
+            "WHERE event_id = ANY(:event_ids)"
+        ),
+        {"event_ids": event_ids},
+    ).mappings()
+    return {row["event_id"]: row["run_id"] for row in link_rows}
 
 """
 GET: A single pipeline run by ID along with the latest event status.
@@ -214,7 +247,184 @@ def get_run(
             "backfill_" in (row["trigger_event_ref"] or "")
             or row.get("trigger_type") == "backfill"
         ),
+        preview_kind=_derive_preview_kind(
+            db, run_id, row["pipeline_name"], row["status"]
+        ),
     )
+
+
+# Excel runs in these terminal states never expose a preview (the workbook was
+# rejected before/at scan, so its rows must not be served).
+_EXCEL_NO_PREVIEW_STATUSES = ("quarantined", "scan_failed")
+
+
+def _derive_preview_kind(
+    db: Session, run_id: UUID, pipeline_name: str, run_status: str
+) -> str | None:
+    """Classify a run for the Preview tab without shipping any preview data.
+
+    'cdc_transaction' for CDC runs that scored a trading.transaction row,
+    'excel' for non-quarantined Excel ingestion runs, else None.
+    """
+    if pipeline_name == "cdc_ingestion":
+        is_transaction = db.execute(
+            text(
+                """
+                SELECT 1
+                FROM event_store.event_log
+                WHERE run_id = :run_id
+                  AND payload->>'source_table' = 'trading.transaction'
+                LIMIT 1
+                """
+            ),
+            {"run_id": run_id},
+        ).scalar_one_or_none()
+        return "cdc_transaction" if is_transaction is not None else None
+    if pipeline_name == "excel_ingestion" and run_status not in _EXCEL_NO_PREVIEW_STATUSES:
+        return "excel"
+    return None
+
+
+"""
+GET: Read-only preview for a run. Returns the scored transaction's details for a
+CDC-transaction run, or the first rows of the uploaded sheet for an Excel run.
+Re-derives the same gate as `preview_kind` and returns 404 for any other run
+(loan/payment CDC, quarantined Excel, Salesforce, curated), so preview data is
+never served for ineligible runs.
+"""
+@router.get(
+    "/runs/{run_id}/preview",
+    response_model=RunPreviewResponse,
+    status_code=status.HTTP_200_OK,
+)
+def get_run_preview(
+    run_id: UUID,
+    db: Session = Depends(get_query_db),
+    oltp_db: Session = Depends(get_oltp_db),
+):
+    _assert_run_exists(db, run_id)
+    meta = db.execute(
+        text(
+            "SELECT pipeline_name, status FROM event_store.pipeline_run "
+            "WHERE run_id = :run_id"
+        ),
+        {"run_id": run_id},
+    ).mappings().one_or_none()
+    if meta is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+
+    kind = _derive_preview_kind(db, run_id, meta["pipeline_name"], meta["status"])
+    if kind == "cdc_transaction":
+        transaction = _cdc_transaction_preview(db, oltp_db, run_id)
+        if transaction is not None:
+            return RunPreviewResponse(kind=kind, transaction=transaction)
+    elif kind == "excel":
+        excel = _excel_preview(db, run_id)
+        if excel is not None:
+            return RunPreviewResponse(kind=kind, excel=excel)
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="No preview available for this run",
+    )
+
+
+def _cdc_transaction_preview(
+    db: Session, oltp_db: Session, run_id: UUID
+) -> RecentTransactionItem | None:
+    """Resolve the run's transaction_id from its assessed event, then read the
+    transaction's details from OLTP (same fields as the transactions page)."""
+    transaction_id = db.execute(
+        text(
+            """
+            SELECT payload->>'transaction_id' AS transaction_id
+            FROM event_store.event_log
+            WHERE run_id = :run_id
+              AND payload->>'source_table' = 'trading.transaction'
+              AND payload ? 'transaction_id'
+            ORDER BY occurred_at DESC
+            LIMIT 1
+            """
+        ),
+        {"run_id": run_id},
+    ).scalar_one_or_none()
+    if not transaction_id:
+        return None
+
+    row = oltp_db.execute(
+        text(
+            """
+            SELECT
+                t.transaction_id,
+                t.account_id,
+                t.instrument,
+                t.amount,
+                t.executed_at,
+                t.origin,
+                rf.risk_score,
+                rf.risk_flags
+            FROM trading.transaction AS t
+            LEFT JOIN LATERAL (
+                SELECT risk_score, risk_flags
+                FROM trading.risk_flag r
+                WHERE r.transaction_id = t.transaction_id
+                ORDER BY r.flagged_at DESC
+                LIMIT 1
+            ) AS rf ON true
+            WHERE t.transaction_id = CAST(:transaction_id AS uuid)
+            """
+        ),
+        {"transaction_id": transaction_id},
+    ).mappings().one_or_none()
+    if row is None:
+        return None
+    return RecentTransactionItem(**row, run_id=run_id)
+
+
+def _excel_preview(db: Session, run_id: UUID) -> ExcelPreview | None:
+    """Resolve the run's raw .xlsx URI from its events, read it from MinIO, and
+    return the first rows of the first sheet."""
+    uri = db.execute(
+        text(
+            """
+            SELECT uris.uri
+            FROM event_store.event_log AS el
+                JOIN LATERAL (
+                    SELECT u.uri
+                    FROM jsonb_array_elements_text(
+                        CASE
+                            WHEN jsonb_typeof(el.payload->'input_uris') = 'array' THEN el.payload->'input_uris'
+                            ELSE '[]'::jsonb
+                        END
+                        ||
+                        CASE
+                            WHEN jsonb_typeof(el.payload->'output_uris') = 'array' THEN el.payload->'output_uris'
+                            ELSE '[]'::jsonb
+                        END
+                    ) AS u(uri)
+                ) AS uris ON true
+            WHERE el.run_id = :run_id
+              AND lower(uris.uri) LIKE '%.xlsx'
+            ORDER BY el.occurred_at ASC
+            LIMIT 1
+            """
+        ),
+        {"run_id": run_id},
+    ).scalar_one_or_none()
+    if not uri:
+        return None
+
+    try:
+        bucket, key = split_s3_uri(uri)
+        data = read_object(bucket=bucket, key=key)
+    except MinioUploadError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Could not read preview object: {exc}",
+        ) from exc
+
+    sheet_name, columns, rows = parse_xlsx_preview(data, max_rows=PREVIEW_ROW_LIMIT)
+    return ExcelPreview(sheet_name=sheet_name, columns=columns, rows=rows)
 
 """
 GET: Retrieve all artifacts for a given run ID.

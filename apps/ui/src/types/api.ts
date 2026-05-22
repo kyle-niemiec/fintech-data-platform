@@ -32,11 +32,14 @@ export interface RunSummary {
   is_backfill: boolean;
 }
 
+export type PreviewKind = "cdc_transaction" | "excel";
+
 export interface RunDetail extends RunSummary {
   trigger_type: string;
   trigger_event_ref: string;
   initiator: string | null;
   parent_run_id: string | null;
+  preview_kind: PreviewKind | null;
 }
 
 export interface RunEventItem {
@@ -77,6 +80,20 @@ export interface RecentTransactionItem {
   executed_at: string;
   risk_score: string | null;
   risk_flags: string[] | null;
+  origin: string | null;
+  run_id: string | null;
+}
+
+export interface ExcelPreview {
+  sheet_name: string;
+  columns: string[];
+  rows: (string | number | boolean | null)[][];
+}
+
+export interface RunPreviewResponse {
+  kind: PreviewKind;
+  transaction: RecentTransactionItem | null;
+  excel: ExcelPreview | null;
 }
 
 export interface DemoUploadResponse {

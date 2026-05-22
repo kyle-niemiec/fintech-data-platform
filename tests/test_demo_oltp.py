@@ -84,9 +84,12 @@ def test_insert_binds_every_transaction_column():
         "instrument",
         "amount",
         "executed_at",
+        "origin",
     }
     assert params["instrument"] == txn.instrument
     assert params["amount"] == txn.amount
+    # UI-inserted rows carry provenance so the transactions page can flag them.
+    assert params["origin"] == "manual_demo"
 
 
 def test_create_demo_transaction_inserts_once_within_begin():

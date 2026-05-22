@@ -47,6 +47,9 @@ class RunDetail(BaseModel):
     completed_at: datetime | None
     latest_stage: str | None
     is_backfill: bool = False
+    # 'cdc_transaction' | 'excel' | None — drives Preview-tab visibility without
+    # shipping any preview data; the /preview endpoint re-enforces the same gate.
+    preview_kind: str | None = None
 
 
 class ArtifactTrailItem(BaseModel):
@@ -87,6 +90,22 @@ class RecentTransactionItem(BaseModel):
     executed_at: datetime
     risk_score: Decimal | None
     risk_flags: list[str] | None
+    # Provenance: 'manual_demo' for UI-inserted rows, else None (see migration 05).
+    origin: str | None = None
+    # The CDC run that scored this transaction; None until it has been scored.
+    run_id: UUID | None = None
+
+
+class ExcelPreview(BaseModel):
+    sheet_name: str
+    columns: list[str]
+    rows: list[list[Any]]
+
+
+class RunPreviewResponse(BaseModel):
+    kind: str
+    transaction: RecentTransactionItem | None = None
+    excel: ExcelPreview | None = None
 
 
 class AlertItem(BaseModel):

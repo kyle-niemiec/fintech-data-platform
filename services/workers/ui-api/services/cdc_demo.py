@@ -32,11 +32,16 @@ HIGH_RISK_MAX_AMOUNT = 50_000
 NORMAL_MIN_AMOUNT = 100
 NORMAL_MAX_AMOUNT = 9_999
 
+# Provenance value written to trading.transaction.origin for UI-triggered rows.
+# Read straight from OLTP by the query plane (transactions list + CDC preview);
+# the load generator/app writer leave origin NULL.
+MANUAL_ORIGIN = "manual_demo"
+
 INSERT_TRANSACTION_SQL = text(
     """
     INSERT INTO trading.transaction
-        (transaction_id, account_id, instrument, amount, executed_at)
-    VALUES (:transaction_id, :account_id, :instrument, :amount, :executed_at)
+        (transaction_id, account_id, instrument, amount, executed_at, origin)
+    VALUES (:transaction_id, :account_id, :instrument, :amount, :executed_at, :origin)
     """
 )
 
@@ -88,6 +93,7 @@ def insert_demo_transaction(connection: Any, txn: DemoTransaction) -> None:
             "instrument": txn.instrument,
             "amount": txn.amount,
             "executed_at": txn.executed_at,
+            "origin": MANUAL_ORIGIN,
         },
     )
 

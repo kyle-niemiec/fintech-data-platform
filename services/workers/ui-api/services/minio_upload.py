@@ -40,6 +40,26 @@ def _client():
     )
 
 
+def split_s3_uri(uri: str) -> tuple[str, str]:
+    """Split an ``s3://bucket/key`` URI into ``(bucket, key)``."""
+    if not uri.startswith("s3://"):
+        raise MinioUploadError(f"not an s3 uri: {uri!r}")
+    bucket, _, key = uri[len("s3://"):].partition("/")
+    if not bucket or not key:
+        raise MinioUploadError(f"malformed s3 uri: {uri!r}")
+    return bucket, key
+
+
+def read_object(*, bucket: str, key: str) -> bytes:
+    """Read an object's bytes from MinIO. SSE-KMS decryption is server-side, so
+    the client receives plaintext. Used by the read-only run-preview endpoint."""
+    try:
+        response = _client().get_object(Bucket=bucket, Key=key)
+        return response["Body"].read()
+    except (BotoCoreError, ClientError) as exc:
+        raise MinioUploadError(str(exc)) from exc
+
+
 def put_xlsx(
     *,
     key: str,
