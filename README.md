@@ -193,9 +193,6 @@ The React console (the SRE control tower) gives you:
 | **React + Vite** | Demo console |
 | **Terraform + Docker Compose** | Infrastructure as code: identities, ACLs, policies, topology |
 
-<<<<<<< Updated upstream
-## Compliance Positioning
-=======
 ---
 
 ## Quickstart
@@ -206,7 +203,6 @@ The React console (the SRE control tower) gives you:
 cp infra/.env.example infra/.env   # then fill in secrets/credentials
 make infra-up                      # staged bring-up, steps 1–12
 ```
->>>>>>> Stashed changes
 
 When it settles:
 
