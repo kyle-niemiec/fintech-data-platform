@@ -23,7 +23,7 @@ services:
       MINIO_INGEST_USER: ${MINIO_INGEST_USER}
       MINIO_INGEST_SECRET: ${MINIO_INGEST_SECRET}
       MINIO_LANDING_BUCKET: ${MINIO_BUCKET_NAME}
-      UI_ORIGIN: ${UI_ORIGIN:-http://localhost:3000}
+      UI_ORIGIN: ${UI_ORIGIN:-https://meridian.codeflower.io}
       KEYCLOAK_URL: ${KEYCLOAK_INTERNAL_URL:-http://keycloak:8080}
       KEYCLOAK_REALM: ${KEYCLOAK_REALM:-meridian}
       KEYCLOAK_DEMO_SERVICE_CLIENT_ID: ${KEYCLOAK_DEMO_SERVICE_CLIENT_ID:-meridian-demo-service}
@@ -34,14 +34,10 @@ services:
       REDPANDA_SASL_MECHANISM: ${REDPANDA_SASL_MECHANISM:-SCRAM-SHA-256}
       REDPANDA_UI_SERVICE_USER: ${REDPANDA_UI_SERVICE_USER:-}
       REDPANDA_UI_SERVICE_PASSWORD: ${REDPANDA_UI_SERVICE_PASSWORD:-}
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - ../services/workers/ui-api:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
     depends_on:
       event_store_db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
     networks:
       - platform_internal
       - platform_public

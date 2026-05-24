@@ -67,9 +67,9 @@ make infra-up 12    # status (docker compose ps)
 ```
 
 The staged flow includes the read-only UI query API (`make infra-up 10`) and demo UI (`make infra-up 11`).
-The API is exposed at `http://localhost:8000` and the UI is exposed at `http://localhost:3000`.
+Production-mode demo UI is exposed on `:443` (domain host-routing for `meridian.codeflower.io`).
 
-### Development override: MinIO console on host
+### Development override: local browser access
 
 By default, MinIO remains internal-only. For local development that needs browser access to MinIO (`:9001`), use:
 
@@ -78,8 +78,13 @@ make infra-up-dev
 ```
 
 This enables the dev override compose file (`infra/compose/dev/minio-console-access.yaml`) and publishes:
+- `http://localhost:3000` (UI)
+- `http://localhost:8000` (API)
+- `http://localhost:8180` (Keycloak)
+- `http://localhost:8080` (Airflow)
 - `http://localhost:9000` (S3 API)
 - `http://localhost:9001` (MinIO Console)
+- The dev stack uses `infra/compose/dev/demo-ui-access.yaml` to force localhost browser URLs/ports.
 
 ## Internal Service Access (Default Stack)
 
@@ -465,18 +470,49 @@ make infra-tf-bootstrap
 
 ## Hosted CI/CD Operations (Phase 10)
 
-This section defines hosted runbook policy for the free-first CI/CD target in
-[ci-cd.md](ci-cd.md).
+This section defines the implemented v1 hosted runbook for the free-first
+CI/CD target in [ci-cd.md](ci-cd.md).
 
 ### Hosted Baseline Policy
 
 - Canonical hosted domain: `meridian.codeflower.io`.
-- Public ingress: `80/443` only (UI and read-only API).
+- Public ingress: `443` only through the UI container.
 - Admin tooling surfaces (Airflow, Keycloak admin, MinIO console, pgAdmin) are
   private-only and must not be internet-reachable.
 - Deployment trigger interface: semantic tags `vMAJOR.MINOR.PATCH`.
 - Default topology is single EC2 host; split only when capacity gates are
   breached.
+- Manual AWS provisioning in v1:
+  - EC2 host with SSM agent/instance profile.
+  - IAM role for GitHub OIDC trust.
+  - Security group exposing only `443`.
+  - DNS `meridian.codeflower.io` -> EC2 public endpoint.
+
+### Implemented Workflow Lanes
+
+- `pr-ci.yml`:
+  - pull request trigger
+  - Python unit suite excluding `tests/integration`
+  - UI `typecheck` + UI build.
+- `integration-nightly.yml`:
+  - daily schedule (`cron`) + manual dispatch
+  - deterministic full-stack integration execution through
+    `infra/ops/run_integration_stack.sh`.
+- `release-tag-deploy.yml`:
+  - tag trigger `v*`
+  - semver validation (`vMAJOR.MINOR.PATCH`)
+  - tag commit must be reachable from `origin/main`
+  - full integration gate
+  - AWS OIDC auth + SSM deploy.
+
+Required GitHub configuration for release deploy lane:
+- Secret: `AWS_ROLE_TO_ASSUME`
+- Repository variables:
+  - `AWS_REGION`
+  - `MERIDIAN_EC2_INSTANCE_ID`
+  - `MERIDIAN_HOSTED_DOMAIN` (optional; defaults to `meridian.codeflower.io`)
+  - `MERIDIAN_CURRENT_TAG_PARAM` (optional; defaults to `/meridian/demo/current_tag`)
+  - `MERIDIAN_LAST_GOOD_TAG_PARAM` (optional; defaults to `/meridian/demo/last_good_tag`)
 
 ### Tag Release Flow (Deploy)
 
@@ -487,20 +523,44 @@ This section defines hosted runbook policy for the free-first CI/CD target in
    git push origin v1.2.3
    ```
 
-2. Release workflow runs in this order with failure-stop behavior:
-   - Validate tag and repo state.
-   - Run release validation gates (same quality bar as required CI checks).
-   - Assume AWS role via GitHub OIDC.
-   - Terraform apply `bootstrap` then `identity`.
-   - Deploy tagged revision on EC2 (pull source tag, build images, run startup sequence).
-   - Run health checks and publish status.
+2. `release-tag-deploy.yml` runs in this order with failure-stop behavior:
+   - validate semantic tag format
+   - verify the tag commit is on `main` ancestry
+   - run the full integration gate
+   - assume AWS role via GitHub OIDC
+   - run `infra/ops/ssm_release_deploy.sh`.
 
-3. If a step fails, do not continue to downstream steps.
+3. The deploy script writes release state in SSM parameters:
+   - `/meridian/demo/current_tag`
+   - `/meridian/demo/last_good_tag`.
+
+4. If deployment fails, the script attempts automatic rollback by redeploying
+   `last_good_tag` through the same SSM path.
+
+### EC2 Deploy Contract (SSM Run Command Only)
+
+`infra/ops/ssm_release_deploy.sh` sends a single SSM Run Command that executes
+`infra/ops/ec2_deploy_release.sh` on the host for the target tag.
+
+`infra/ops/ec2_deploy_release.sh` performs:
+
+1. Checkout target tag.
+2. `make infra-clean`.
+3. Generate a new random `infra/.env` (`infra/ops/generate_env.sh --mode random`).
+4. Apply hosted deploy values:
+   - `UI_ORIGIN=https://meridian.codeflower.io`
+   - `UI_API_URL=` (empty => same-origin API calls using native route paths)
+   - `VITE_RELEASE_TAG=<tag>`
+5. Start hosted stack with `make infra-up` (includes staged Terraform
+   bootstrap/identity + init jobs in the existing `infra-up` contract).
+6. Execute hosted health checks through UI `:443` and native API routing:
+   - `GET /`
+   - `GET /ui/runs?limit=1`.
 
 ### Hosted Startup Sequence (Single Host)
 
-Use the same dependency contract as local `make infra-up`, but treat init jobs
-as hard requirements in hosted deployment:
+Hosted startup uses the staged production contract from `make infra-up`
+with direct UI exposure on `:443`. Required order:
 
 1. Foundational services up (`postgres`, `event_store_db`, `vault`, `kes`,
    `minio`, `redpanda`).
@@ -513,8 +573,21 @@ as hard requirements in hosted deployment:
    - `trino_curated_init`
    - `airflow_init`
 6. Long-running orchestration + worker services up.
-7. API and UI up.
-8. Health-gate checks pass before marking deploy complete.
+7. API + UI up.
+8. Hosted health-gate checks pass before marking deploy complete.
+
+### Hosted Ingress Contract
+
+- Production `ui` publishes `443:80`.
+- UI nginx handles routing:
+  - `/` -> SPA content
+  - `/ui/*` -> internal `api:8000` (path preserved).
+- Production mode removes direct host-published ports for:
+  - `api`
+  - `keycloak`
+  - `airflow_api_server`.
+- Local development browser ports are reintroduced only by
+  `make infra-up-dev` via `infra/compose/dev/demo-ui-access.yaml`.
 
 ### Private Admin Browser Access via SSM
 
@@ -523,20 +596,34 @@ Operator model:
 - Use short-lived SSM port-forward sessions.
 - Do not open admin ports in public security groups.
 
-Generic tunnel pattern:
+Because hosted mode does not publish admin ports, tunnel to container IP + port
+resolved at runtime from Docker.
+
+1. Resolve container IP on the EC2 host (example for Airflow):
+
+```bash
+aws ssm send-command \
+  --instance-ids i-0123456789abcdef0 \
+  --document-name AWS-RunShellScript \
+  --parameters 'commands=["docker inspect -f {{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}} fintech_airflow_api_server"]' \
+  --query 'Command.CommandId' \
+  --output text
+```
+
+2. Start a short-lived browser tunnel to that container IP:
 
 ```bash
 aws ssm start-session \
   --target i-0123456789abcdef0 \
   --document-name AWS-StartPortForwardingSessionToRemoteHost \
-  --parameters '{"host":["127.0.0.1"],"portNumber":["<remote-port>"],"localPortNumber":["<local-port>"]}'
+  --parameters '{"host":["<container-ip>"],"portNumber":["<container-port>"],"localPortNumber":["<local-port>"]}'
 ```
 
 Example mappings:
-- Airflow UI: remote `8080` -> local `18080`
-- Keycloak admin: remote `8180` -> local `18180`
-- pgAdmin (when enabled): remote `5050` -> local `15050`
-- MinIO console (when enabled): remote `9001` -> local `19001`
+- Airflow UI: container `fintech_airflow_api_server`, port `8080`, local `18080`.
+- Keycloak admin: container `fintech_keycloak`, port `8080`, local `18180`.
+- MinIO console (temporary dev overlay only): container `fintech_minio`, port `9001`, local `19001`.
+- pgAdmin (temporary dev overlay only): container `fintech_pgadmin`, port `80`, local `15050`.
 
 Notes:
 - MinIO console and pgAdmin are development overlays and should be started
@@ -552,9 +639,17 @@ nmap -Pn meridian.codeflower.io
 ```
 
 Expected result:
-- Publicly reachable ports are limited to `80/443`.
+- Publicly reachable ports are limited to `443`.
 - Admin ports (`8080`, `8180`, `5050`, `9001`, DB/broker ports) are closed or
   filtered from the internet.
+
+### Deploy-Only Environment Rotation Policy
+
+- Hosted deployments always regenerate `infra/.env` on-host before startup.
+- Rotation happens inside `ec2_deploy_release.sh` and is not performed by PR or
+  nightly CI lanes.
+- This keeps deploy secrets ephemeral for the demo environment while preserving
+  local developer workflows.
 
 ### Capacity-Gate Verification and Split Trigger
 

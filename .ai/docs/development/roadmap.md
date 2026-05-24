@@ -1,6 +1,6 @@
 # Roadmap Progress Tracker
 
-Last audited against repository state: **May 20, 2026**.
+Last audited against repository state: **May 23, 2026**.
 
 Legend:
 - `[x]` complete
@@ -105,3 +105,30 @@ Legend:
 - [ ] End-to-end scenario fixtures (success, schema fail, fraud fail, replay).
 - [ ] Architecture diagrams and evidence pack for interview walkthroughs.
 - [ ] Local-to-cloud portability notes while preserving local-first stack.
+
+## Phase 10 - Free-First CI/CD and Hosted Demo Operations
+
+- [x] PR workflow lane (`.github/workflows/pr-ci.yml`) runs Python unit tests
+  excluding `tests/integration`, plus UI `typecheck` and UI build.
+- [x] Nightly workflow lane (`.github/workflows/integration-nightly.yml`) runs a
+  deterministic full integration stack bring-up/test/teardown path.
+- [x] Release workflow lane (`.github/workflows/release-tag-deploy.yml`) is
+  semantic-tag triggered, validates semver, enforces `main` ancestry, reruns the
+  integration gate, then deploys.
+- [x] Release deploy and rollback automation is implemented via:
+  - `infra/ops/ssm_release_deploy.sh`
+  - `infra/ops/ec2_deploy_release.sh`
+  - `infra/ops/generate_env.sh`
+- [x] Hosted release state is persisted in SSM parameters:
+  - `/meridian/demo/current_tag`
+  - `/meridian/demo/last_good_tag`
+- [x] Production demo exposure is simplified:
+  - `ui` publishes `443:80` directly in base compose.
+  - `ui` nginx proxies `/ui/*` to internal `api:8000`.
+  - dev-only local browser ergonomics are isolated in `infra/compose/dev/demo-ui-access.yaml`.
+- [x] UI release metadata support is implemented with optional
+  `VITE_RELEASE_TAG`; footer displays `Version vX.Y.Z` only when present.
+- [x] Operations/planning docs are updated to capture CI lanes, SSM-only deploy
+  flow, rollback policy, ingress policy, and deploy-only env rotation.
+- [ ] AWS account provisioning (EC2/IAM/OIDC trust/SG/DNS) remains manual in v1
+  and is not automated by Terraform in this phase.

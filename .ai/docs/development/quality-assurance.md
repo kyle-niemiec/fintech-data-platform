@@ -37,3 +37,27 @@
   `M=$(mktemp -d); mkdir "$M/meridian"; ln -s "$PWD/services/libs" "$M/meridian/libs"; PYTHONPATH="$M" python3 -m pytest -q`
 - Result: 182 passed, 3 skipped, 0 failed. The 3 skips are integration-tier tests under
   `tests/integration/` that require testcontainers/MinIO and are out of scope for the unit run.
+
+## Phase 10 Verification (CI/CD + Hosted Overlay)
+- PR Python lane command verified locally (venv path):
+  - `PYTHONPATH=<tmp-meridian-symlink> .venv/bin/pytest -m "not integration" --ignore=tests/integration -ra`
+  - Result: `205 passed`.
+- UI lane commands verified in containerized Node runtime:
+  - `npm run typecheck`
+  - `npm run build`
+  - Result: success (Vite build completed).
+- Workflow YAML parse checks:
+  - `.github/workflows/pr-ci.yml`
+  - `.github/workflows/integration-nightly.yml`
+  - `.github/workflows/release-tag-deploy.yml`
+  - Result: valid YAML parse.
+- Deploy script shell syntax checks:
+  - `infra/ops/generate_env.sh`
+  - `infra/ops/run_integration_stack.sh`
+  - `infra/ops/ec2_deploy_release.sh`
+  - `infra/ops/ssm_release_deploy.sh`
+  - Result: `bash -n` clean for all scripts.
+- Compose render checks:
+  - Production stack render with generated deterministic env.
+  - Dev stack render with generated deterministic env + `infra/compose/dev/demo-ui-access.yaml` + existing dev overlays.
+  - Result: production render confirms only UI publishes host port `443`; dev render confirms localhost ports for UI/API/Keycloak/Airflow/MinIO/pgAdmin.

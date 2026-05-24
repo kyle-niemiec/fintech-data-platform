@@ -1,0 +1,66 @@
+name: PR CI
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+
+jobs:
+  python-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Configure meridian namespace for tests
+        run: |
+          M="$(mktemp -d)"
+          mkdir -p "$M/meridian"
+          ln -s "$PWD/services/libs" "$M/meridian/libs"
+          echo "PYTHONPATH=$M" >> "$GITHUB_ENV"
+
+      - name: Run Python unit suite (exclude integration)
+        run: pytest -m "not integration" --ignore=tests/integration -ra
+
+  ui-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/ui/package.json
+
+      - name: Install UI dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck UI
+        run: npm run typecheck
+
+      - name: Build UI
+        run: npm run build

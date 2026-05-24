@@ -5,11 +5,12 @@ services:
       dockerfile: infra/docker/ui/Dockerfile
       network: host
       args:
-        VITE_API_URL: ${UI_API_URL:-http://localhost:8000}
+        VITE_API_URL: ${UI_API_URL:-}
+        VITE_RELEASE_TAG: ${VITE_RELEASE_TAG:-}
     container_name: fintech_ui
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "443:80"
     depends_on:
       api:
         condition: service_started

@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-COMPOSE_FILES := \
+COMPOSE_FILES_BASE := \
 	infra/docker-compose.yaml \
 	infra/compose/foundation.yaml \
 	infra/compose/orchestration.yaml \
@@ -10,8 +10,11 @@ COMPOSE_FILES := \
 	infra/compose/curated-pipeline.yaml \
 	infra/compose/api.yaml \
 	infra/compose/ui.yaml
+COMPOSE_FILES := \
+	$(COMPOSE_FILES_BASE)
 COMPOSE_FILES_DEV := \
-	$(COMPOSE_FILES) \
+	$(COMPOSE_FILES_BASE) \
+	infra/compose/dev/demo-ui-access.yaml \
 	infra/compose/dev/minio-console-access.yaml \
 	infra/compose/dev/pgadmin.yaml
 INFRA_ENV_FILE := infra/.env
@@ -46,8 +49,8 @@ INFRA_UP_STEP := $(strip $(firstword $(filter $(INFRA_UP_STEPS),$(MAKECMDGOALS))
 
 help:
 	@printf "Available targets:\n"
-	@printf "  infra-up                 Run staged startup steps 1-12\n"
-	@printf "  infra-up-dev             Run staged startup steps 1-12 with dev overlays (MinIO console :9000/:9001, pgAdmin :5050)\n"
+	@printf "  infra-up                 Run staged startup steps 1-12 (production demo UI on :443)\n"
+	@printf "  infra-up-dev             Run staged startup steps 1-12 with dev overlays (UI/API/admin local ports, MinIO console :9000/:9001, pgAdmin :5050)\n"
 	@printf "  infra-up <1-12>          Run one startup step (e.g. make infra-up 3)\n"
 	@printf "  compose stack            base + foundation + orchestration + excel-pipeline + api + ui\n"
 	@printf "  infra-tf-init            Initialize Terraform providers in Docker (bootstrap + identity)\n"
@@ -60,7 +63,7 @@ help:
 	@printf "  infra-salesforce-pipeline Start and validate Salesforce mock + bronze writer\n"
 	@printf "  infra-curated-pipeline   Start Iceberg REST catalog + Trino coordinator for silver/gold transforms\n"
 	@printf "  infra-api-up             Start and validate read-only UI query API service\n"
-	@printf "  infra-ui-up              Build and start the React demo UI (nginx on :3000)\n"
+	@printf "  infra-ui-up              Build and start the React demo UI service (nginx)\n"
 	@printf "  infra-pgadmin-up         Start dev-only pgAdmin overlay on :5050 (requires dev compose files)\n"
 	@printf "  infra-down               Stop infrastructure containers\n"
 	@printf "  infra-down-dev           Stop infrastructure containers (dev UI access stack)\n"
@@ -265,11 +268,11 @@ infra-api-up:
 	fi
 
 infra-ui-up:
-	$(call banner,Building and starting React demo UI on :3000...)
+	$(call banner,Building and starting React demo UI service...)
 	$(COMPOSE) up -d --build ui
-	@state=$$(docker inspect -f '{{.State.Status}}' fintech_ui 2>/dev/null || echo missing); \
-	if [ "$$state" != "running" ]; then \
-		printf "infra-ui-up service check failed: fintech_ui state=%s\n" "$$state" >&2; \
+	@ui_state=$$(docker inspect -f '{{.State.Status}}' fintech_ui 2>/dev/null || echo missing); \
+	if [ "$$ui_state" != "running" ]; then \
+		printf "infra-ui-up service check failed: fintech_ui state=%s\n" "$$ui_state" >&2; \
 		exit 1; \
 	fi
 

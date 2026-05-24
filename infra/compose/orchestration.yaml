@@ -217,8 +217,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 60s
-    ports:
-      - "8080:8080"
     networks:
       - platform_internal
       - platform_public

@@ -93,26 +93,41 @@ Phase 6 follow-on scope is implemented in the same contract family (`pipeline_na
 
 ## Phase 10 - Free-First CI/CD and Hosted Operations
 
-- Establish a planning-level CI/CD contract in [ci-cd.md](ci-cd.md) with
-  strict `$0` defaults, semantic-tag releases (`vMAJOR.MINOR.PATCH`), and
-  single-host-first deployment posture.
-- Use GitHub-hosted Actions for pull request validation gates and
-  tag-triggered release workflows.
-- Automate release deployment on semantic tags with ordered failure-stop steps:
-  validation -> Terraform apply (`bootstrap`, then `identity`) -> EC2 deploy.
-- Keep hosted public ingress limited to UI/API on `meridian.codeflower.io`;
-  keep admin surfaces private and reachable only through short-lived SSM
-  browser tunnels.
-- Treat one-shot init jobs (`vault_bootstrap`, `kes_bootstrap`, `airflow_init`,
-  `trino_curated_init`) as required deployment lifecycle steps rather than
-  optional local conveniences.
-- Keep split-ready topology groups documented, but activate multi-instance
-  deployment only when objective capacity gates are breached.
+- Implement three GitHub Actions lanes:
+  - `pr-ci.yml` (fast PR gate: Python unit tests excluding `tests/integration`,
+    UI typecheck, UI build).
+  - `integration-nightly.yml` (daily full-stack integration run against compose).
+  - `release-tag-deploy.yml` (semantic tag release guard + integration gate +
+    hosted deploy).
+- Keep the release trigger interface semantic-tag-only (`vMAJOR.MINOR.PATCH`)
+  with an ancestry guard that requires the tagged commit to be reachable from
+  `main`.
+- Use AWS OIDC role assumption from GitHub Actions and deploy to EC2 via SSM
+  Run Command only (no SSH workflow dependency).
+- Deploy sequence on EC2 is deterministic and failure-stop:
+  - checkout target tag
+  - `make infra-clean`
+  - generate a new random `infra/.env` (deploy-only rotation)
+  - apply hosted domain/UI settings
+  - `make infra-up` (includes Terraform bootstrap/identity and required
+    init jobs through staged startup)
+  - run hosted health checks.
+- Persist hosted release state in SSM Parameter Store:
+  - `/meridian/demo/current_tag`
+  - `/meridian/demo/last_good_tag`
+- On deploy failure, attempt automatic rollback by redeploying the prior
+  `last_good_tag` through the same SSM deploy path.
+- Enforce hosted ingress policy with direct demo-UI exposure:
+  - public `443` for UI
+  - `/ui/*` routed to API by UI nginx
+  - no public admin/service ports.
+- Keep split-ready topology groups documented, but retain single-host default
+  until objective capacity gates are breached.
+- AWS account resources (EC2/IAM/OIDC trust/SG/DNS) are provisioned manually in
+  v1 and operated through runbook contracts.
 
 Phase 10 completion criteria:
-- CI and release contracts are documented and accepted as the canonical
-  planning contract.
-- Hosted operations runbook is documented for tag releases and private admin
-  access.
-- Capacity gate thresholds and split-trigger policy are documented with
-  measurable criteria.
+- Required workflows exist and enforce the defined quality/deploy contracts.
+- Hosted deployment and rollback scripts exist and are wired to SSM parameters.
+- Hosted compose layering enforces the public/private network boundary.
+- Operations runbook includes SSM-only admin access and tag-release flow.

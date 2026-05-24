@@ -46,3 +46,11 @@
 - Risk-event alert: `fraud_worker.handle` raises `cdc_fraud_high_risk` (severity `high`) on the success path when `assessment.risk_flags` is non-empty (transaction at/above the scorer's platform risk threshold). Gated on the assessed `append_event` insert so Kafka replays do not duplicate alerts.
 - Quarantine alert: `excel_validation.tasks.emit_event` raises `excel_schema_quarantined` (severity `medium`) when a workbook fails schema validation and the run closes `quarantined`.
 - Curated-failure alert: `curated_dag_helpers.emit_curated_failure_event` raises `curated_promotion_failed` (severity `high`) alongside the `failed` close.
+
+## Demo UI Exposure Contract (Phase 10)
+- Production compose (`make infra-up`) publishes the demo UI directly on host `:443` through the `ui` service (`443:80`).
+- The UI container nginx serves the SPA at `/` and reverse-proxies `/ui/*` to the internal `api:8000` service (API paths preserved).
+- `api`, `keycloak`, and `airflow_api_server` are not host-published in production mode.
+- API runtime defaults are production-oriented (`uvicorn ... --host 0.0.0.0 --port 8000` without `--reload` or bind-mounted source).
+- Dev-only ergonomics live in `infra/compose/dev/demo-ui-access.yaml` (localhost ports + API bind-mount + `--reload`).
+- Production bring-up uses the staged `infra-up` sequence, so required one-shot init services (`vault_bootstrap`, `kes_bootstrap`, `airflow_init`, `trino_curated_init`) remain hard gates for successful deployment.

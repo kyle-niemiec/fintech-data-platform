@@ -1,0 +1,25 @@
+services:
+  api:
+    environment:
+      UI_ORIGIN: http://localhost:3000
+    # Enable hot reload by adding the --reload flag and binding the source code as a volume
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ../services/workers/ui-api:/app
+    ports:
+      - "8000:8000"
+
+  ui:
+    build:
+      args:
+        VITE_API_URL: http://localhost:8000
+    ports: !override
+      - "3000:80"
+
+  keycloak:
+    ports:
+      - "8180:8080"
+
+  airflow_api_server:
+    ports:
+      - "8080:8080"

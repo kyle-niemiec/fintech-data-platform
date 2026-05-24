@@ -28,10 +28,13 @@ CI runs on GitHub-hosted Actions for all pull requests and blocks merge on any
 failed required check.
 
 Required PR checks:
-- Python test suite including integration markers used by this repo's CI
-  contract.
+- Python unit suite excluding `tests/integration`.
 - UI `typecheck` and UI production build.
 - Workflow failure on first failed gate; no partial-success merge path.
+
+Additional CI lane:
+- Daily full integration workflow (`integration-nightly.yml`) runs deterministic
+  compose bring-up and `pytest tests/integration -m integration`.
 
 The repository remains public to preserve GitHub-hosted Actions free-usage
 posture for public repositories.
@@ -41,13 +44,18 @@ posture for public repositories.
 Pushing a semantic tag (`v*`) triggers one deployment workflow with explicit
 failure stops:
 
-1. Validate tag format and repo state.
-2. Run CI-equivalent validation gates for the tagged commit.
-3. Authenticate to AWS via GitHub OIDC role assumption.
-4. Run Terraform apply (`bootstrap`, then `identity`) for hosted environment.
-5. Connect to EC2 host, pull tagged source, build images in place, and run the
-   compose deployment sequence.
-6. Run post-deploy health checks and publish deployment status.
+1. Validate semantic tag format (`vMAJOR.MINOR.PATCH`).
+2. Verify tagged commit is reachable from `main` ancestry.
+3. Run full integration validation gate for the tagged commit.
+4. Authenticate to AWS via GitHub OIDC role assumption.
+5. Execute SSM-only deploy script against the target EC2 host.
+6. On-host deploy runs:
+   - `make infra-clean`
+   - regenerate random `infra/.env` (deploy-only rotation)
+   - `make infra-up` (includes Terraform `bootstrap` and `identity`)
+   - hosted health checks through UI `:443` and native API paths.
+7. On failure, attempt automatic rollback to prior
+   `/meridian/demo/last_good_tag`.
 
 If any step fails, later steps do not run.
 
@@ -65,8 +73,8 @@ If any step fails, later steps do not run.
 
 - One EC2 instance runs the full compose-defined platform.
 - Public-facing components:
-  - `ui` on `443` (reverse-proxied from container)
-  - `api` on `443` path or dedicated host route
+  - `ui` on `443` (direct container publish)
+  - `api` behind UI nginx on `/ui/*`
 - No admin tooling endpoints are directly internet-exposed.
 
 ### Split-Ready Topology (Only If Capacity Gates Trigger)
@@ -109,15 +117,17 @@ Hosted startup sequencing contract:
 
 ## Security and Access Story
 
-- Public ports: `80/443` only.
+- Public ports: `443` only.
 - No public admin ports for Airflow, MinIO Console, pgAdmin, or Keycloak admin
   UI.
 - Operators assume an AWS ops role and open short-lived local tunnels with SSM
   Session Manager for browser-based admin access.
 - Secrets model:
   - GitHub Actions uses OIDC role assumption (no long-lived AWS keys in GitHub).
-  - Runtime and deployment secrets are sourced from AWS SSM Parameter Store
-    and/or AWS Secrets Manager.
+  - Hosted deploys regenerate runtime secrets into `infra/.env` on-host each
+    release.
+  - SSM Parameter Store is used for hosted release state:
+    `/meridian/demo/current_tag`, `/meridian/demo/last_good_tag`.
 
 ## Capacity Gate and Split Trigger
 
@@ -142,6 +152,7 @@ contract before promoting the new topology.
 - PR workflow executes required checks and blocks merge on any failure.
 - Tag workflow runs Terraform apply and deploy steps in the defined order with
   explicit stop-on-failure behavior.
+- Tag workflow rejects non-semver tags and tags not on `main` ancestry.
 
 ### Topology and Access Checks
 

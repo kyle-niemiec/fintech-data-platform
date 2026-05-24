@@ -1,0 +1,85 @@
+name: Release Tag Deploy
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate semantic release tag
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag is not semantic vMAJOR.MINOR.PATCH: $TAG" >&2
+            exit 1
+          fi
+
+      - name: Ensure tag commit is reachable from main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
+            echo "Tag commit ${GITHUB_SHA} is not reachable from origin/main" >&2
+            exit 1
+          fi
+
+  integration-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    needs: validate-tag
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run full integration gate
+        run: bash infra/ops/run_integration_stack.sh
+
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: integration-gate
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MERIDIAN_HOSTED_DOMAIN: ${{ vars.MERIDIAN_HOSTED_DOMAIN }}
+      MERIDIAN_EC2_INSTANCE_ID: ${{ vars.MERIDIAN_EC2_INSTANCE_ID }}
+      MERIDIAN_CURRENT_TAG_PARAM: ${{ vars.MERIDIAN_CURRENT_TAG_PARAM }}
+      MERIDIAN_LAST_GOOD_TAG_PARAM: ${{ vars.MERIDIAN_LAST_GOOD_TAG_PARAM }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Deploy tag to EC2 via SSM Run Command
+        run: |
+          : "${MERIDIAN_EC2_INSTANCE_ID:?Missing repository variable MERIDIAN_EC2_INSTANCE_ID}"
+
+          DOMAIN="${MERIDIAN_HOSTED_DOMAIN:-meridian.codeflower.io}"
+          CURRENT_PARAM="${MERIDIAN_CURRENT_TAG_PARAM:-/meridian/demo/current_tag}"
+          LAST_GOOD_PARAM="${MERIDIAN_LAST_GOOD_TAG_PARAM:-/meridian/demo/last_good_tag}"
+
+          bash infra/ops/ssm_release_deploy.sh \
+            --instance-id "${MERIDIAN_EC2_INSTANCE_ID}" \
+            --tag "${GITHUB_REF_NAME}" \
+            --repo-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" \
+            --domain "${DOMAIN}" \
+            --region "${AWS_REGION:-us-east-1}" \
+            --current-param "${CURRENT_PARAM}" \
+            --last-good-param "${LAST_GOOD_PARAM}"
