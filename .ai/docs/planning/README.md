@@ -6,6 +6,7 @@
 - Vision and target architecture boundaries.
 - Pipeline, event-contract, and data-model intent.
 - Security, operations, roadmap sequencing, and requirement coverage.
+- Cloud execution checklists for manual provisioning phases.
 
 ## Working Rules
 - Read relevant planning docs before changing behavior.

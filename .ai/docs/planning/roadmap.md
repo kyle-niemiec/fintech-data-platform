@@ -131,3 +131,124 @@ Phase 10 completion criteria:
 - Hosted deployment and rollback scripts exist and are wired to SSM parameters.
 - Hosted compose layering enforces the public/private network boundary.
 - Operations runbook includes SSM-only admin access and tag-release flow.
+
+# Cloud Setup Checklist (Phase 10 v1)
+
+Use this checklist to provision and validate the hosted demo path for
+`meridian.codeflower.io`.
+
+Scope: manual AWS provisioning + GitHub workflow wiring for the existing
+Phase 10 deployment contract.
+
+## 0) Preconditions
+
+- [✅] Repo is public (required for free-first GitHub Actions posture).
+- [✅] You have AWS console access with permission to create EC2, IAM roles,
+  security groups, and SSM parameters.
+- [✅] Domain control is available for `codeflower.io`.
+
+## 1) Create EC2 Host (Single Instance)
+
+- [ ] Launch one Linux EC2 instance for the demo host.
+- [ ] Attach an instance profile/role that allows:
+  - SSM core access (Session Manager + Run Command).
+  - SSM Parameter Store read/write for:
+    - `/meridian/demo/current_tag`
+    - `/meridian/demo/last_good_tag`
+- [ ] Ensure SSM Agent is active and instance shows as managed in
+  AWS Systems Manager.
+- [ ] Install runtime prerequisites on host:
+  - `git`
+  - `docker` + Compose plugin
+  - `make`
+- [ ] Verify Docker is usable by the deploy user.
+
+## 2) Configure Security Group
+
+- [ ] Inbound: allow `443/tcp` from internet.
+- [ ] Inbound: do not expose admin/service ports publicly (`8080`, `8180`,
+  `5050`, `9001`, database/broker ports).
+- [ ] Outbound: allow required egress for package/image pulls and AWS APIs.
+
+## 3) Configure DNS
+
+- [ ] Create DNS record for `meridian.codeflower.io` pointing to the EC2 public
+  endpoint (Elastic IP recommended for stability).
+- [ ] Confirm name resolution:
+  - `dig meridian.codeflower.io +short`
+
+## 4) Create GitHub OIDC Deploy Role in AWS
+
+- [ ] Create IAM OIDC provider for GitHub Actions (if not already present):
+  `token.actions.githubusercontent.com`.
+- [ ] Create IAM role trusted by GitHub OIDC for this repo.
+- [ ] Trust policy restricts `sub` to your repo (and optionally branch/tag refs).
+- [ ] Attach permissions for deployment workflow:
+  - SSM Run Command on target instance.
+  - SSM command invocation reads.
+  - SSM Parameter Store get/put for release state paths.
+
+## 5) Configure GitHub Repo Settings
+
+In `Settings -> Secrets and variables -> Actions`:
+
+- [ ] Add secret:
+  - `AWS_ROLE_TO_ASSUME` = IAM role ARN from step 4.
+- [ ] Add variables:
+  - `AWS_REGION` (for example `us-east-1`)
+  - `MERIDIAN_EC2_INSTANCE_ID` (target demo host)
+  - `MERIDIAN_HOSTED_DOMAIN` = `meridian.codeflower.io` (optional but recommended)
+  - `MERIDIAN_CURRENT_TAG_PARAM` = `/meridian/demo/current_tag` (optional)
+  - `MERIDIAN_LAST_GOOD_TAG_PARAM` = `/meridian/demo/last_good_tag` (optional)
+
+## 6) Validate SSM Connectivity Before First Release
+
+- [ ] From your workstation, confirm the instance is managed:
+  - `aws ssm describe-instance-information`
+- [ ] Smoke-test Run Command:
+  - Send `echo ok` to the instance and confirm success.
+
+## 7) First Release Deployment
+
+- [ ] Create semantic tag from a commit reachable by `main`:
+
+```bash
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+```
+
+- [ ] In GitHub Actions, confirm `release-tag-deploy.yml` passes:
+  - semver validation
+  - main-ancestry validation
+  - integration gate
+  - AWS OIDC auth
+  - SSM deploy execution
+
+## 8) Post-Deploy Verification
+
+- [ ] Open `https://meridian.codeflower.io` and verify UI loads.
+- [ ] Verify API path through UI ingress:
+  - `https://meridian.codeflower.io/ui/runs?limit=1`
+- [ ] Confirm only intended public port is reachable (`443`).
+- [ ] Confirm release state parameters are updated:
+  - `/meridian/demo/current_tag`
+  - `/meridian/demo/last_good_tag`
+
+## 9) Rollback Readiness Check
+
+- [ ] Confirm a previous successful tag exists in
+  `/meridian/demo/last_good_tag`.
+- [ ] Confirm failed deploys trigger rollback behavior in workflow logs.
+
+## 10) Operations Model Confirmation
+
+- [ ] Admin UIs are accessed only through short-lived SSM tunnels.
+- [ ] No SSH-based deploy path is required.
+- [ ] `make infra-up` remains the production startup contract.
+
+## References
+
+- [operations.md](operations.md) (Hosted CI/CD operations section)
+- [ci-cd.md](ci-cd.md) (contract and constraints)
+- [roadmap.md](roadmap.md) (Phase 10 scope and manual-provisioning status)
+
