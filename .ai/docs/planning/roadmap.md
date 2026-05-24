@@ -90,3 +90,29 @@ Phase 6 follow-on scope is implemented in the same contract family (`pipeline_na
 - Add end-to-end scenario fixtures (success, schema fail, fraud fail, replay).
 - Add architecture diagrams and evidence pack for interview walkthroughs.
 - Add local-to-cloud portability notes while preserving local-first stack.
+
+## Phase 10 - Free-First CI/CD and Hosted Operations
+
+- Establish a planning-level CI/CD contract in [ci-cd.md](ci-cd.md) with
+  strict `$0` defaults, semantic-tag releases (`vMAJOR.MINOR.PATCH`), and
+  single-host-first deployment posture.
+- Use GitHub-hosted Actions for pull request validation gates and
+  tag-triggered release workflows.
+- Automate release deployment on semantic tags with ordered failure-stop steps:
+  validation -> Terraform apply (`bootstrap`, then `identity`) -> EC2 deploy.
+- Keep hosted public ingress limited to UI/API on `meridian.codeflower.io`;
+  keep admin surfaces private and reachable only through short-lived SSM
+  browser tunnels.
+- Treat one-shot init jobs (`vault_bootstrap`, `kes_bootstrap`, `airflow_init`,
+  `trino_curated_init`) as required deployment lifecycle steps rather than
+  optional local conveniences.
+- Keep split-ready topology groups documented, but activate multi-instance
+  deployment only when objective capacity gates are breached.
+
+Phase 10 completion criteria:
+- CI and release contracts are documented and accepted as the canonical
+  planning contract.
+- Hosted operations runbook is documented for tag releases and private admin
+  access.
+- Capacity gate thresholds and split-trigger policy are documented with
+  measurable criteria.

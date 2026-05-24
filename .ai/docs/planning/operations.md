@@ -462,3 +462,109 @@ make infra-tf-bootstrap
 - Airflow DAG success/failure and retry rates.
 - Event-store append throughput and read-model freshness.
 - Quarantine volume and top failure reasons.
+
+## Hosted CI/CD Operations (Phase 10)
+
+This section defines hosted runbook policy for the free-first CI/CD target in
+[ci-cd.md](ci-cd.md).
+
+### Hosted Baseline Policy
+
+- Canonical hosted domain: `meridian.codeflower.io`.
+- Public ingress: `80/443` only (UI and read-only API).
+- Admin tooling surfaces (Airflow, Keycloak admin, MinIO console, pgAdmin) are
+  private-only and must not be internet-reachable.
+- Deployment trigger interface: semantic tags `vMAJOR.MINOR.PATCH`.
+- Default topology is single EC2 host; split only when capacity gates are
+  breached.
+
+### Tag Release Flow (Deploy)
+
+1. Create and push a semantic tag:
+
+   ```bash
+   git tag -a v1.2.3 -m "Release v1.2.3"
+   git push origin v1.2.3
+   ```
+
+2. Release workflow runs in this order with failure-stop behavior:
+   - Validate tag and repo state.
+   - Run release validation gates (same quality bar as required CI checks).
+   - Assume AWS role via GitHub OIDC.
+   - Terraform apply `bootstrap` then `identity`.
+   - Deploy tagged revision on EC2 (pull source tag, build images, run startup sequence).
+   - Run health checks and publish status.
+
+3. If a step fails, do not continue to downstream steps.
+
+### Hosted Startup Sequence (Single Host)
+
+Use the same dependency contract as local `make infra-up`, but treat init jobs
+as hard requirements in hosted deployment:
+
+1. Foundational services up (`postgres`, `event_store_db`, `vault`, `kes`,
+   `minio`, `redpanda`).
+2. Terraform `bootstrap` apply succeeds.
+3. Keycloak up.
+4. Terraform `identity` apply succeeds.
+5. One-shot init jobs complete:
+   - `vault_bootstrap`
+   - `kes_bootstrap`
+   - `trino_curated_init`
+   - `airflow_init`
+6. Long-running orchestration + worker services up.
+7. API and UI up.
+8. Health-gate checks pass before marking deploy complete.
+
+### Private Admin Browser Access via SSM
+
+Operator model:
+- Assume an ops IAM role with least-privilege SSM session rights.
+- Use short-lived SSM port-forward sessions.
+- Do not open admin ports in public security groups.
+
+Generic tunnel pattern:
+
+```bash
+aws ssm start-session \
+  --target i-0123456789abcdef0 \
+  --document-name AWS-StartPortForwardingSessionToRemoteHost \
+  --parameters '{"host":["127.0.0.1"],"portNumber":["<remote-port>"],"localPortNumber":["<local-port>"]}'
+```
+
+Example mappings:
+- Airflow UI: remote `8080` -> local `18080`
+- Keycloak admin: remote `8180` -> local `18180`
+- pgAdmin (when enabled): remote `5050` -> local `15050`
+- MinIO console (when enabled): remote `9001` -> local `19001`
+
+Notes:
+- MinIO console and pgAdmin are development overlays and should be started
+  only for temporary operational tasks.
+- End each SSM session after use; no persistent tunnel process should remain.
+
+### Public Exposure Verification
+
+After each hosted deploy, verify only UI/API ingress is reachable:
+
+```bash
+nmap -Pn meridian.codeflower.io
+```
+
+Expected result:
+- Publicly reachable ports are limited to `80/443`.
+- Admin ports (`8080`, `8180`, `5050`, `9001`, DB/broker ports) are closed or
+  filtered from the internet.
+
+### Capacity-Gate Verification and Split Trigger
+
+Track single-host viability with objective checks:
+- Memory pressure during normal demo load.
+- Service restart loops / OOM events.
+- Full startup success rate including init jobs.
+
+Use current observed full-stack memory baseline (`~6.96 GiB`) as the initial
+planning reference point. If sustained pressure or startup reliability breaches
+defined thresholds from [ci-cd.md](ci-cd.md), activate split-ready container
+groups (`edge`, `core-state`, `compute-orchestration`) while preserving init
+and dependency sequencing.
