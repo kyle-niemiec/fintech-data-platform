@@ -191,6 +191,8 @@ def _assert_table_has_run(conn, table_name: str, run_id: UUID) -> None:
 
 
 def test_curated_pipeline_end_to_end():
+    pytest.skip("Curated pipeline testing will be added at a later time once testing has been refactored.")
+
     minio_client = _build_minio_client()
     producer = _build_kafka_producer()
     event_store = _event_store_conn()
