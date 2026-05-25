@@ -663,3 +663,123 @@ planning reference point. If sustained pressure or startup reliability breaches
 defined thresholds from [ci-cd.md](ci-cd.md), activate split-ready container
 groups (`edge`, `core-state`, `compute-orchestration`) while preserving init
 and dependency sequencing.
+
+## Same-Domain Demo Launcher Operations (Phase 11)
+
+Phase 11 adds a scale-to-zero launcher path while keeping the canonical hosted
+URL unchanged: `https://meridian.codeflower.io`.
+
+### Architecture and Control Flow
+
+```text
+Browser
+  |
+  v
+CloudFront (meridian.codeflower.io)
+  |- Primary origin: EC2 app origin DNS (meridian-origin.codeflower.io)
+  |- Failover origin: S3 launcher landing page
+  `- Failover status codes: 500/502/503/504
+
+Launcher landing page JS
+  |
+  v
+Public Lambda Function URL
+  |- POST /start  -> EC2 StartInstances + one-time Scheduler stop
+  `- GET /status  -> instance state + stop schedule + app_ready
+
+EventBridge Scheduler (one-time)
+  |
+  v
+Stop Lambda -> EC2 StopInstances
+```
+
+### Launcher Stack Assets
+
+- CloudFormation template: `infra/cloudformation/demo-launcher.yaml`
+- Control Lambda code: `infra/cloudformation/lambda/demo_launcher_control/index.py`
+- Stop Lambda code: `infra/cloudformation/lambda/demo_launcher_stop/index.py`
+- Landing assets: `infra/cloudformation/launcher-site/*`
+- Deploy helper: `infra/ops/deploy_demo_launcher_stack.sh`
+
+### Required AWS Inputs and Repository Variables
+
+Release workflow (`release-tag-deploy.yml`) launcher stage requires:
+
+- Secret:
+  - `AWS_ROLE_TO_ASSUME`
+- Variables:
+  - `AWS_REGION` (default used when omitted: `us-east-1`)
+  - `MERIDIAN_EC2_INSTANCE_ID`
+  - `MERIDIAN_HOSTED_DOMAIN` (default `meridian.codeflower.io`)
+  - `MERIDIAN_ORIGIN_DOMAIN` (for example `meridian-origin.codeflower.io`)
+  - `MERIDIAN_ACM_CERT_ARN` (certificate must exist in `us-east-1`)
+  - `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET` (for `cloudformation package`)
+  - Optional:
+    - `MERIDIAN_LAUNCHER_STACK_NAME` (default `meridian-demo-launcher`)
+    - `MERIDIAN_DEMO_TTL_MINUTES` (default `30`)
+    - `MERIDIAN_HOSTED_ZONE_ID` (set to auto-create Route53 alias record)
+    - `MERIDIAN_ORIGIN_HEALTHCHECK_URL` (defaults to `http://<origin>:443/`)
+    - `MERIDIAN_SCHEDULER_GROUP` (default `default`)
+
+### Release Flow Integration
+
+`release-tag-deploy.yml` now runs:
+
+1. `validate-tag`
+2. `integration-gate`
+3. `launcher-infra`
+4. `deploy` (existing EC2 rebuild via SSM)
+
+Launcher apply behavior in step 3:
+
+- Compare current tag against previous reachable semver tag.
+- If launcher/IaC assets changed, apply stack + sync landing assets.
+- If no launcher changes but stack is missing, force initial stack apply.
+- If no launcher changes and stack exists, skip launcher apply.
+
+EC2 application deploy behavior in step 4 remains unchanged:
+
+- `make infra-clean`
+- regenerate random `infra/.env`
+- `make infra-up`
+- hosted health checks
+- rollback to `/meridian/demo/last_good_tag` on failure.
+
+### Manual Launcher Deploy Command
+
+Use this when validating outside of tag release runs:
+
+```bash
+bash infra/ops/deploy_demo_launcher_stack.sh \
+  --artifact-bucket "$MERIDIAN_LAUNCHER_ARTIFACT_BUCKET" \
+  --origin-domain "meridian-origin.codeflower.io" \
+  --acm-cert-arn "$MERIDIAN_ACM_CERT_ARN" \
+  --instance-id "$MERIDIAN_EC2_INSTANCE_ID" \
+  --domain "meridian.codeflower.io" \
+  --region "us-east-1" \
+  --ttl-minutes 30
+```
+
+### Rollback Behavior
+
+- Launcher stack changes use CloudFormation update semantics (no delete/recreate
+  contract by default).
+- If launcher stage fails, release workflow stops before EC2 tag deploy.
+- Application rollback contract remains Phase 10 behavior:
+  failed EC2 deploy attempts rollback to prior
+  `/meridian/demo/last_good_tag`.
+
+### Expected Failover Behavior and Known Limits
+
+- With EC2 healthy: CloudFront serves full app from EC2 origin.
+- With EC2 unavailable or returning failover status codes for cacheable
+  requests: CloudFront serves launcher static page from S3.
+- Launcher page uses Function URL directly for `POST /start` and `GET /status`.
+
+Known v1 limits (intentional for minimal scope):
+
+- No captcha/rate limiting/WAF abuse controls.
+- No POST failover through CloudFront origin-group behavior; failover is for
+  cacheable origin fetch traffic, while control API is direct to Function URL.
+- Failover depends on origin DNS stability (`MERIDIAN_ORIGIN_DOMAIN`);
+  Elastic-IP-backed origin DNS is recommended.

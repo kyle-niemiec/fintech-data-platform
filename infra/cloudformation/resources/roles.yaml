@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Meridian demo launcher IAM role resources.
+
+Resources:
+  # Create IAM role for the Lambda function that stops the EC2 instance, with permissions to stop and describe instances.
+  LauncherStopFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: StopInstancePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:StopInstances
+                  - ec2:DescribeInstances
+                Resource: "*"
+
+  # Create IAM role for the Lambda function that serves as the public API for starting the demo and checking status.
+  LauncherControlFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: StartDescribeInstancePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:StartInstances
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - scheduler:GetSchedule
+                  - scheduler:CreateSchedule
+                Resource: "*"
+
+Outputs:
+  LauncherStopFunctionRoleArn:
+    Value: !GetAtt LauncherStopFunctionRole.Arn
+  LauncherControlFunctionRoleArn:
+    Value: !GetAtt LauncherControlFunctionRole.Arn

@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Meridian demo launcher Lambda function resources.
+
+Parameters:
+  DomainName:
+    Type: String
+  Ec2InstanceId:
+    Type: String
+  DemoTtlMinutes:
+    Type: Number
+  SchedulerGroupName:
+    Type: String
+  HealthCheckUrl:
+    Type: String
+  LauncherStopFunctionRoleArn:
+    Type: String
+  LauncherControlFunctionRoleArn:
+    Type: String
+
+Resources:
+  # Create the Lambda function that will be invoked by the scheduler to stop the EC2 instance when the TTL expires.
+  LauncherStopFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Stops the demo EC2 instance when TTL expires.
+      Handler: index.lambda_handler
+      Runtime: python3.12
+      Timeout: 15
+      MemorySize: 128
+      Role: !Ref LauncherStopFunctionRoleArn
+      Code: infra/cloudformation/lambda/demo_launcher_stop
+      Environment:
+        Variables:
+          INSTANCE_ID: !Ref Ec2InstanceId
+
+  # Create IAM role for EventBridge Scheduler with permissions to invoke the stop Lambda function.
+  SchedulerInvokeStopRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - scheduler.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeStopLambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt LauncherStopFunction.Arn
+
+  # Create the Lambda function that serves as the public API for starting the demo and checking status.
+  LauncherControlFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Public launcher API for demo start/status.
+      Handler: index.lambda_handler
+      Runtime: python3.12
+      Timeout: 20
+      MemorySize: 128
+      Role: !Ref LauncherControlFunctionRoleArn
+      Code: infra/cloudformation/lambda/demo_launcher_control
+      Environment:
+        Variables:
+          INSTANCE_ID: !Ref Ec2InstanceId
+          STOP_FUNCTION_ARN: !GetAtt LauncherStopFunction.Arn
+          SCHEDULER_ROLE_ARN: !GetAtt SchedulerInvokeStopRole.Arn
+          DEFAULT_TTL_MINUTES: !Ref DemoTtlMinutes
+          SCHEDULE_GROUP: !Ref SchedulerGroupName
+          SCHEDULE_NAME: !Sub meridian-demo-stop-${Ec2InstanceId}
+          APP_HEALTH_URL: !Ref HealthCheckUrl
+
+  # Create a Lambda function URL to provide a public endpoint for the launcher control API, with CORS configuration.
+  LauncherControlFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref LauncherControlFunction
+      AuthType: NONE
+      Cors:
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowOrigins:
+          - !Sub "https://${DomainName}"
+        AllowHeaders:
+          - "*"
+
+  # Create a permission to allow public invocation of the launcher control Lambda function via the function URL.
+  LauncherControlFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunctionUrl
+      FunctionName: !Ref LauncherControlFunction
+      FunctionUrlAuthType: NONE
+      Principal: "*"
+
+Outputs:
+  LauncherControlFunctionUrl:
+    Value: !GetAtt LauncherControlFunctionUrl.FunctionUrl

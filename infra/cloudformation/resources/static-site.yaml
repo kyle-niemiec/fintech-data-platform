@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Meridian demo launcher static site resources.
+
+Resources:
+  # Create the S3 bucket to host the launcher landing page with public read access and website configuration.
+  LauncherLandingBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  # Create a bucket policy to allow public read access to the launcher landing bucket.
+  LauncherLandingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref LauncherLandingBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowPublicReadForLauncher
+            Effect: Allow
+            Principal: "*"
+            Action:
+              - s3:GetObject
+            Resource: !Sub "${LauncherLandingBucket.Arn}/*"
+
+Outputs:
+  LauncherLandingBucketName:
+    Value: !Ref LauncherLandingBucket

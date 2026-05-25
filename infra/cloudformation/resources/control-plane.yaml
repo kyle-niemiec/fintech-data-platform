@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Meridian demo launcher Lambda control plane resources.
+
+Parameters:
+  DomainName:
+    Type: String
+  Ec2InstanceId:
+    Type: String
+  DemoTtlMinutes:
+    Type: Number
+  SchedulerGroupName:
+    Type: String
+  HealthCheckUrl:
+    Type: String
+
+Resources:
+  RoleResources:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: infra/cloudformation/resources/roles.yaml
+
+  LambdaFunctionResources:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: infra/cloudformation/resources/lambda-functions.yaml
+      Parameters:
+        DomainName: !Ref DomainName
+        Ec2InstanceId: !Ref Ec2InstanceId
+        DemoTtlMinutes: !Ref DemoTtlMinutes
+        SchedulerGroupName: !Ref SchedulerGroupName
+        HealthCheckUrl: !Ref HealthCheckUrl
+        LauncherStopFunctionRoleArn: !GetAtt RoleResources.Outputs.LauncherStopFunctionRoleArn
+        LauncherControlFunctionRoleArn: !GetAtt RoleResources.Outputs.LauncherControlFunctionRoleArn
+
+Outputs:
+  LauncherControlFunctionUrl:
+    Value: !GetAtt LambdaFunctionResources.Outputs.LauncherControlFunctionUrl

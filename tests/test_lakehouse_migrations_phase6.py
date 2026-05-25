@@ -1,4 +1,4 @@
-"""Ensure Phase 6 follow-on lakehouse migrations exist."""
+"""Ensure follow-on lakehouse migrations exist."""
 
 from __future__ import annotations
 

@@ -132,6 +132,40 @@ Phase 10 completion criteria:
 - Hosted compose layering enforces the public/private network boundary.
 - Operations runbook includes SSM-only admin access and tag-release flow.
 
+## Phase 11 - Same-Domain Demo Launcher (Scale-to-Zero)
+
+- Add in-repo CloudFormation stack (`infra/cloudformation/demo-launcher.yaml`)
+  for launcher infrastructure:
+  - CloudFront distribution on `meridian.codeflower.io`.
+  - Origin group failover:
+    - primary: EC2 app origin DNS (for example `meridian-origin.codeflower.io`)
+    - failover: S3 static launcher landing page.
+  - Public control Lambda Function URL (no auth in v1) with:
+    - `POST /start`
+    - `GET /status`
+  - Stop Lambda invoked by EventBridge Scheduler one-time schedule.
+  - Optional Route53 alias record creation when hosted zone id is provided.
+- Keep release contract tag-driven (`vMAJOR.MINOR.PATCH`) and preserve full app
+  rebuild on EC2 for every release tag.
+- Add conditional launcher-infra release stage:
+  - runs after integration gate
+  - applies launcher stack only when launcher assets/IaC changed, or when stack
+    does not yet exist.
+- Keep v1 abuse controls out of scope by design (no captcha/rate limit/WAF in
+  this phase).
+
+Phase 11 completion criteria:
+- Launcher stack template, Lambda handlers, and static landing assets exist in
+  repo.
+- Release workflow can conditionally package/deploy launcher infra and sync
+  landing assets.
+- Same demo domain serves app while EC2 is healthy and launcher page while EC2
+  is unavailable.
+- Start action from launcher creates a one-time auto-stop window (default
+  30 minutes) and repeated starts while running do not extend that window.
+- Operations docs define required variables/parameters and known failover
+  limitations (including no POST failover).
+
 # Cloud Setup Checklist (Phase 10 v1)
 
 Use this checklist to provision and validate the hosted demo path for
@@ -251,4 +285,3 @@ git push origin v1.0.0
 - [operations.md](operations.md) (Hosted CI/CD operations section)
 - [ci-cd.md](ci-cd.md) (contract and constraints)
 - [roadmap.md](roadmap.md) (Phase 10 scope and manual-provisioning status)
-

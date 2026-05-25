@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Meridian demo launcher CloudFront and Route53 edge resources.
+
+Parameters:
+  DomainName:
+    Type: String
+  OriginDomainName:
+    Type: String
+  AcmCertificateArn:
+    Type: String
+  HostedZoneId:
+    Type: String
+    Default: ""
+  LauncherLandingBucketName:
+    Type: String
+
+Conditions:
+  HasHostedZoneId: !Not [!Equals [!Ref HostedZoneId, ""]]
+
+Resources:
+  # Create the CloudFront distribution with two origins (EC2 app and S3 launcher) and origin failover config.
+  DemoCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: Meridian demo launcher with same-domain origin failover.
+        # Keep it cheap af, boi
+        PriceClass: PriceClass_100
+        HttpVersion: http2
+        IPV6Enabled: true
+        Aliases:
+          - !Ref DomainName
+        DefaultRootObject: index.html
+        ViewerCertificate:
+          AcmCertificateArn: !Ref AcmCertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          # Define the primary origin pointing to the EC2 app
+          - Id: ec2-app-origin
+            DomainName: !Ref OriginDomainName
+            CustomOriginConfig:
+              HTTPPort: 443
+              HTTPSPort: 443
+              OriginProtocolPolicy: http-only
+          # Define the secondary origin pointing to the S3 launcher site for failover
+          - Id: s3-launcher-origin
+            DomainName: !Sub "${LauncherLandingBucketName}.s3-website-${AWS::Region}.amazonaws.com"
+            CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: http-only
+        OriginGroups:
+          Quantity: 1
+          Items:
+            - Id: app-with-launcher-failover
+              FailoverCriteria:
+                StatusCodes:
+                  Quantity: 4
+                  Items:
+                    - 500
+                    - 502
+                    - 503
+                    - 504
+              Members:
+                Quantity: 2
+                # Define the order of failover origins, first EC2 and then S3 launcher
+                Items:
+                  - OriginId: ec2-app-origin
+                  - OriginId: s3-launcher-origin
+        DefaultCacheBehavior:
+          TargetOriginId: app-with-launcher-failover
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+
+  # Create a Route53 A record alias to point the demo domain to the CloudFront distribution.
+  DemoDnsAliasRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: HasHostedZoneId
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt DemoCloudFrontDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+
+Outputs:
+  CloudFrontDistributionId:
+    Value: !Ref DemoCloudFrontDistribution
+  CloudFrontDistributionDomainName:
+    Value: !GetAtt DemoCloudFrontDistribution.DomainName

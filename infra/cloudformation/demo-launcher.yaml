@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Meridian same-domain demo launcher with CloudFront origin failover and Lambda control API.
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: meridian.codeflower.io
+    Description: Public demo hostname served by CloudFront.
+  OriginDomainName:
+    Type: String
+    Description: EC2 app origin hostname used by CloudFront primary origin (for example meridian-origin.codeflower.io).
+  AcmCertificateArn:
+    Type: String
+    Description: ACM certificate ARN in us-east-1 for the public domain.
+  Ec2InstanceId:
+    Type: String
+    Description: Target EC2 instance ID for start/stop control.
+  DemoTtlMinutes:
+    Type: Number
+    Default: 30
+    MinValue: 5
+    MaxValue: 180
+    Description: Demo runtime window in minutes before one-time auto-stop.
+  HostedZoneId:
+    Type: String
+    Default: ""
+    Description: Optional Route53 hosted zone id for DomainName. Leave empty to skip DNS record creation.
+  HealthCheckUrl:
+    Type: String
+    Default: ""
+    Description: Optional app health URL for readiness checks (for example http://meridian-origin.codeflower.io:443/).
+  SchedulerGroupName:
+    Type: String
+    Default: default
+    Description: EventBridge Scheduler group name for one-time stop schedule.
+
+Conditions:
+  HasHostedZoneId: !Not [!Equals [!Ref HostedZoneId, ""]]
+  HasHealthCheckUrl: !Not [!Equals [!Ref HealthCheckUrl, ""]]
+
+Resources:
+  StaticSiteResources:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: infra/cloudformation/resources/static-site.yaml
+
+  ControlPlaneResources:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: infra/cloudformation/resources/control-plane.yaml
+      Parameters:
+        DomainName: !Ref DomainName
+        Ec2InstanceId: !Ref Ec2InstanceId
+        DemoTtlMinutes: !Ref DemoTtlMinutes
+        SchedulerGroupName: !Ref SchedulerGroupName
+        HealthCheckUrl: !If [HasHealthCheckUrl, !Ref HealthCheckUrl, ""]
+
+  EdgeResources:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: infra/cloudformation/resources/cloudfront.yaml
+      Parameters:
+        DomainName: !Ref DomainName
+        OriginDomainName: !Ref OriginDomainName
+        AcmCertificateArn: !Ref AcmCertificateArn
+        HostedZoneId: !If [HasHostedZoneId, !Ref HostedZoneId, ""]
+        LauncherLandingBucketName: !GetAtt StaticSiteResources.Outputs.LauncherLandingBucketName
+
+# Define outputs to easily retrieve important information about the deployed resources.
+Outputs:
+  CloudFrontDistributionId:
+    Value: !GetAtt EdgeResources.Outputs.CloudFrontDistributionId
+  CloudFrontDistributionDomainName:
+    Value: !GetAtt EdgeResources.Outputs.CloudFrontDistributionDomainName
+  LauncherLandingBucketName:
+    Value: !GetAtt StaticSiteResources.Outputs.LauncherLandingBucketName
+  LauncherControlFunctionUrl:
+    Value: !GetAtt ControlPlaneResources.Outputs.LauncherControlFunctionUrl

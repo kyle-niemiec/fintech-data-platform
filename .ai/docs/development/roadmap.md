@@ -132,3 +132,35 @@ Legend:
   flow, rollback policy, ingress policy, and deploy-only env rotation.
 - [ ] AWS account provisioning (EC2/IAM/OIDC trust/SG/DNS) remains manual in v1
   and is not automated by Terraform in this phase.
+
+## Phase 11 - Same-Domain Demo Launcher (Scale-to-Zero)
+
+- [x] CloudFormation launcher stack template added at
+  `infra/cloudformation/demo-launcher.yaml` with:
+  - [x] CloudFront distribution for `meridian.codeflower.io`.
+  - [x] Origin failover group (EC2 origin -> S3 launcher bucket) with
+    `500/502/503/504` failover criteria.
+  - [x] Public control Lambda Function URL (`POST /start`, `GET /status`).
+  - [x] Stop Lambda + EventBridge Scheduler invoke role.
+  - [x] Optional Route53 alias creation when hosted zone id is provided.
+- [x] Launcher control implementation exists in repo:
+  - [x] Control Lambda starts stopped EC2 instances and creates one-time
+    auto-stop schedules.
+  - [x] Repeated `POST /start` while instance is not `stopped` does not extend
+    the stop window.
+  - [x] Status endpoint returns instance state, stop schedule timestamp, and
+    app readiness.
+- [x] Static launcher landing assets exist and are parameterized at deploy time
+  with Function URL + demo host.
+- [x] Release workflow integrates launcher stage between integration gate and
+  EC2 deploy:
+  - [x] detects launcher-related changes against previous semver tag.
+  - [x] forces apply when launcher stack is missing.
+  - [x] skips launcher apply when unchanged and stack already exists.
+- [x] Deterministic helper script
+  `infra/ops/deploy_demo_launcher_stack.sh` packages/deploys the stack and syncs
+  launcher static assets.
+- [x] Planning operations/roadmap docs updated for Phase 11 architecture and
+  runbook contracts.
+- [ ] AWS account resources and release variables required by launcher remain
+  manual provisioning and environment wiring in v1.
