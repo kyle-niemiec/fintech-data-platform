@@ -21,6 +21,10 @@ INFRA_ENV_FILE := infra/.env
 TERRAFORM_BOOTSTRAP_DIR := infra/terraform/bootstrap
 TERRAFORM_IDENTITY_DIR := infra/terraform/identity
 TF_RUNNER_SERVICE := terraform_runner
+# Use the caller's host UID/GID so bind-mounted Terraform state files remain writable.
+HOST_UID ?= $(shell id -u)
+HOST_GID ?= $(shell id -g)
+export HOST_UID HOST_GID
 COMPOSE := docker compose $(foreach file,$(COMPOSE_FILES),-f $(file)) --env-file $(INFRA_ENV_FILE)
 COMPOSE_DEV := docker compose $(foreach file,$(COMPOSE_FILES_DEV),-f $(file)) --env-file $(INFRA_ENV_FILE)
 
@@ -82,6 +86,7 @@ help:
 
 infra-up:
 	@if [ -z "$(INFRA_UP_STEP)" ]; then \
+		set -e; \
 		$(MAKE) infra-tf-init; \
 		$(MAKE) infra-pg-up; \
 		$(MAKE) infra-tf-bootstrap; \

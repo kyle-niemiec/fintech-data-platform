@@ -165,7 +165,7 @@ services:
       - platform_internal
 
   redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda:v24.2.18
+    image: docker.io/redpandadata/redpanda:v24.2.18
     container_name: fintech_redpanda
     restart: unless-stopped
     command:
@@ -199,7 +199,7 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/terraform-runner/Dockerfile
-    user: "1000:1000"
+    user: "${HOST_UID}:${HOST_GID}"
     working_dir: /workspace
     volumes:
       - ../:/workspace

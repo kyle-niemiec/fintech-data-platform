@@ -176,14 +176,14 @@ Phase 10/11 deployment contracts.
 
 ## 0) Preconditions
 
-- [✅] Repo is public (required for free-first GitHub Actions posture).
-- [✅] You have AWS console access with permission to create EC2, IAM roles,
+- [x] Repo is public (required for free-first GitHub Actions posture).
+- [x] You have AWS console access with permission to create EC2, IAM roles,
   security groups, and SSM parameters.
-- [✅] Domain control is available for `codeflower.io`.
+- [x] Domain control is available for `codeflower.io`.
 
 ## 1) Create EC2 Host (Single Instance)
 
-- [ ] Launch one Linux EC2 instance for the demo host.
+- [x] Launch one Linux EC2 instance for the demo host.
 - [ ] Attach an instance profile/role that allows:
   - SSM core access (Session Manager + Run Command).
   - SSM Parameter Store read/write for:

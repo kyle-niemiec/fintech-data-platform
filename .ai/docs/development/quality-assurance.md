@@ -61,3 +61,16 @@
   - Production stack render with generated deterministic env.
   - Dev stack render with generated deterministic env + `infra/compose/dev/demo-ui-access.yaml` + existing dev overlays.
   - Result: production render confirms only UI publishes host port `443`; dev render confirms localhost ports for UI/API/Keycloak/Airflow/MinIO/pgAdmin.
+
+## CI/CD Stability Hardening Verification (May 25, 2026)
+- Shell and workflow syntax checks:
+  - `bash -n infra/ops/run_integration_stack.sh`
+  - `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/integration-nightly.yml"); YAML.load_file(".github/workflows/release-tag-deploy.yml")'`
+  - Result: syntax/parse clean.
+- Full staged bring-up check:
+  - `make infra-clean && make infra-up`
+  - Result: success through all staged steps; no Terraform `terraform.tfstate` permission errors observed.
+- Redpanda pull behavior:
+  - `infra-up` pulled `docker.io/redpandadata/redpanda:v24.2.18` successfully during local verification.
+- Airflow dependency alignment:
+  - Pipeline orchestrator image build installed `pyarrow-18.1.0` with no provider conflict warning about `pyarrow>=18`.

@@ -42,6 +42,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Authenticate Docker Hub (optional)
+        uses: ./.github/actions/dockerhub-auth
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          token: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Run full integration gate
         run: bash infra/ops/run_integration_stack.sh
 

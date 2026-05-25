@@ -1,6 +1,6 @@
 # Roadmap Progress Tracker
 
-Last audited against repository state: **May 23, 2026**.
+Last audited against repository state: **May 25, 2026**.
 
 Legend:
 - `[x]` complete
@@ -130,6 +130,11 @@ Legend:
   `VITE_RELEASE_TAG`; footer displays `Version vX.Y.Z` only when present.
 - [x] Operations/planning docs are updated to capture CI lanes, SSM-only deploy
   flow, rollback policy, ingress policy, and deploy-only env rotation.
+- [x] Integration/deploy gate hardening is applied: Redpanda image references
+  aligned to Docker Hub, optional Docker Hub auth step added to gate workflows,
+  Terraform runner UID/GID mapping moved to host-derived values, `infra-up`
+  default sequence is fail-fast, and integration test execution now collects
+  deterministic error diagnostics and uses dual-network container attachment.
 - [ ] AWS account provisioning (EC2/IAM/OIDC trust/SG/DNS) remains manual in v1
   and is not automated by Terraform in this phase.
 

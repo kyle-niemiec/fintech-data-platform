@@ -1,0 +1,27 @@
+name: "Authenticate Docker Hub (optional)"
+description: "Logs into Docker Hub when username/token inputs are provided; otherwise warns and continues."
+inputs:
+  username:
+    description: "Docker Hub username"
+    required: false
+    default: ""
+  token:
+    description: "Docker Hub access token"
+    required: false
+    default: ""
+runs:
+  using: "composite"
+  steps:
+    - name: Authenticate Docker Hub if secrets are set
+      shell: bash
+      env:
+        DOCKERHUB_USERNAME: ${{ inputs.username }}
+        DOCKERHUB_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        if [ -n "${DOCKERHUB_USERNAME}" ] && [ -n "${DOCKERHUB_TOKEN}" ]; then
+          echo "${DOCKERHUB_TOKEN}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
+          echo "Docker Hub authentication enabled."
+        else
+          echo "WARNING: DOCKERHUB_USERNAME/DOCKERHUB_TOKEN not set; continuing unauthenticated (pull rate limits may apply)." >&2
+        fi
