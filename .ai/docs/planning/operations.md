@@ -507,12 +507,22 @@ CI/CD target in [ci-cd.md](ci-cd.md).
 
 Required GitHub configuration for release deploy lane:
 - Secret: `AWS_ROLE_TO_ASSUME`
-- Repository variables:
+- Repository variables (Phase 10 core):
   - `AWS_REGION`
   - `MERIDIAN_EC2_INSTANCE_ID`
   - `MERIDIAN_HOSTED_DOMAIN` (optional; defaults to `meridian.codeflower.io`)
   - `MERIDIAN_CURRENT_TAG_PARAM` (optional; defaults to `/meridian/demo/current_tag`)
   - `MERIDIAN_LAST_GOOD_TAG_PARAM` (optional; defaults to `/meridian/demo/last_good_tag`)
+- Repository variables (Phase 11 launcher stage):
+  - `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET`
+  - `MERIDIAN_ORIGIN_DOMAIN`
+  - `MERIDIAN_ACM_CERT_ARN`
+  - Optional:
+    - `MERIDIAN_LAUNCHER_STACK_NAME`
+    - `MERIDIAN_DEMO_TTL_MINUTES`
+    - `MERIDIAN_HOSTED_ZONE_ID`
+    - `MERIDIAN_ORIGIN_HEALTHCHECK_URL`
+    - `MERIDIAN_SCHEDULER_GROUP`
 
 ### Tag Release Flow (Deploy)
 
@@ -546,7 +556,8 @@ Required GitHub configuration for release deploy lane:
 
 1. Checkout target tag.
 2. `make infra-clean`.
-3. Generate a new random `infra/.env` (`infra/ops/generate_env.sh --mode random`).
+3. Generate a new random `infra/.env` using `infra/ops/generate_env.sh`
+   (env-driven invocation: `MODE=random OUTPUT=infra/.env ...`).
 4. Apply hosted deploy values:
    - `UI_ORIGIN=https://meridian.codeflower.io`
    - `UI_API_URL=` (empty => same-origin API calls using native route paths)
@@ -700,6 +711,7 @@ Stop Lambda -> EC2 StopInstances
 - Stop Lambda code: `infra/cloudformation/lambda/demo_launcher_stop/index.py`
 - Landing assets: `infra/cloudformation/launcher-site/*`
 - Deploy helper: `infra/ops/deploy_demo_launcher_stack.sh`
+- SSM dispatch helper (release deploy path): `infra/ops/ssm_send_deploy_command.sh`
 
 ### Required AWS Inputs and Repository Variables
 
@@ -750,14 +762,14 @@ EC2 application deploy behavior in step 4 remains unchanged:
 Use this when validating outside of tag release runs:
 
 ```bash
-bash infra/ops/deploy_demo_launcher_stack.sh \
-  --artifact-bucket "$MERIDIAN_LAUNCHER_ARTIFACT_BUCKET" \
-  --origin-domain "meridian-origin.codeflower.io" \
-  --acm-cert-arn "$MERIDIAN_ACM_CERT_ARN" \
-  --instance-id "$MERIDIAN_EC2_INSTANCE_ID" \
-  --domain "meridian.codeflower.io" \
-  --region "us-east-1" \
-  --ttl-minutes 30
+MERIDIAN_LAUNCHER_ARTIFACT_BUCKET="<artifact-bucket>" \
+MERIDIAN_ORIGIN_DOMAIN="meridian-origin.codeflower.io" \
+MERIDIAN_ACM_CERT_ARN="<acm-cert-arn>" \
+MERIDIAN_EC2_INSTANCE_ID="<instance-id>" \
+MERIDIAN_HOSTED_DOMAIN="meridian.codeflower.io" \
+AWS_REGION="us-east-1" \
+MERIDIAN_DEMO_TTL_MINUTES="30" \
+bash infra/ops/deploy_demo_launcher_stack.sh
 ```
 
 ### Rollback Behavior

@@ -166,13 +166,13 @@ Phase 11 completion criteria:
 - Operations docs define required variables/parameters and known failover
   limitations (including no POST failover).
 
-# Cloud Setup Checklist (Phase 10 v1)
+# Cloud Setup Checklist (Phase 10/11 v1)
 
 Use this checklist to provision and validate the hosted demo path for
 `meridian.codeflower.io`.
 
 Scope: manual AWS provisioning + GitHub workflow wiring for the existing
-Phase 10 deployment contract.
+Phase 10/11 deployment contracts.
 
 ## 0) Preconditions
 
@@ -210,6 +210,9 @@ Phase 10 deployment contract.
   endpoint (Elastic IP recommended for stability).
 - [ ] Confirm name resolution:
   - `dig meridian.codeflower.io +short`
+- [ ] Create origin DNS for CloudFront primary origin
+  (for example `meridian-origin.codeflower.io`) pointing to the same EC2
+  endpoint used by the hosted demo app.
 
 ## 4) Create GitHub OIDC Deploy Role in AWS
 
@@ -221,6 +224,11 @@ Phase 10 deployment contract.
   - SSM Run Command on target instance.
   - SSM command invocation reads.
   - SSM Parameter Store get/put for release state paths.
+  - Phase 11 launcher apply permissions:
+    - CloudFormation create/update/describe
+    - S3 read/write for launcher artifact packaging + landing asset sync
+    - Permissions required by launcher stack resources
+      (Lambda, IAM role creation/pass, Scheduler, CloudFront, Route53 as used).
 
 ## 5) Configure GitHub Repo Settings
 
@@ -234,6 +242,23 @@ In `Settings -> Secrets and variables -> Actions`:
   - `MERIDIAN_HOSTED_DOMAIN` = `meridian.codeflower.io` (optional but recommended)
   - `MERIDIAN_CURRENT_TAG_PARAM` = `/meridian/demo/current_tag` (optional)
   - `MERIDIAN_LAST_GOOD_TAG_PARAM` = `/meridian/demo/last_good_tag` (optional)
+  - `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET` (required for Phase 11 launcher stage)
+  - `MERIDIAN_ORIGIN_DOMAIN` (required for Phase 11; example `meridian-origin.codeflower.io`)
+  - `MERIDIAN_ACM_CERT_ARN` (required for Phase 11; ACM cert in `us-east-1`)
+  - Optional Phase 11 variables:
+    - `MERIDIAN_LAUNCHER_STACK_NAME`
+    - `MERIDIAN_DEMO_TTL_MINUTES`
+    - `MERIDIAN_HOSTED_ZONE_ID`
+    - `MERIDIAN_ORIGIN_HEALTHCHECK_URL`
+    - `MERIDIAN_SCHEDULER_GROUP`
+
+## 5.5) Phase 11 Prerequisites (CloudFront/Launcher)
+
+- [ ] Ensure ACM certificate for `meridian.codeflower.io` exists in `us-east-1`.
+- [ ] Create/choose S3 bucket for launcher stack packaging artifacts
+  (`MERIDIAN_LAUNCHER_ARTIFACT_BUCKET`).
+- [ ] Ensure Route53 hosted zone id is known if you want stack-driven alias
+  creation (`MERIDIAN_HOSTED_ZONE_ID`).
 
 ## 6) Validate SSM Connectivity Before First Release
 
@@ -255,6 +280,7 @@ git push origin v1.0.0
   - semver validation
   - main-ancestry validation
   - integration gate
+  - conditional launcher-infra stage behavior (apply or skip)
   - AWS OIDC auth
   - SSM deploy execution
 
@@ -267,6 +293,10 @@ git push origin v1.0.0
 - [ ] Confirm release state parameters are updated:
   - `/meridian/demo/current_tag`
   - `/meridian/demo/last_good_tag`
+- [ ] Confirm launcher failover behavior:
+  - with EC2 stopped/unhealthy, `https://meridian.codeflower.io` serves launcher page
+  - `POST /start` from launcher initiates instance start
+  - once app is healthy, same URL serves full app.
 
 ## 9) Rollback Readiness Check
 
