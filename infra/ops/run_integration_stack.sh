@@ -28,8 +28,8 @@ cleanup() {
 trap cleanup EXIT
 
 # Clean and set up the infrastructure for the integration tests
-make infra-clean >/dev/null 2>&1 || true
-make infra-up
+# make infra-clean >/dev/null 2>&1 || true
+# make infra-up
 
 # Resolve the network names for the public and internal networks created by Docker Compose.
 PUBLIC_NETWORK_NAME="$(docker network ls --format '{{.Name}}' | grep -E '_platform_public$' | head -n1 || true)"
