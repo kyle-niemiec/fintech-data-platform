@@ -65,6 +65,8 @@ cleanup() {
 trap cleanup EXIT
 
 # Package the CloudFormation template, uploading assets to S3 as needed.
+printf 'Packaging CloudFormation template...\n'
+
 aws --region "$REGION" cloudformation package \
 	--template-file "$TEMPLATE_FILE" \
 	--s3-bucket "$ARTIFACT_BUCKET" \
@@ -87,6 +89,8 @@ if [ -n "$HOSTED_ZONE_ID" ]; then
 fi
 
 # Deploy the CloudFormation stack using the packaged template and specified parameters.
+printf 'Deploying CloudFormation stack "%s" in region "%s"...\n' "$STACK_NAME" "$REGION"
+
 aws --region "$REGION" cloudformation deploy \
 	--stack-name "$STACK_NAME" \
 	--template-file "$packaged_template" \
@@ -114,11 +118,15 @@ sed -i "s|__CONTROL_API_BASE__|${control_api_url}|g" "$asset_stage_dir/app.js"
 sed -i "s|__DEMO_HOST__|https://${DOMAIN}|g" "$asset_stage_dir/app.js"
 
 # Sync the processed assets to the S3 bucket.
+printf 'Syncing launcher UI assets to S3 bucket "%s"...\n' "$landing_bucket"
+
 aws --region "$REGION" s3 sync "$asset_stage_dir" "s3://${landing_bucket}" \
 	--delete \
 	--cache-control "public, max-age=60"
 
 # Copy index.html separately with no-cache headers.
+printf 'Uploading index.html with no-cache headers...\n'
+
 aws --region "$REGION" s3 cp "$asset_stage_dir/index.html" "s3://${landing_bucket}/index.html" \
 	--cache-control "no-cache, no-store, must-revalidate" \
 	--content-type "text/html"

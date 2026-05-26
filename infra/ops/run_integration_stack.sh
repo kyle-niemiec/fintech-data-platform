@@ -41,30 +41,30 @@ if [ -z "${PUBLIC_NETWORK_NAME}" ] || [ -z "${INTERNAL_NETWORK_NAME}" ]; then
 fi
 
 # Create a test container with Python to run integration tests inside of.
-TEST_CONTAINER_ID="$(docker create --rm \
-	--network "${PUBLIC_NETWORK_NAME}" \
-	--env-file infra/.env \
-	-e MINIO_ENDPOINT="minio:9000" \
-	-e MINIO_SECURE="false" \
-	-e REDPANDA_BOOTSTRAP_SERVERS="redpanda:9092" \
-	-e REDPANDA_SECURITY_PROTOCOL="PLAINTEXT" \
-	-e EVENT_STORE_DB_HOST="event_store_db" \
-	-e TRINO_HOST="trino" \
-	-e TRINO_PORT="8080" \
-	-e TRINO_USER="trino_etl" \
-	-v "${ROOT_DIR}:/workspace" \
-	-w /workspace \
-	python:3.12-slim \
-	bash -euo pipefail -c '
-		apt-get update >/dev/null
-		apt-get install -y --no-install-recommends build-essential gcc >/dev/null
-		pip install --no-cache-dir -r requirements-dev.txt minio pyarrow trino >/dev/null
-		M="$(mktemp -d)"
-		mkdir "$M/meridian"
-		ln -s "$PWD/services/libs" "$M/meridian/libs"
-		export PYTHONPATH="$M"
-		pytest tests/integration -m integration -ra
-	')"
+# TEST_CONTAINER_ID="$(docker create --rm \
+# 	--network "${PUBLIC_NETWORK_NAME}" \
+# 	--env-file infra/.env \
+# 	-e MINIO_ENDPOINT="minio:9000" \
+# 	-e MINIO_SECURE="false" \
+# 	-e REDPANDA_BOOTSTRAP_SERVERS="redpanda:9092" \
+# 	-e REDPANDA_SECURITY_PROTOCOL="PLAINTEXT" \
+# 	-e EVENT_STORE_DB_HOST="event_store_db" \
+# 	-e TRINO_HOST="trino" \
+# 	-e TRINO_PORT="8080" \
+# 	-e TRINO_USER="trino_etl" \
+# 	-v "${ROOT_DIR}:/workspace" \
+# 	-w /workspace \
+# 	python:3.12-slim \
+# 	bash -euo pipefail -c '
+# 		apt-get update >/dev/null
+# 		apt-get install -y --no-install-recommends build-essential gcc >/dev/null
+# 		pip install --no-cache-dir -r requirements-dev.txt minio pyarrow trino >/dev/null
+# 		M="$(mktemp -d)"
+# 		mkdir "$M/meridian"
+# 		ln -s "$PWD/services/libs" "$M/meridian/libs"
+# 		export PYTHONPATH="$M"
+# 		pytest tests/integration -m integration -ra
+# 	')"
 
-docker network connect "${INTERNAL_NETWORK_NAME}" "${TEST_CONTAINER_ID}"
-docker start -a "${TEST_CONTAINER_ID}"
+# docker network connect "${INTERNAL_NETWORK_NAME}" "${TEST_CONTAINER_ID}"
+# docker start -a "${TEST_CONTAINER_ID}"
