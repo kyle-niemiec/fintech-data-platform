@@ -133,7 +133,7 @@ def test_build_minio_client_uses_expected_env(monkeypatch) -> None:
     monkeypatch.setenv("MINIO_INGEST_USER", "ingest-user")
     monkeypatch.setenv("MINIO_INGEST_SECRET", "ingest-secret")
     monkeypatch.setenv("MINIO_SECURE", "true")
-    monkeypatch.setenv("MINIO_REGION", "us-east-1")
+    monkeypatch.setenv("MINIO_REGION", "us-east-2")
 
     captured = {}
 
@@ -150,7 +150,7 @@ def test_build_minio_client_uses_expected_env(monkeypatch) -> None:
     )
 
     assert isinstance(client, _FakeMinio)
-    assert captured["args"] == ("minio:9000", "ingest-user", "ingest-secret", True, "us-east-1")
+    assert captured["args"] == ("minio:9000", "ingest-user", "ingest-secret", True, "us-east-2")
 
 
 def test_build_event_producer_uses_from_env(monkeypatch) -> None:

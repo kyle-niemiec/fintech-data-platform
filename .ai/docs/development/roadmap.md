@@ -135,7 +135,7 @@ Legend:
   Terraform runner UID/GID mapping moved to host-derived values, `infra-up`
   default sequence is fail-fast, and integration test execution now collects
   deterministic error diagnostics and uses dual-network container attachment.
-- [ ] AWS account provisioning (EC2/IAM/OIDC trust/SG/DNS) remains manual in v1
+- [x] AWS account provisioning (EC2/IAM/OIDC trust/SG/DNS) remains manual in v1
   and is not automated by Terraform in this phase.
 
 ## Phase 11 - Same-Domain Demo Launcher (Scale-to-Zero)
@@ -167,5 +167,5 @@ Legend:
   launcher static assets.
 - [x] Planning operations/roadmap docs updated for Phase 11 architecture and
   runbook contracts.
-- [ ] AWS account resources and release variables required by launcher remain
+- [x] AWS account resources and release variables required by launcher remain
   manual provisioning and environment wiring in v1.

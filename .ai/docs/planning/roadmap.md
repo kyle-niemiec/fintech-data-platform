@@ -184,43 +184,43 @@ Phase 10/11 deployment contracts.
 ## 1) Create EC2 Host (Single Instance)
 
 - [x] Launch one Linux EC2 instance for the demo host.
-- [ ] Attach an instance profile/role that allows:
+- [x] Attach an instance profile/role that allows:
   - SSM core access (Session Manager + Run Command).
   - SSM Parameter Store read/write for:
     - `/meridian/demo/current_tag`
     - `/meridian/demo/last_good_tag`
-- [ ] Ensure SSM Agent is active and instance shows as managed in
+- [x] Ensure SSM Agent is active and instance shows as managed in
   AWS Systems Manager.
-- [ ] Install runtime prerequisites on host:
+- [x] Install runtime prerequisites on host:
   - `git`
   - `docker` + Compose plugin
   - `make`
-- [ ] Verify Docker is usable by the deploy user.
+- [x] Verify Docker is usable by the deploy user.
 
 ## 2) Configure Security Group
 
-- [ ] Inbound: allow `443/tcp` from internet.
-- [ ] Inbound: do not expose admin/service ports publicly (`8080`, `8180`,
+- [x] Inbound: allow `443/tcp` from internet.
+- [x] Inbound: do not expose admin/service ports publicly (`8080`, `8180`,
   `5050`, `9001`, database/broker ports).
-- [ ] Outbound: allow required egress for package/image pulls and AWS APIs.
+- [x] Outbound: allow required egress for package/image pulls and AWS APIs.
 
 ## 3) Configure DNS
 
-- [ ] Create DNS record for `meridian.codeflower.io` pointing to the EC2 public
+- [x] Create DNS record for `meridian.codeflower.io` pointing to the EC2 public
   endpoint (Elastic IP recommended for stability).
-- [ ] Confirm name resolution:
+- [x] Confirm name resolution:
   - `dig meridian.codeflower.io +short`
-- [ ] Create origin DNS for CloudFront primary origin
+- [x] Create origin DNS for CloudFront primary origin
   (for example `meridian-origin.codeflower.io`) pointing to the same EC2
   endpoint used by the hosted demo app.
 
 ## 4) Create GitHub OIDC Deploy Role in AWS
 
-- [ ] Create IAM OIDC provider for GitHub Actions (if not already present):
+- [x] Create IAM OIDC provider for GitHub Actions (if not already present):
   `token.actions.githubusercontent.com`.
-- [ ] Create IAM role trusted by GitHub OIDC for this repo.
-- [ ] Trust policy restricts `sub` to your repo (and optionally branch/tag refs).
-- [ ] Attach permissions for deployment workflow:
+- [x] Create IAM role trusted by GitHub OIDC for this repo.
+- [x] Trust policy restricts `sub` to your repo (and optionally branch/tag refs).
+- [x] Attach permissions for deployment workflow:
   - SSM Run Command on target instance.
   - SSM command invocation reads.
   - SSM Parameter Store get/put for release state paths.
@@ -234,17 +234,17 @@ Phase 10/11 deployment contracts.
 
 In `Settings -> Secrets and variables -> Actions`:
 
-- [ ] Add secret:
+- [x] Add secret:
   - `AWS_ROLE_TO_ASSUME` = IAM role ARN from step 4.
 - [ ] Add variables:
-  - `AWS_REGION` (for example `us-east-1`)
-  - `MERIDIAN_EC2_INSTANCE_ID` (target demo host)
-  - `MERIDIAN_HOSTED_DOMAIN` = `meridian.codeflower.io` (optional but recommended)
-  - `MERIDIAN_CURRENT_TAG_PARAM` = `/meridian/demo/current_tag` (optional)
-  - `MERIDIAN_LAST_GOOD_TAG_PARAM` = `/meridian/demo/last_good_tag` (optional)
-  - `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET` (required for Phase 11 launcher stage)
-  - `MERIDIAN_ORIGIN_DOMAIN` (required for Phase 11; example `meridian-origin.codeflower.io`)
-  - `MERIDIAN_ACM_CERT_ARN` (required for Phase 11; ACM cert in `us-east-1`)
+  - x `AWS_REGION` (for example `us-east-2`)
+  - x `MERIDIAN_EC2_INSTANCE_ID` (target demo host)
+  - x `MERIDIAN_HOSTED_DOMAIN` = `meridian.codeflower.io` (optional but recommended)
+  - x `MERIDIAN_CURRENT_TAG_PARAM` = `/meridian/demo/current_tag` (optional)
+  - x `MERIDIAN_LAST_GOOD_TAG_PARAM` = `/meridian/demo/last_good_tag` (optional)
+  - x `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET` (required for Phase 11 launcher stage)
+  - x `MERIDIAN_ORIGIN_DOMAIN` (required for Phase 11; example `meridian-origin.codeflower.io`)
+  - `MERIDIAN_ACM_CERT_ARN` (required for Phase 11; ACM cert in `us-east-2`)
   - Optional Phase 11 variables:
     - `MERIDIAN_LAUNCHER_STACK_NAME`
     - `MERIDIAN_DEMO_TTL_MINUTES`
@@ -254,15 +254,15 @@ In `Settings -> Secrets and variables -> Actions`:
 
 ## 5.5) Phase 11 Prerequisites (CloudFront/Launcher)
 
-- [ ] Ensure ACM certificate for `meridian.codeflower.io` exists in `us-east-1`.
-- [ ] Create/choose S3 bucket for launcher stack packaging artifacts
+- [ ] Ensure ACM certificate for `meridian.codeflower.io` exists in `us-east-2`.
+- [x] Create/choose S3 bucket for launcher stack packaging artifacts
   (`MERIDIAN_LAUNCHER_ARTIFACT_BUCKET`).
 - [ ] Ensure Route53 hosted zone id is known if you want stack-driven alias
   creation (`MERIDIAN_HOSTED_ZONE_ID`).
 
 ## 6) Validate SSM Connectivity Before First Release
 
-- [ ] From your workstation, confirm the instance is managed:
+- [x] From your workstation, confirm the instance is managed:
   - `aws ssm describe-instance-information`
 - [ ] Smoke-test Run Command:
   - Send `echo ok` to the instance and confirm success.

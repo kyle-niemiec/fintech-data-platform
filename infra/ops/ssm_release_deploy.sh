@@ -15,7 +15,7 @@ INSTANCE_ID="${INSTANCE_ID:-${MERIDIAN_EC2_INSTANCE_ID:-}}"
 TAG="${TAG:-${GITHUB_REF_NAME:-}}"
 REPO_URL="${REPO_URL:-}"
 DOMAIN="${DOMAIN:-meridian.codeflower.io}"
-AWS_REGION="${AWS_REGION:-us-east-1}"
+AWS_REGION="${AWS_REGION:-us-east-2}"
 CURRENT_PARAM="${CURRENT_PARAM:-/meridian/demo/current_tag}"
 LAST_GOOD_PARAM="${LAST_GOOD_PARAM:-/meridian/demo/last_good_tag}"
 

@@ -1,7 +1,7 @@
 # AI Context Root
 
 ## Project Overview
-Fintech Data Platform is an event-driven, compliance-aligned data engineering project with infrastructure-as-code and read-only UI/API surfaces.
+Meridian Fintech Demo is an event-driven, compliance-aligned data engineering project with infrastructure-as-code and read-only UI/API surfaces.
 
 ## What Lives Here
 - `.ai/README.md`: root context map and conflict-precedence rules.

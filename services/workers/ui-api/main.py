@@ -8,7 +8,7 @@ from routes.demo_upload import router as demo_upload_router
 from routes.metrics import router as metrics_router
 from routes.ui_query import router as ui_query_router
 
-app = FastAPI(title="Fintech Data Platform API")
+app = FastAPI(title="Meridian Fintech Demo API")
 
 app.add_middleware(
     CORSMiddleware,

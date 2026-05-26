@@ -10,7 +10,7 @@ set -euo pipefail
 #
 # Configuration is driven by environment variables:
 #   MERIDIAN_LAUNCHER_STACK_NAME      (default: meridian-demo-launcher)
-#   AWS_REGION                        (default: us-east-1)
+#   AWS_REGION                        (default: us-east-2)
 #   MERIDIAN_LAUNCHER_ARTIFACT_BUCKET
 #   MERIDIAN_HOSTED_DOMAIN            (default: meridian.codeflower.io)
 #   MERIDIAN_ORIGIN_DOMAIN
@@ -22,7 +22,7 @@ set -euo pipefail
 #   MERIDIAN_SCHEDULER_GROUP          (default: default)
 
 STACK_NAME="${MERIDIAN_LAUNCHER_STACK_NAME:-meridian-demo-launcher}"
-REGION="${AWS_REGION:-us-east-1}"
+REGION="${AWS_REGION:-us-east-2}"
 TEMPLATE_FILE="infra/cloudformation/demo-launcher.yaml"
 ASSETS_DIR="infra/cloudformation/launcher-site"
 ARTIFACT_BUCKET="${MERIDIAN_LAUNCHER_ARTIFACT_BUCKET:-}"

@@ -720,11 +720,11 @@ Release workflow (`release-tag-deploy.yml`) launcher stage requires:
 - Secret:
   - `AWS_ROLE_TO_ASSUME`
 - Variables:
-  - `AWS_REGION` (default used when omitted: `us-east-1`)
+  - `AWS_REGION` (default used when omitted: `us-east-2`)
   - `MERIDIAN_EC2_INSTANCE_ID`
   - `MERIDIAN_HOSTED_DOMAIN` (default `meridian.codeflower.io`)
   - `MERIDIAN_ORIGIN_DOMAIN` (for example `meridian-origin.codeflower.io`)
-  - `MERIDIAN_ACM_CERT_ARN` (certificate must exist in `us-east-1`)
+  - `MERIDIAN_ACM_CERT_ARN` (certificate must exist in `us-east-2`)
   - `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET` (for `cloudformation package`)
   - Optional:
     - `MERIDIAN_LAUNCHER_STACK_NAME` (default `meridian-demo-launcher`)
@@ -767,7 +767,7 @@ MERIDIAN_ORIGIN_DOMAIN="meridian-origin.codeflower.io" \
 MERIDIAN_ACM_CERT_ARN="<acm-cert-arn>" \
 MERIDIAN_EC2_INSTANCE_ID="<instance-id>" \
 MERIDIAN_HOSTED_DOMAIN="meridian.codeflower.io" \
-AWS_REGION="us-east-1" \
+AWS_REGION="us-east-2" \
 MERIDIAN_DEMO_TTL_MINUTES="30" \
 bash infra/ops/deploy_demo_launcher_stack.sh
 ```

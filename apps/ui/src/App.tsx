@@ -28,7 +28,7 @@ export default function App() {
       </main>
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-6 py-4 text-xs text-navy-600">
-          Meridian Fintech Data Platform &middot; Demo Console
+          Meridian Fintech Demo &middot; Demo Console
           {releaseTag ? ` · Version ${releaseTag}` : ""}
         </div>
       </footer>

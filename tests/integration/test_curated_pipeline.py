@@ -35,7 +35,7 @@ def _build_minio_client():
         access_key=_require_env("MINIO_TRANSFORM_USER"),
         secret_key=_require_env("MINIO_TRANSFORM_SECRET"),
         secure=_require_env("MINIO_SECURE").lower() == "true",
-        region=os.environ.get("MINIO_REGION", "us-east-1"),
+        region=os.environ.get("MINIO_REGION", "us-east-2"),
     )
 
 

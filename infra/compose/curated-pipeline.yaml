@@ -17,7 +17,7 @@ services:
       CATALOG_URI: jdbc:postgresql://postgres:5432/${POSTGRES_DB}?currentSchema=iceberg
       CATALOG_JDBC_USER: ${ICEBERG_CATALOG_OWNER_USER}
       CATALOG_JDBC_PASSWORD: ${ICEBERG_CATALOG_OWNER_PASSWORD}
-      AWS_REGION: us-east-1
+      AWS_REGION: us-east-2
     depends_on:
       postgres:
         condition: service_healthy

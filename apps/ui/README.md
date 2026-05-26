@@ -1,6 +1,6 @@
 # Demo UI
 
-React + TypeScript + Vite + Tailwind SPA for the Meridian Fintech Data Platform.
+React + TypeScript + Vite + Tailwind SPA for the Meridian Fintech Demo.
 
 Served by nginx in the `fintech_ui` container on `http://localhost:3000`.
 All data comes from the read-only query API at `http://localhost:8000` (see

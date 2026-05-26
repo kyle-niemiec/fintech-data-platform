@@ -1,4 +1,4 @@
-# Fintech Data Platform
+# Meridian Fintech Demo
 
 **An event-driven, compliance-aligned data engineering platform — built to run entirely on a laptop, at zero cloud cost.**
 
