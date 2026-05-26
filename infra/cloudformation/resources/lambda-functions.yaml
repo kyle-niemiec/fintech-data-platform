@@ -28,7 +28,7 @@ Resources:
       Timeout: 15
       MemorySize: 128
       Role: !Ref LauncherStopFunctionRoleArn
-      Code: infra/cloudformation/lambda/demo_launcher_stop
+      Code: ../lambda/demo_launcher_stop
       Environment:
         Variables:
           INSTANCE_ID: !Ref Ec2InstanceId
@@ -66,7 +66,7 @@ Resources:
       Timeout: 20
       MemorySize: 128
       Role: !Ref LauncherControlFunctionRoleArn
-      Code: infra/cloudformation/lambda/demo_launcher_control
+      Code: ../lambda/demo_launcher_control
       Environment:
         Variables:
           INSTANCE_ID: !Ref Ec2InstanceId

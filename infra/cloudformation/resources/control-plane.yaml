@@ -17,12 +17,12 @@ Resources:
   RoleResources:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: infra/cloudformation/resources/roles.yaml
+      TemplateURL: roles.yaml
 
   LambdaFunctionResources:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: infra/cloudformation/resources/lambda-functions.yaml
+      TemplateURL: lambda-functions.yaml
       Parameters:
         DomainName: !Ref DomainName
         Ec2InstanceId: !Ref Ec2InstanceId
