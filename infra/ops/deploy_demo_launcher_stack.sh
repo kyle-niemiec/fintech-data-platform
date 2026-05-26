@@ -9,7 +9,7 @@ set -euo pipefail
 #   bash infra/ops/deploy_demo_launcher_stack.sh
 #
 # Configuration is driven by environment variables:
-#   MERIDIAN_LAUNCHER_STACK_NAME      (default: meridian-demo-launcher)
+#   MERIDIAN_LAUNCHER_STACK_NAME      (default: meridian-fintech-demo)
 #   AWS_REGION                        (default: us-east-2)
 #   MERIDIAN_LAUNCHER_ARTIFACT_BUCKET
 #   MERIDIAN_HOSTED_DOMAIN            (default: meridian.codeflower.io)
@@ -21,7 +21,7 @@ set -euo pipefail
 #   MERIDIAN_ORIGIN_HEALTHCHECK_URL   (optional)
 #   MERIDIAN_SCHEDULER_GROUP          (default: default)
 
-STACK_NAME="${MERIDIAN_LAUNCHER_STACK_NAME:-meridian-demo-launcher}"
+STACK_NAME="${MERIDIAN_LAUNCHER_STACK_NAME:-meridian-fintech-demo}"
 REGION="${AWS_REGION:-us-east-2}"
 TEMPLATE_FILE="infra/cloudformation/demo-launcher.yaml"
 ASSETS_DIR="infra/cloudformation/launcher-site"
@@ -34,6 +34,8 @@ TTL_MINUTES="${MERIDIAN_DEMO_TTL_MINUTES:-30}"
 HOSTED_ZONE_ID="${MERIDIAN_HOSTED_ZONE_ID:-}"
 HEALTH_CHECK_URL="${MERIDIAN_ORIGIN_HEALTHCHECK_URL:-}"
 SCHEDULER_GROUP="${MERIDIAN_SCHEDULER_GROUP:-default}"
+
+printf 'Target Bucket Name: %s\n' "$MERIDIAN_LAUNCHER_ARTIFACT_BUCKET"
 
 if [ -z "$HEALTH_CHECK_URL" ]; then
 	HEALTH_CHECK_URL="http://${ORIGIN_DOMAIN}:443/"
@@ -89,7 +91,7 @@ if [ -n "$HOSTED_ZONE_ID" ]; then
 fi
 
 # Deploy the CloudFormation stack using the packaged template and specified parameters.
-printf 'Deploying CloudFormation stack "%s" in region "%s"...\n' "$STACK_NAME" "$REGION"
+printf '\nDeploying CloudFormation stack "%s" in region "%s"...' "$STACK_NAME" "$REGION"
 
 aws --region "$REGION" cloudformation deploy \
 	--stack-name "$STACK_NAME" \
@@ -103,12 +105,16 @@ landing_bucket="$(aws --region "$REGION" cloudformation describe-stacks \
 	--query "Stacks[0].Outputs[?OutputKey=='LauncherLandingBucketName'].OutputValue" \
 	--output text)"
 
+printf 'Resolved landing bucket: %s\n' "$landing_bucket"
+
 control_api_url="$(aws --region "$REGION" cloudformation describe-stacks \
 	--stack-name "$STACK_NAME" \
 	--query "Stacks[0].Outputs[?OutputKey=='LauncherControlFunctionUrl'].OutputValue" \
 	--output text)"
 
-control_api_url="${control_api_url%/}" # Trim trailing slash, if present
+# Trim trailing slash, if present
+control_api_url="${control_api_url%/}"
+printf 'Resolved control API URL: %s\n' "$control_api_url"
 
 # Copy the launcher UI assets to the temporary staging directory for processing.
 cp -R "$ASSETS_DIR"/. "$asset_stage_dir"/
