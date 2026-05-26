@@ -42,12 +42,12 @@ Resources:
   StaticSiteResources:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: infra/cloudformation/resources/static-site.yaml
+      TemplateURL: resources/static-site.yaml
 
   ControlPlaneResources:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: infra/cloudformation/resources/control-plane.yaml
+      TemplateURL: resources/control-plane.yaml
       Parameters:
         DomainName: !Ref DomainName
         Ec2InstanceId: !Ref Ec2InstanceId
@@ -58,7 +58,7 @@ Resources:
   EdgeResources:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: infra/cloudformation/resources/cloudfront.yaml
+      TemplateURL: resources/cloudfront.yaml
       Parameters:
         DomainName: !Ref DomainName
         OriginDomainName: !Ref OriginDomainName
