@@ -8,6 +8,9 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
+      BucketName: !Sub
+        - "meridian-launcher-${UniqueSuffix}"
+        - UniqueSuffix: !Select [2, !Split ["/", !Ref "AWS::StackId"]]
       WebsiteConfiguration:
         IndexDocument: index.html
         ErrorDocument: index.html
