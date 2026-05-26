@@ -137,6 +137,9 @@ Legend:
   deterministic error diagnostics and uses dual-network container attachment.
 - [x] AWS account provisioning (EC2/IAM/OIDC trust/SG/DNS) remains manual in v1
   and is not automated by Terraform in this phase.
+- [x] Repository rename alignment is in place for deploy auth boundaries:
+  local `origin` points to `kyle-niemiec/meridian-fintech-demo` and the AWS
+  OIDC deploy role trust-policy `sub` is scoped to the same repo.
 
 ## Phase 11 - Same-Domain Demo Launcher (Scale-to-Zero)
 
@@ -169,3 +172,6 @@ Legend:
   runbook contracts.
 - [x] AWS account resources and release variables required by launcher remain
   manual provisioning and environment wiring in v1.
+- [ ] Live AWS launcher prerequisites are still pending manual operator
+  execution (ACM cert for `meridian.codeflower.io` in `us-east-1`, initial
+  launcher stack apply, and hosted-domain DNS cutover to CloudFront).

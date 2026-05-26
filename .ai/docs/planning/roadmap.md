@@ -237,28 +237,73 @@ In `Settings -> Secrets and variables -> Actions`:
 - [x] Add secret:
   - `AWS_ROLE_TO_ASSUME` = IAM role ARN from step 4.
 - [ ] Add variables:
-  - x `AWS_REGION` (for example `us-east-2`)
-  - x `MERIDIAN_EC2_INSTANCE_ID` (target demo host)
-  - x `MERIDIAN_HOSTED_DOMAIN` = `meridian.codeflower.io` (optional but recommended)
-  - x `MERIDIAN_CURRENT_TAG_PARAM` = `/meridian/demo/current_tag` (optional)
-  - x `MERIDIAN_LAST_GOOD_TAG_PARAM` = `/meridian/demo/last_good_tag` (optional)
-  - x `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET` (required for Phase 11 launcher stage)
-  - x `MERIDIAN_ORIGIN_DOMAIN` (required for Phase 11; example `meridian-origin.codeflower.io`)
-  - `MERIDIAN_ACM_CERT_ARN` (required for Phase 11; ACM cert in `us-east-2`)
+  - [x] `AWS_REGION` (for example `us-east-2`)
+  - [x] `MERIDIAN_EC2_INSTANCE_ID` (target demo host)
+  - [x] `MERIDIAN_HOSTED_DOMAIN` = `meridian.codeflower.io` (optional but recommended)
+  - [x] `MERIDIAN_CURRENT_TAG_PARAM` = `/meridian/demo/current_tag` (optional)
+  - [x] `MERIDIAN_LAST_GOOD_TAG_PARAM` = `/meridian/demo/last_good_tag` (optional)
+  - [x] `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET` (required for Phase 11 launcher stage)
+  - [x] `MERIDIAN_ORIGIN_DOMAIN` (required for Phase 11; example `meridian-origin.codeflower.io`)
+  - [x] `MERIDIAN_ACM_CERT_ARN` (required for Phase 11; ACM cert in `us-east-1`)
   - Optional Phase 11 variables:
     - `MERIDIAN_LAUNCHER_STACK_NAME`
     - `MERIDIAN_DEMO_TTL_MINUTES`
-    - `MERIDIAN_HOSTED_ZONE_ID`
+    - [x] `MERIDIAN_HOSTED_ZONE_ID` (set to `Z0119160FW7GVD80MIZB`)
     - `MERIDIAN_ORIGIN_HEALTHCHECK_URL`
     - `MERIDIAN_SCHEDULER_GROUP`
 
 ## 5.5) Phase 11 Prerequisites (CloudFront/Launcher)
 
-- [ ] Ensure ACM certificate for `meridian.codeflower.io` exists in `us-east-2`.
+- [x] Ensure ACM certificate for `meridian.codeflower.io` exists in `us-east-1` (CloudFront requirement).
 - [x] Create/choose S3 bucket for launcher stack packaging artifacts
   (`MERIDIAN_LAUNCHER_ARTIFACT_BUCKET`).
-- [ ] Ensure Route53 hosted zone id is known if you want stack-driven alias
+- [x] Ensure Route53 hosted zone id is known if you want stack-driven alias
   creation (`MERIDIAN_HOSTED_ZONE_ID`).
+
+## 5.6) Strict Manual Phase 11 Bring-Up Checklist (No CLI Cloud Mutations)
+
+Use this checklist to complete the remaining Phase 11 launcher prerequisites
+manually in AWS/GitHub UI for this environment:
+- AWS account: `125395074675`
+- deploy region: `us-east-2`
+- EC2 instance: `i-06279fc3653c081b0`
+- hosted zone id: `Z0119160FW7GVD80MIZB`
+- hosted domain: `meridian.codeflower.io`
+- origin domain: `meridian-origin.codeflower.io`
+- launcher artifact bucket: `meridian-demo-launcher`
+
+1. [x] Create ACM certificate (manual, AWS Console):
+   - Region: `us-east-1` (required for CloudFront).
+   - Domain: `meridian.codeflower.io` (add SAN/wildcard only if intentionally needed).
+   - Validation: DNS validation complete and status is `Issued`.
+
+2. [x] Configure GitHub Actions secret/variables (manual, GitHub UI):
+   - Secret: `AWS_ROLE_TO_ASSUME`.
+   - Variables:
+     - `AWS_REGION=us-east-2`
+     - `MERIDIAN_EC2_INSTANCE_ID=i-06279fc3653c081b0`
+     - `MERIDIAN_HOSTED_DOMAIN=meridian.codeflower.io`
+     - `MERIDIAN_ORIGIN_DOMAIN=meridian-origin.codeflower.io`
+     - `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET=meridian-demo-launcher`
+     - `MERIDIAN_ACM_CERT_ARN=<issued us-east-1 cert ARN>`
+     - `MERIDIAN_HOSTED_ZONE_ID=Z0119160FW7GVD80MIZB`
+
+3. [ ] Trigger first release deployment (manual git tag push):
+   - Tag format: `vMAJOR.MINOR.PATCH`.
+   - Confirm `release-tag-deploy.yml` runs `validate-tag -> integration-gate -> launcher-infra -> deploy`.
+   - Confirm `launcher-infra` does not fail on missing vars, IAM, or cert.
+
+4. [ ] Confirm DNS end-state after launcher stack apply:
+   - `meridian-origin.codeflower.io` points to EC2 endpoint (prefer Elastic IP-backed target).
+   - `meridian.codeflower.io` resolves via CloudFront alias (not directly to EC2).
+
+5. [ ] Validate failover behavior and release-state parameters:
+   - Healthy EC2: `https://meridian.codeflower.io` serves full app and `/ui/runs?limit=1` responds.
+   - Unhealthy/stopped EC2: same URL serves launcher page via CloudFront failover.
+   - `POST /start` from launcher starts EC2 and app returns when healthy.
+   - SSM parameters exist and update:
+     - `/meridian/demo/current_tag`
+     - `/meridian/demo/last_good_tag`
 
 ## 6) Validate SSM Connectivity Before First Release
 

@@ -711,7 +711,7 @@ Stop Lambda -> EC2 StopInstances
 - Stop Lambda code: `infra/cloudformation/lambda/demo_launcher_stop/index.py`
 - Landing assets: `infra/cloudformation/launcher-site/*`
 - Deploy helper: `infra/ops/deploy_demo_launcher_stack.sh`
-- SSM dispatch helper (release deploy path): `infra/ops/ssm_send_deploy_command.sh`
+- Release deploy helper (SSM path): `infra/ops/ssm_release_deploy.sh`
 
 ### Required AWS Inputs and Repository Variables
 
@@ -724,7 +724,7 @@ Release workflow (`release-tag-deploy.yml`) launcher stage requires:
   - `MERIDIAN_EC2_INSTANCE_ID`
   - `MERIDIAN_HOSTED_DOMAIN` (default `meridian.codeflower.io`)
   - `MERIDIAN_ORIGIN_DOMAIN` (for example `meridian-origin.codeflower.io`)
-  - `MERIDIAN_ACM_CERT_ARN` (certificate must exist in `us-east-2`)
+  - `MERIDIAN_ACM_CERT_ARN` (certificate must exist in `us-east-1` for CloudFront)
   - `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET` (for `cloudformation package`)
   - Optional:
     - `MERIDIAN_LAUNCHER_STACK_NAME` (default `meridian-demo-launcher`)
