@@ -77,9 +77,8 @@ send_deploy_command() {
 			--comment "Meridian release deploy ${deploy_tag}" \
 			--parameters "commands=[
 \"set -euo pipefail\",
-\"REPO_DIR=/opt/meridian-demo\",
-\"if [ ! -d \\\"\\${REPO_DIR}/.git\\\" ]; then rm -rf \\\"\\${REPO_DIR}\\\"; git clone \\\"${MERIDIAN_REPO_URL}\\\" \\\"\\${REPO_DIR}\\\"; fi\",
-\"cd \\\"\\${REPO_DIR}\\\"\",
+\"if [ ! -d \\\"/opt/meridian-demo/.git\\\" ]; then rm -rf \\\"/opt/meridian-demo\\\"; git clone \\\"${MERIDIAN_REPO_URL}\\\" \\\"/opt/meridian-demo\\\"; fi\",
+\"cd \\\"/opt/meridian-demo\\\"\",
 \"git fetch --tags origin\",
 \"git checkout \\\"${deploy_tag}\\\"\",
 \"git reset --hard \\\"${deploy_tag}\\\"\",
