@@ -26,6 +26,8 @@
 ## Dev Compose Pathing Note
 - `infra/compose/dev/pgadmin.yaml` binds `servers.json` with long syntax and `bind.create_host_path: false` so missing path resolution fails fast instead of creating a directory.
 - In multi-file compose usage, relative bind paths must stay relative to the first `-f` compose file.
+- Compose build definitions no longer set `build.network: host`; default build networking is used so hosted `make infra-up` does not require Buildx `network.host` insecure entitlements.
+- Dev-only host-network build behavior is restored via `infra/compose/dev/build-network-host.yaml`, which reapplies `build.network: host` for build-heavy services when using `make infra-up-dev`.
 
 ## Shared Worker Storage Adapter
 - Worker MinIO object store behavior is centralized in `services/libs/minio_store/minio_object_store.py`.

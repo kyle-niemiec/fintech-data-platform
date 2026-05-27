@@ -1,0 +1,64 @@
+services:
+  event_store_db:
+    build:
+      network: host
+
+  airflow_init:
+    build:
+      network: host
+
+  airflow_dag_processor:
+    build:
+      network: host
+
+  airflow_scheduler:
+    build:
+      network: host
+
+  airflow_triggerer:
+    build:
+      network: host
+
+  airflow_api_server:
+    build:
+      network: host
+
+  excel_scanner:
+    build:
+      network: host
+
+  excel_validation_trigger:
+    build:
+      network: host
+
+  excel_bronze_writer:
+    build:
+      network: host
+
+  oltp_load_generator:
+    build:
+      network: host
+
+  fraud_worker:
+    build:
+      network: host
+
+  cdc_bronze_writer:
+    build:
+      network: host
+
+  salesforce_mock:
+    build:
+      network: host
+
+  salesforce_bronze_writer:
+    build:
+      network: host
+
+  api:
+    build:
+      network: host
+
+  ui:
+    build:
+      network: host

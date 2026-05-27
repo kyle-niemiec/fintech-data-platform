@@ -3,7 +3,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/salesforce-mock/Dockerfile
-      network: host
     container_name: fintech_salesforce_mock
     restart: unless-stopped
     environment:
@@ -31,7 +30,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/salesforce-bronze-writer/Dockerfile
-      network: host
     container_name: fintech_salesforce_bronze_writer
     restart: unless-stopped
     environment:

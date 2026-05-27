@@ -21,7 +21,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/excel-scanner/Dockerfile
-      network: host
     container_name: fintech_excel_scanner
     restart: unless-stopped
     environment:
@@ -59,7 +58,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/excel-validation-trigger/Dockerfile
-      network: host
     container_name: fintech_excel_validation_trigger
     restart: unless-stopped
     environment:
@@ -84,7 +82,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/excel-bronze-writer/Dockerfile
-      network: host
     container_name: fintech_excel_bronze_writer
     restart: unless-stopped
     environment:

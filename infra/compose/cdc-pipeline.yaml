@@ -40,7 +40,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/oltp-load-generator/Dockerfile
-      network: host
     container_name: fintech_oltp_load_generator
     restart: unless-stopped
     environment:
@@ -86,7 +85,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/fraud-worker/Dockerfile
-      network: host
     container_name: fintech_fraud_worker
     restart: unless-stopped
     environment:
@@ -120,7 +118,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/cdc-bronze-writer/Dockerfile
-      network: host
     container_name: fintech_cdc_bronze_writer
     restart: unless-stopped
     environment:

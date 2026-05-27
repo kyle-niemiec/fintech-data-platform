@@ -14,6 +14,7 @@ COMPOSE_FILES := \
 	$(COMPOSE_FILES_BASE)
 COMPOSE_FILES_DEV := \
 	$(COMPOSE_FILES_BASE) \
+	infra/compose/dev/build-network-host.yaml \
 	infra/compose/dev/demo-ui-access.yaml \
 	infra/compose/dev/minio-console-access.yaml \
 	infra/compose/dev/pgadmin.yaml

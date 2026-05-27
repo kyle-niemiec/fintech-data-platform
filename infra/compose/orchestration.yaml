@@ -23,7 +23,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/pipeline-orchestrator/Dockerfile
-      network: host
     container_name: fintech_airflow_init
     restart: "no"
     entrypoint: ["/bin/bash", "-c"]
@@ -129,7 +128,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/pipeline-orchestrator/Dockerfile
-      network: host
     container_name: fintech_airflow_dag_processor
     restart: unless-stopped
     command: dag-processor
@@ -153,7 +151,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/pipeline-orchestrator/Dockerfile
-      network: host
     container_name: fintech_airflow_scheduler
     restart: unless-stopped
     command: scheduler
@@ -177,7 +174,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/pipeline-orchestrator/Dockerfile
-      network: host
     container_name: fintech_airflow_triggerer
     restart: unless-stopped
     command: triggerer
@@ -201,7 +197,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/pipeline-orchestrator/Dockerfile
-      network: host
     container_name: fintech_airflow_api_server
     restart: unless-stopped
     command: api-server

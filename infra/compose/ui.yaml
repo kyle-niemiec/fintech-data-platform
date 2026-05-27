@@ -3,7 +3,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/ui/Dockerfile
-      network: host
       args:
         VITE_API_URL: ${UI_API_URL:-}
         VITE_RELEASE_TAG: ${VITE_RELEASE_TAG:-}

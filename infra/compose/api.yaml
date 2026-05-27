@@ -3,7 +3,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/ui-api/Dockerfile
-      network: host
     container_name: fintech_api
     restart: unless-stopped
     environment:
