@@ -87,7 +87,6 @@ Resources:
         AllowMethods:
           - GET
           - POST
-          - OPTIONS
         AllowOrigins:
           - !Sub "https://${DomainName}"
         AllowHeaders:

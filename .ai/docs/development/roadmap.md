@@ -149,6 +149,7 @@ Legend:
   - [x] Origin failover group (EC2 origin -> S3 launcher bucket) with
     `500/502/503/504` failover criteria.
   - [x] Public control Lambda Function URL (`POST /start`, `GET /status`).
+  - [x] Function URL CORS `AllowMethods` is CloudFormation-valid for `AWS::Lambda::Url` (no explicit `OPTIONS` enum entry).
   - [x] Stop Lambda + EventBridge Scheduler invoke role.
   - [x] Optional Route53 alias creation when hosted zone id is provided.
 - [x] Launcher control implementation exists in repo:
