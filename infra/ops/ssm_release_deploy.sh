@@ -78,8 +78,8 @@ send_deploy_command() {
 			--parameters "commands=[
 \"set -euo pipefail\",
 \"REPO_DIR=/opt/meridian-demo\",
-\"if [ ! -d \\\"${REPO_DIR}/.git\\\" ]; then rm -rf \\\"${REPO_DIR}\\\"; git clone \\\"${MERIDIAN_REPO_URL}\\\" \\\"${REPO_DIR}\\\"; fi\",
-\"cd \\\"${REPO_DIR}\\\"\",
+\"if [ ! -d \\\"\\${REPO_DIR}/.git\\\" ]; then rm -rf \\\"\\${REPO_DIR}\\\"; git clone \\\"${MERIDIAN_REPO_URL}\\\" \\\"\\${REPO_DIR}\\\"; fi\",
+\"cd \\\"\\${REPO_DIR}\\\"\",
 \"git fetch --tags origin\",
 \"git checkout \\\"${deploy_tag}\\\"\",
 \"git reset --hard \\\"${deploy_tag}\\\"\",
