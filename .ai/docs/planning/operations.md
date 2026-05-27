@@ -67,7 +67,7 @@ make infra-up 12    # status (docker compose ps)
 ```
 
 The staged flow includes the read-only UI query API (`make infra-up 10`) and demo UI (`make infra-up 11`).
-Production-mode demo UI is exposed on `:443` (domain host-routing for `meridian.codeflower.io`).
+Production origin-mode demo UI is exposed on `:80`; public `:443` is edge-terminated at CloudFront for `meridian.codeflower.io`.
 
 ### Development override: local browser access
 
@@ -564,14 +564,14 @@ Required GitHub configuration for release deploy lane:
    - `VITE_RELEASE_TAG=<tag>`
 5. Start hosted stack with `make infra-up` (includes staged Terraform
    bootstrap/identity + init jobs in the existing `infra-up` contract).
-6. Execute hosted health checks through UI `:443` and native API routing:
+6. Execute hosted health checks through CloudFront HTTPS and native API routing:
    - `GET /`
    - `GET /ui/runs?limit=1`.
 
 ### Hosted Startup Sequence (Single Host)
 
 Hosted startup uses the staged production contract from `make infra-up`
-with direct UI exposure on `:443`. Required order:
+with CloudFront-edge HTTPS and EC2-origin UI exposure on `:80`. Required order:
 
 1. Foundational services up (`postgres`, `event_store_db`, `vault`, `kes`,
    `minio`, `redpanda`).
@@ -589,14 +589,19 @@ with direct UI exposure on `:443`. Required order:
 
 ### Hosted Ingress Contract
 
-- Production `ui` publishes `443:80`.
+- Production `ui` publishes `80:80` on the EC2 origin host.
 - UI nginx handles routing:
   - `/` -> SPA content
   - `/ui/*` -> internal `api:8000` (path preserved).
+- TLS for `https://meridian.codeflower.io` terminates at CloudFront using ACM
+  (`us-east-1`) and is not terminated in the EC2 container runtime.
 - Production mode removes direct host-published ports for:
   - `api`
   - `keycloak`
   - `airflow_api_server`.
+- EC2 origin security groups should allow `80` only from the CloudFront
+  origin-facing managed prefix list; direct public `443` on the EC2 origin
+  should remain closed.
 - Local development browser ports are reintroduced only by
   `make infra-up-dev` via `infra/compose/dev/demo-ui-access.yaml`.
 
@@ -687,7 +692,7 @@ Browser
   |
   v
 CloudFront (meridian.codeflower.io)
-  |- Primary origin: EC2 app origin DNS (meridian-origin.codeflower.io)
+  |- Primary origin: EC2 app origin endpoint (Elastic IP or DNS)
   |- Failover origin: S3 launcher landing page
   `- Failover status codes: 500/502/503/504
 
@@ -723,14 +728,14 @@ Release workflow (`release-tag-deploy.yml`) launcher stage requires:
   - `AWS_REGION` (default used when omitted: `us-east-2`)
   - `MERIDIAN_EC2_INSTANCE_ID`
   - `MERIDIAN_HOSTED_DOMAIN` (default `meridian.codeflower.io`)
-  - `MERIDIAN_ORIGIN_DOMAIN` (for example `meridian-origin.codeflower.io`)
+  - `MERIDIAN_ORIGIN_DOMAIN` (for example `198.51.100.10` Elastic IP, or an origin DNS name)
   - `MERIDIAN_ACM_CERT_ARN` (certificate must exist in `us-east-1` for CloudFront)
   - `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET` (for `cloudformation package`)
   - Optional:
     - `MERIDIAN_LAUNCHER_STACK_NAME` (default `meridian-demo-launcher`)
     - `MERIDIAN_DEMO_TTL_MINUTES` (default `30`)
     - `MERIDIAN_HOSTED_ZONE_ID` (set to auto-create Route53 alias record)
-    - `MERIDIAN_ORIGIN_HEALTHCHECK_URL` (defaults to `http://<origin>:443/`)
+    - `MERIDIAN_ORIGIN_HEALTHCHECK_URL` (defaults to `http://<origin>/`)
     - `MERIDIAN_SCHEDULER_GROUP` (default `default`)
 
 ### Release Flow Integration
@@ -763,7 +768,7 @@ Use this when validating outside of tag release runs:
 
 ```bash
 MERIDIAN_LAUNCHER_ARTIFACT_BUCKET="<artifact-bucket>" \
-MERIDIAN_ORIGIN_DOMAIN="meridian-origin.codeflower.io" \
+MERIDIAN_ORIGIN_DOMAIN="<elastic-ip-or-origin-dns>" \
 MERIDIAN_ACM_CERT_ARN="<acm-cert-arn>" \
 MERIDIAN_EC2_INSTANCE_ID="<instance-id>" \
 MERIDIAN_HOSTED_DOMAIN="meridian.codeflower.io" \
@@ -793,5 +798,5 @@ Known v1 limits (intentional for minimal scope):
 - No captcha/rate limiting/WAF abuse controls.
 - No POST failover through CloudFront origin-group behavior; failover is for
   cacheable origin fetch traffic, while control API is direct to Function URL.
-- Failover depends on origin DNS stability (`MERIDIAN_ORIGIN_DOMAIN`);
-  Elastic-IP-backed origin DNS is recommended.
+- Failover depends on stable origin endpoint targeting (`MERIDIAN_ORIGIN_DOMAIN`);
+  Elastic IP attachment is recommended for EC2 origin stability.

@@ -9,7 +9,7 @@ services:
     container_name: fintech_ui
     restart: unless-stopped
     ports:
-      - "443:80"
+      - "80:80"
     depends_on:
       api:
         condition: service_started

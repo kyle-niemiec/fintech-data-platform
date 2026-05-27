@@ -138,7 +138,7 @@ Phase 10 completion criteria:
   for launcher infrastructure:
   - CloudFront distribution on `meridian.codeflower.io`.
   - Origin group failover:
-    - primary: EC2 app origin DNS (for example `meridian-origin.codeflower.io`)
+    - primary: EC2 app origin endpoint (Elastic IP or origin DNS)
     - failover: S3 static launcher landing page.
   - Public control Lambda Function URL (no auth in v1) with:
     - `POST /start`
@@ -243,7 +243,7 @@ In `Settings -> Secrets and variables -> Actions`:
   - [x] `MERIDIAN_CURRENT_TAG_PARAM` = `/meridian/demo/current_tag` (optional)
   - [x] `MERIDIAN_LAST_GOOD_TAG_PARAM` = `/meridian/demo/last_good_tag` (optional)
   - [x] `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET` (required for Phase 11 launcher stage)
-  - [x] `MERIDIAN_ORIGIN_DOMAIN` (required for Phase 11; example `meridian-origin.codeflower.io`)
+  - [x] `MERIDIAN_ORIGIN_DOMAIN` (required for Phase 11; example Elastic IP or origin DNS)
   - [x] `MERIDIAN_ACM_CERT_ARN` (required for Phase 11; ACM cert in `us-east-1`)
   - Optional Phase 11 variables:
     - `MERIDIAN_LAUNCHER_STACK_NAME`
@@ -269,7 +269,7 @@ manually in AWS/GitHub UI for this environment:
 - EC2 instance: `i-06279fc3653c081b0`
 - hosted zone id: `Z0119160FW7GVD80MIZB`
 - hosted domain: `meridian.codeflower.io`
-- origin domain: `meridian-origin.codeflower.io`
+- origin endpoint: `meridian-origin.codeflower.io` (or Elastic IP in demo mode)
 - launcher artifact bucket: `meridian-demo-launcher`
 
 1. [x] Create ACM certificate (manual, AWS Console):
@@ -283,7 +283,7 @@ manually in AWS/GitHub UI for this environment:
      - `AWS_REGION=us-east-2`
      - `MERIDIAN_EC2_INSTANCE_ID=i-06279fc3653c081b0`
      - `MERIDIAN_HOSTED_DOMAIN=meridian.codeflower.io`
-     - `MERIDIAN_ORIGIN_DOMAIN=meridian-origin.codeflower.io`
+     - `MERIDIAN_ORIGIN_DOMAIN=<elastic-ip-or-origin-dns>`
      - `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET=meridian-demo-launcher`
      - `MERIDIAN_ACM_CERT_ARN=<issued us-east-1 cert ARN>`
      - `MERIDIAN_HOSTED_ZONE_ID=Z0119160FW7GVD80MIZB`
@@ -294,10 +294,14 @@ manually in AWS/GitHub UI for this environment:
    - Confirm `launcher-infra` does not fail on missing vars, IAM, or cert.
 
 4. [ ] Confirm DNS end-state after launcher stack apply:
-   - `meridian-origin.codeflower.io` points to EC2 endpoint (prefer Elastic IP-backed target).
+   - `MERIDIAN_ORIGIN_DOMAIN` targets the EC2 origin endpoint (Elastic IP preferred for stability).
    - `meridian.codeflower.io` resolves via CloudFront alias (not directly to EC2).
 
-5. [ ] Validate failover behavior and release-state parameters:
+5. [ ] Confirm EC2 origin ingress policy:
+   - Inbound `80` allowed only from CloudFront origin-facing managed prefix list.
+   - Inbound `443` closed on the EC2 origin.
+
+6. [ ] Validate failover behavior and release-state parameters:
    - Healthy EC2: `https://meridian.codeflower.io` serves full app and `/ui/runs?limit=1` responds.
    - Unhealthy/stopped EC2: same URL serves launcher page via CloudFront failover.
    - `POST /start` from launcher starts EC2 and app returns when healthy.

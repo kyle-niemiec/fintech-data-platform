@@ -123,8 +123,9 @@ Legend:
   - `/meridian/demo/current_tag`
   - `/meridian/demo/last_good_tag`
 - [x] Production demo exposure is simplified:
-  - `ui` publishes `443:80` directly in base compose.
+  - `ui` publishes `80:80` directly in base compose for origin service traffic.
   - `ui` nginx proxies `/ui/*` to internal `api:8000`.
+  - public HTTPS (`meridian.codeflower.io`) is CloudFront ACM edge termination.
   - dev-only local browser ergonomics are isolated in `infra/compose/dev/demo-ui-access.yaml`.
 - [x] UI release metadata support is implemented with optional
   `VITE_RELEASE_TAG`; footer displays `Version vX.Y.Z` only when present.

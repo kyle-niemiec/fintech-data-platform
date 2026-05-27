@@ -41,7 +41,7 @@ Resources:
           - Id: ec2-app-origin
             DomainName: !Ref OriginDomainName
             CustomOriginConfig:
-              HTTPPort: 443
+              HTTPPort: 80
               HTTPSPort: 443
               OriginProtocolPolicy: http-only
           # Define the secondary origin pointing to the S3 launcher site for failover

@@ -8,10 +8,10 @@ Parameters:
     Description: Public demo hostname served by CloudFront.
   OriginDomainName:
     Type: String
-    Description: EC2 app origin hostname used by CloudFront primary origin (for example meridian-origin.codeflower.io).
+    Description: EC2 app origin endpoint used by CloudFront primary origin (for example an Elastic IP or meridian-origin.codeflower.io).
   AcmCertificateArn:
     Type: String
-    Description: ACM certificate ARN in us-east-2 for the public domain.
+    Description: ACM certificate ARN in us-east-1 for the public domain.
   Ec2InstanceId:
     Type: String
     Description: Target EC2 instance ID for start/stop control.
@@ -28,7 +28,7 @@ Parameters:
   HealthCheckUrl:
     Type: String
     Default: ""
-    Description: Optional app health URL for readiness checks (for example http://meridian-origin.codeflower.io:443/).
+    Description: Optional app health URL for readiness checks (for example http://meridian-origin.codeflower.io/).
   SchedulerGroupName:
     Type: String
     Default: default
