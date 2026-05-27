@@ -14,9 +14,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 cd "$ROOT_DIR"
 
-# Clean and redeploy the infrastructure for the demo.
-make infra-clean
-
 # Configure environment variables for `generate_env.sh`.
 MODE=random \
 OUTPUT=infra/.env \
@@ -25,6 +22,9 @@ RELEASE_TAG="$TAG" \
 
 # Generate the .env file.
 bash infra/ops/generate_env.sh
+
+# Clean and redeploy the infrastructure for the demo.
+make infra-clean
 
 # Start the workers and services for the demo.
 make infra-up
