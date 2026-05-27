@@ -168,8 +168,8 @@ Legend:
 - [x] Release workflow integrates launcher stage between integration gate and
   EC2 deploy:
   - [x] detects launcher-related changes against previous semver tag.
-  - [x] forces apply when launcher stack is missing.
-  - [x] skips launcher apply when unchanged and stack already exists.
+  - [x] computes/logs `should_apply` without mutating launcher resources.
+  - [x] keeps launcher stack apply/sync manual by design in this lane.
 - [x] Deterministic helper script
   `infra/ops/deploy_demo_launcher_stack.sh` packages/deploys the stack and syncs
   launcher static assets.
@@ -179,4 +179,5 @@ Legend:
   manual provisioning and environment wiring in v1.
 - [ ] Live AWS launcher prerequisites are still pending manual operator
   execution (ACM cert for `meridian.codeflower.io` in `us-east-1`, initial
-  launcher stack apply, and hosted-domain DNS cutover to CloudFront).
+  launcher stack apply, and hosted-domain DNS cutover to CloudFront with
+  origin DNS pointed to EC2 Elastic IP).

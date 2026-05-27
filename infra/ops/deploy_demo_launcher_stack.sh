@@ -9,7 +9,7 @@ set -euo pipefail
 #   bash infra/ops/deploy_demo_launcher_stack.sh
 #
 # Configuration is driven by environment variables:
-#   MERIDIAN_LAUNCHER_STACK_NAME      (default: meridian-fintech-demo)
+#   MERIDIAN_LAUNCHER_STACK_NAME      (default: meridian-demo-launcher)
 #   AWS_REGION                        (default: us-east-2)
 #   MERIDIAN_LAUNCHER_ARTIFACT_BUCKET
 #   MERIDIAN_HOSTED_DOMAIN            (default: meridian.codeflower.io)
@@ -21,7 +21,7 @@ set -euo pipefail
 #   MERIDIAN_ORIGIN_HEALTHCHECK_URL   (optional)
 #   MERIDIAN_SCHEDULER_GROUP          (default: default)
 
-STACK_NAME="${MERIDIAN_LAUNCHER_STACK_NAME:-meridian-fintech-demo}"
+STACK_NAME="${MERIDIAN_LAUNCHER_STACK_NAME:-meridian-demo-launcher}"
 REGION="${AWS_REGION:-us-east-2}"
 TEMPLATE_FILE="infra/cloudformation/demo-launcher.yaml"
 ASSETS_DIR="infra/cloudformation/launcher-site"
@@ -36,7 +36,7 @@ HEALTH_CHECK_URL="${MERIDIAN_ORIGIN_HEALTHCHECK_URL:-}"
 SCHEDULER_GROUP="${MERIDIAN_SCHEDULER_GROUP:-default}"
 
 if [ -z "$HEALTH_CHECK_URL" ]; then
-	HEALTH_CHECK_URL="http://${ORIGIN_DOMAIN}/"
+	HEALTH_CHECK_URL="https://${DOMAIN}/ui/runs?limit=1"
 fi
 
 if [ ! -f "$TEMPLATE_FILE" ]; then

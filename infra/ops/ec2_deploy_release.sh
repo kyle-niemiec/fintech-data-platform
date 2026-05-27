@@ -14,10 +14,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 cd "$ROOT_DIR"
 
-# Configure environment variables for `generate_env.sh`.
+# Generate the hosted .env before any Make targets (Makefile includes infra/.env).
 MODE=random \
 OUTPUT=infra/.env \
 UI_ORIGIN="https://${DOMAIN}" \
+UI_API_URL="" \
 RELEASE_TAG="$TAG" \
 
 # Generate the .env file.

@@ -28,7 +28,7 @@ Parameters:
   HealthCheckUrl:
     Type: String
     Default: ""
-    Description: Optional app health URL for readiness checks (for example http://meridian-origin.codeflower.io/).
+    Description: Optional app health URL for readiness checks (usually https://meridian.codeflower.io/ui/runs?limit=1).
   SchedulerGroupName:
     Type: String
     Default: default

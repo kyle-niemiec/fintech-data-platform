@@ -147,10 +147,10 @@ Phase 10 completion criteria:
   - Optional Route53 alias record creation when hosted zone id is provided.
 - Keep release contract tag-driven (`vMAJOR.MINOR.PATCH`) and preserve full app
   rebuild on EC2 for every release tag.
-- Add conditional launcher-infra release stage:
-  - runs after integration gate
-  - applies launcher stack only when launcher assets/IaC changed, or when stack
-    does not yet exist.
+- Add launcher-infra detect stage after integration gate:
+  - computes launcher change signals (`launcher_changed`, `stack_exists`,
+    `should_apply`) for operator visibility.
+  - launcher stack apply/sync remains manual in this lane by design.
 - Keep v1 abuse controls out of scope by design (no captcha/rate limit/WAF in
   this phase).
 
@@ -199,20 +199,24 @@ Phase 10/11 deployment contracts.
 
 ## 2) Configure Security Group
 
-- [x] Inbound: allow `443/tcp` from internet.
-- [x] Inbound: do not expose admin/service ports publicly (`8080`, `8180`,
+- [x] Inbound: allow `80/tcp` from CloudFront origin-facing managed prefix list
+  (for example `pl-b6a144df`) for origin fetch traffic.
+- [x] Inbound: allow `443/tcp` only from CloudFront origin-facing managed prefix
+  list when retained for debugging parity; not required for current
+  `http-only` origin policy.
+- [x] Inbound: do not expose admin/service ports publicly (`22`, `8080`, `8180`,
   `5050`, `9001`, database/broker ports).
 - [x] Outbound: allow required egress for package/image pulls and AWS APIs.
 
 ## 3) Configure DNS
 
-- [x] Create DNS record for `meridian.codeflower.io` pointing to the EC2 public
-  endpoint (Elastic IP recommended for stability).
+- [x] Create DNS record for `meridian.codeflower.io` pointing to the CloudFront
+  distribution domain (`*.cloudfront.net`) via CNAME at the external DNS
+  provider.
 - [x] Confirm name resolution:
   - `dig meridian.codeflower.io +short`
 - [x] Create origin DNS for CloudFront primary origin
-  (for example `meridian-origin.codeflower.io`) pointing to the same EC2
-  endpoint used by the hosted demo app.
+  (`meridian-origin.codeflower.io`) as an A record to the EC2 Elastic IP.
 
 ## 4) Create GitHub OIDC Deploy Role in AWS
 
@@ -242,14 +246,14 @@ In `Settings -> Secrets and variables -> Actions`:
   - [x] `MERIDIAN_HOSTED_DOMAIN` = `meridian.codeflower.io` (optional but recommended)
   - [x] `MERIDIAN_CURRENT_TAG_PARAM` = `/meridian/demo/current_tag` (optional)
   - [x] `MERIDIAN_LAST_GOOD_TAG_PARAM` = `/meridian/demo/last_good_tag` (optional)
-  - [x] `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET` (required for Phase 11 launcher stage)
-  - [x] `MERIDIAN_ORIGIN_DOMAIN` (required for Phase 11; example Elastic IP or origin DNS)
+  - [x] `MERIDIAN_LAUNCHER_ARTIFACT_BUCKET` (required for Phase 11 launcher manual apply helper)
+  - [x] `MERIDIAN_ORIGIN_DOMAIN` (required for Phase 11; CloudFront origin endpoint, for example Elastic IP or origin DNS)
   - [x] `MERIDIAN_ACM_CERT_ARN` (required for Phase 11; ACM cert in `us-east-1`)
   - Optional Phase 11 variables:
     - `MERIDIAN_LAUNCHER_STACK_NAME`
     - `MERIDIAN_DEMO_TTL_MINUTES`
     - [x] `MERIDIAN_HOSTED_ZONE_ID` (set to `Z0119160FW7GVD80MIZB`)
-    - `MERIDIAN_ORIGIN_HEALTHCHECK_URL`
+    - `MERIDIAN_ORIGIN_HEALTHCHECK_URL` (recommended: `https://meridian.codeflower.io/ui/runs?limit=1`)
     - `MERIDIAN_SCHEDULER_GROUP`
 
 ## 5.5) Phase 11 Prerequisites (CloudFront/Launcher)
@@ -291,17 +295,23 @@ manually in AWS/GitHub UI for this environment:
 3. [ ] Trigger first release deployment (manual git tag push):
    - Tag format: `vMAJOR.MINOR.PATCH`.
    - Confirm `release-tag-deploy.yml` runs `validate-tag -> integration-gate -> launcher-infra -> deploy`.
-   - Confirm `launcher-infra` does not fail on missing vars, IAM, or cert.
+   - Confirm `launcher-infra` detect stage completes and logs the current
+     `should_apply` signal.
 
-4. [ ] Confirm DNS end-state after launcher stack apply:
+4. [ ] Apply/update launcher stack manually when launcher assets or IaC change:
+   - Run `infra/ops/deploy_demo_launcher_stack.sh` with launcher variables.
+   - Confirm CloudFormation update succeeds and launcher landing assets sync.
+
+5. [ ] Confirm DNS end-state after launcher stack apply:
    - `MERIDIAN_ORIGIN_DOMAIN` targets the EC2 origin endpoint (Elastic IP preferred for stability).
    - `meridian.codeflower.io` resolves via CloudFront alias (not directly to EC2).
 
-5. [ ] Confirm EC2 origin ingress policy:
+6. [ ] Confirm EC2 origin ingress policy:
    - Inbound `80` allowed only from CloudFront origin-facing managed prefix list.
-   - Inbound `443` closed on the EC2 origin.
+   - Inbound `443` restricted to the same prefix list when retained.
+   - Inbound `22` restricted to operator home CIDR.
 
-6. [ ] Validate failover behavior and release-state parameters:
+7. [ ] Validate failover behavior and release-state parameters:
    - Healthy EC2: `https://meridian.codeflower.io` serves full app and `/ui/runs?limit=1` responds.
    - Unhealthy/stopped EC2: same URL serves launcher page via CloudFront failover.
    - `POST /start` from launcher starts EC2 and app returns when healthy.

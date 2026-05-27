@@ -128,31 +128,31 @@ jobs:
           echo "launcher_changed=${launcher_changed}"
           echo "should_apply=${should_apply}"
 
-      # - name: Apply launcher stack and sync landing assets
-      #   if: ${{ steps.detect.outputs.should_apply == 'true' }}
-      #   run: |
-      #     set -euo pipefail
-      #     : "${MERIDIAN_LAUNCHER_ARTIFACT_BUCKET:?Missing repository variable MERIDIAN_LAUNCHER_ARTIFACT_BUCKET}"
-      #     : "${MERIDIAN_ORIGIN_DOMAIN:?Missing repository variable MERIDIAN_ORIGIN_DOMAIN}"
-      #     : "${MERIDIAN_ACM_CERT_ARN:?Missing repository variable MERIDIAN_ACM_CERT_ARN}"
-      #     : "${MERIDIAN_EC2_INSTANCE_ID:?Missing repository variable MERIDIAN_EC2_INSTANCE_ID}"
+      - name: Apply launcher stack and sync landing assets
+        if: ${{ steps.detect.outputs.should_apply == 'true' }}
+        run: |
+          set -euo pipefail
+          : "${MERIDIAN_LAUNCHER_ARTIFACT_BUCKET:?Missing repository variable MERIDIAN_LAUNCHER_ARTIFACT_BUCKET}"
+          : "${MERIDIAN_ORIGIN_DOMAIN:?Missing repository variable MERIDIAN_ORIGIN_DOMAIN}"
+          : "${MERIDIAN_ACM_CERT_ARN:?Missing repository variable MERIDIAN_ACM_CERT_ARN}"
+          : "${MERIDIAN_EC2_INSTANCE_ID:?Missing repository variable MERIDIAN_EC2_INSTANCE_ID}"
 
-      #     MERIDIAN_LAUNCHER_STACK_NAME="${{ steps.detect.outputs.stack_name }}" \
-      #     AWS_REGION="${AWS_REGION}" \
-      #     MERIDIAN_LAUNCHER_ARTIFACT_BUCKET="${MERIDIAN_LAUNCHER_ARTIFACT_BUCKET}" \
-      #     MERIDIAN_HOSTED_DOMAIN="${MERIDIAN_HOSTED_DOMAIN:-meridian.codeflower.io}" \
-      #     MERIDIAN_ORIGIN_DOMAIN="${MERIDIAN_ORIGIN_DOMAIN}" \
-      #     MERIDIAN_ACM_CERT_ARN="${MERIDIAN_ACM_CERT_ARN}" \
-      #     MERIDIAN_EC2_INSTANCE_ID="${MERIDIAN_EC2_INSTANCE_ID}" \
-      #     MERIDIAN_DEMO_TTL_MINUTES="${MERIDIAN_DEMO_TTL_MINUTES:-30}" \
-      #     MERIDIAN_HOSTED_ZONE_ID="${MERIDIAN_HOSTED_ZONE_ID:-}" \
-      #     MERIDIAN_ORIGIN_HEALTHCHECK_URL="${MERIDIAN_ORIGIN_HEALTHCHECK_URL:-}" \
-      #     MERIDIAN_SCHEDULER_GROUP="${MERIDIAN_SCHEDULER_GROUP:-}" \
-      #     bash infra/ops/deploy_demo_launcher_stack.sh
+          MERIDIAN_LAUNCHER_STACK_NAME="${{ steps.detect.outputs.stack_name }}" \
+          AWS_REGION="${AWS_REGION}" \
+          MERIDIAN_LAUNCHER_ARTIFACT_BUCKET="${MERIDIAN_LAUNCHER_ARTIFACT_BUCKET}" \
+          MERIDIAN_HOSTED_DOMAIN="${MERIDIAN_HOSTED_DOMAIN:-meridian.codeflower.io}" \
+          MERIDIAN_ORIGIN_DOMAIN="${MERIDIAN_ORIGIN_DOMAIN}" \
+          MERIDIAN_ACM_CERT_ARN="${MERIDIAN_ACM_CERT_ARN}" \
+          MERIDIAN_EC2_INSTANCE_ID="${MERIDIAN_EC2_INSTANCE_ID}" \
+          MERIDIAN_DEMO_TTL_MINUTES="${MERIDIAN_DEMO_TTL_MINUTES:-30}" \
+          MERIDIAN_HOSTED_ZONE_ID="${MERIDIAN_HOSTED_ZONE_ID:-}" \
+          MERIDIAN_ORIGIN_HEALTHCHECK_URL="${MERIDIAN_ORIGIN_HEALTHCHECK_URL:-}" \
+          MERIDIAN_SCHEDULER_GROUP="${MERIDIAN_SCHEDULER_GROUP:-}" \
+          bash infra/ops/deploy_demo_launcher_stack.sh
 
-      # - name: Skip launcher stack apply
-      #   if: ${{ steps.detect.outputs.should_apply != 'true' }}
-      #   run: echo "Launcher stack unchanged and already present; skipping apply."
+      - name: Skip launcher stack apply
+        if: ${{ steps.detect.outputs.should_apply != 'true' }}
+        run: echo "Launcher stack unchanged and already present; skipping apply."
 
   deploy:
     runs-on: ubuntu-latest
