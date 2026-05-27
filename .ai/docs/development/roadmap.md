@@ -140,6 +140,9 @@ Legend:
 - [x] Repository rename alignment is in place for deploy auth boundaries:
   local `origin` points to `kyle-niemiec/meridian-fintech-demo` and the AWS
   OIDC deploy role trust-policy `sub` is scoped to the same repo.
+- [x] Release deploy repo-clone input is normalized to one variable name
+  (`MERIDIAN_REPO_URL`), with fallback derivation from `GITHUB_REPOSITORY` when
+  not explicitly set.
 
 ## Phase 11 - Same-Domain Demo Launcher (Scale-to-Zero)
 

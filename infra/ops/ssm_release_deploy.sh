@@ -7,13 +7,13 @@ set -euo pipefail
 # of deployment failure.
 #
 # Usage:
-#   INSTANCE_ID=<id> TAG=<vX.Y.Z> REPO_URL=<url> DOMAIN=<fqdn> \
+#   INSTANCE_ID=<id> TAG=<vX.Y.Z> MERIDIAN_REPO_URL=<url> DOMAIN=<fqdn> \
 #   AWS_REGION=<region> CURRENT_PARAM=<name> LAST_GOOD_PARAM=<name> \
 #   bash infra/ops/ssm_release_deploy.sh
 
 INSTANCE_ID="${INSTANCE_ID:-${MERIDIAN_EC2_INSTANCE_ID:-}}"
 TAG="${TAG:-${GITHUB_REF_NAME:-}}"
-REPO_URL="${REPO_URL:-}"
+MERIDIAN_REPO_URL="${MERIDIAN_REPO_URL:-}"
 DOMAIN="${DOMAIN:-meridian.codeflower.io}"
 AWS_REGION="${AWS_REGION:-us-east-2}"
 CURRENT_PARAM="${CURRENT_PARAM:-/meridian/demo/current_tag}"
@@ -78,7 +78,7 @@ send_deploy_command() {
 			--parameters "commands=[
 \"set -euo pipefail\",
 \"REPO_DIR=/opt/meridian-demo\",
-\"if [ ! -d \\\"${REPO_DIR}/.git\\\" ]; then rm -rf \\\"${REPO_DIR}\\\"; git clone \\\"${REPO_URL}\\\" \\\"${REPO_DIR}\\\"; fi\",
+\"if [ ! -d \\\"${REPO_DIR}/.git\\\" ]; then rm -rf \\\"${REPO_DIR}\\\"; git clone \\\"${MERIDIAN_REPO_URL}\\\" \\\"${REPO_DIR}\\\"; fi\",
 \"cd \\\"${REPO_DIR}\\\"\",
 \"git fetch --tags origin\",
 \"git checkout \\\"${deploy_tag}\\\"\",

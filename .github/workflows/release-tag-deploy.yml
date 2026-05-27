@@ -166,6 +166,7 @@ jobs:
       MERIDIAN_EC2_INSTANCE_ID: ${{ vars.MERIDIAN_EC2_INSTANCE_ID }}
       MERIDIAN_CURRENT_TAG_PARAM: ${{ vars.MERIDIAN_CURRENT_TAG_PARAM }}
       MERIDIAN_LAST_GOOD_TAG_PARAM: ${{ vars.MERIDIAN_LAST_GOOD_TAG_PARAM }}
+      MERIDIAN_REPO_URL: ${{ vars.MERIDIAN_REPO_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -174,7 +175,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ vars.AWS_REGION || 'us-east-2' }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Deploy tag to EC2 via SSM Run Command
         run: |
@@ -186,7 +187,7 @@ jobs:
 
           INSTANCE_ID="${MERIDIAN_EC2_INSTANCE_ID}" \
           TAG="${GITHUB_REF_NAME}" \
-          REPO_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" \
+          MERIDIAN_REPO_URL="${MERIDIAN_REPO_URL:-}" \
           DOMAIN="${DOMAIN}" \
           AWS_REGION="${AWS_REGION:-us-east-2}" \
           CURRENT_PARAM="${CURRENT_PARAM}" \
