@@ -79,7 +79,7 @@ send_deploy_command() {
 \"set -euo pipefail\",
 \"if [ ! -d \\\"/opt/meridian-demo/.git\\\" ]; then rm -rf \\\"/opt/meridian-demo\\\"; git clone \\\"${MERIDIAN_REPO_URL}\\\" \\\"/opt/meridian-demo\\\"; fi\",
 \"cd \\\"/opt/meridian-demo\\\"\",
-\"git fetch --tags origin\",
+\"git fetch --force --tags origin\",
 \"git checkout \\\"${deploy_tag}\\\"\",
 \"git reset --hard \\\"${deploy_tag}\\\"\",
 \"git clean -fdx\",
