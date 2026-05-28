@@ -16,6 +16,8 @@ Parameters:
     Type: String
   LauncherControlFunctionRoleArn:
     Type: String
+  LauncherControlFunctionRoleName:
+    Type: String
 
 Resources:
   # Create the Lambda function that will be invoked by the scheduler to stop the EC2 instance when the TTL expires.
@@ -55,6 +57,25 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource: !GetAtt LauncherStopFunction.Arn
+
+  # Allow the control Lambda's execution role to pass SchedulerInvokeStopRole to EventBridge Scheduler.
+  # Required by scheduler:CreateSchedule when setting Target.RoleArn; without it the /start request fails
+  # before the stop schedule is created, leaving the instance running past its TTL.
+  LauncherControlFunctionPassRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: SchedulerPassRolePolicy
+      Roles:
+        - !Ref LauncherControlFunctionRoleName
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: iam:PassRole
+            Resource: !GetAtt SchedulerInvokeStopRole.Arn
+            Condition:
+              StringEquals:
+                iam:PassedToService: scheduler.amazonaws.com
 
   # Create the Lambda function that serves as the public API for starting the demo and checking status.
   LauncherControlFunction:

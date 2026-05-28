@@ -64,3 +64,5 @@ Outputs:
     Value: !GetAtt LauncherStopFunctionRole.Arn
   LauncherControlFunctionRoleArn:
     Value: !GetAtt LauncherControlFunctionRole.Arn
+  LauncherControlFunctionRoleName:
+    Value: !Ref LauncherControlFunctionRole

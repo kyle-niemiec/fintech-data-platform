@@ -9,6 +9,7 @@ set -euo pipefail
 # Usage:
 #   INSTANCE_ID=<id> TAG=<vX.Y.Z> MERIDIAN_REPO_URL=<url> DOMAIN=<fqdn> \
 #   AWS_REGION=<region> CURRENT_PARAM=<name> LAST_GOOD_PARAM=<name> \
+#   LAUNCHER_API_URL=<url> \
 #   bash infra/ops/ssm_release_deploy.sh
 
 INSTANCE_ID="${INSTANCE_ID:-${MERIDIAN_EC2_INSTANCE_ID:-}}"
@@ -18,6 +19,7 @@ DOMAIN="${DOMAIN:-meridian.codeflower.io}"
 AWS_REGION="${AWS_REGION:-us-east-2}"
 CURRENT_PARAM="${CURRENT_PARAM:-/meridian/demo/current_tag}"
 LAST_GOOD_PARAM="${LAST_GOOD_PARAM:-/meridian/demo/last_good_tag}"
+LAUNCHER_API_URL="${LAUNCHER_API_URL:-}"
 
 aws_cmd() {
 	aws --region "$AWS_REGION" "$@"
@@ -83,7 +85,7 @@ send_deploy_command() {
 \"git checkout \\\"${deploy_tag}\\\"\",
 \"git reset --hard \\\"${deploy_tag}\\\"\",
 \"git clean -fdx\",
-\"TAG=\\\"${deploy_tag}\\\" DOMAIN=\\\"${DOMAIN}\\\" bash infra/ops/ec2_deploy_release.sh\"
+\"TAG=\\\"${deploy_tag}\\\" DOMAIN=\\\"${DOMAIN}\\\" LAUNCHER_API_URL=\\\"${LAUNCHER_API_URL}\\\" bash infra/ops/ec2_deploy_release.sh\"
 ]" \
 			--query 'Command.CommandId' \
 			--output text

@@ -6,10 +6,11 @@ set -euo pipefail
 # in the appropriate S3 bucket.
 #
 # Usage:
-#   TAG=<vX.Y.Z> DOMAIN=<fqdn> bash infra/ops/ec2_deploy_release.sh
+#   TAG=<vX.Y.Z> DOMAIN=<fqdn> LAUNCHER_API_URL=<url> bash infra/ops/ec2_deploy_release.sh
 
 TAG="${TAG:-}"
 DOMAIN="${DOMAIN:-meridian.codeflower.io}"
+LAUNCHER_API_URL="${LAUNCHER_API_URL:-}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 cd "$ROOT_DIR"
@@ -21,6 +22,7 @@ UI_ORIGIN="https://${DOMAIN}" \
 UI_API_URL="" \
 RELEASE_TAG="$TAG" \
 APP_ENV=prod \
+LAUNCHER_API_URL="$LAUNCHER_API_URL" \
 bash infra/ops/generate_env.sh
 
 # Clean and redeploy the infrastructure for the demo.

@@ -8,12 +8,14 @@ const windowNode = document.getElementById("window");
 let pollHandle = null;
 
 /**
- * Sets the status message displayed to the user.
+ * Sets the status message displayed to the user. HTML is allowed so state
+ * messages can highlight the key state keyword via .kw-* spans; non-state
+ * strings are plain text and render identically.
  *
- * @param {string} message 
+ * @param {string} message
  */
 function setStatus( message ) {
-	statusNode.textContent = message;
+	statusNode.innerHTML = message;
 }
 
 /**
@@ -55,16 +57,25 @@ function maybeRedirect( data ) {
  */
 function renderState( data ) {
 	const state = data.instance_state ?? "unknown";
-	let status = `Instance state: ${state}`;
+	let status = `Instance state: ${ state }`;
 
-	if ( state === "running" && ! data.app_ready ) {
-		status = "Demo is running. Waiting for app health...";
-	} else if ( state === "pending" ) {
-		status = "Starting demo instance. This can take a minute...";
-	} else if ( state === "stopping" ) {
-		status = "Demo is stopping. Refresh in a moment.";
-	} else if ( state === "stopped" ) {
-		status = "Demo is offline. Click Start Demo.";
+	switch ( state ) {
+		case "running":
+			status = ! data.app_ready
+				? 'Demo is <span class="kw-running">running</span>. Waiting for app health...'
+				: status;
+			break;
+		case "pending":
+			status = '<span class="kw-starting">Starting</span> demo instance. This can take a minute...';
+			break;
+		case "stopping":
+			status = 'Demo is <span class="kw-stopping">stopping</span>. Refresh in a moment.';
+			break;
+		case "stopped":
+			status = 'Demo is <span class="kw-offline">offline</span>. Click Start Demo.';
+			break;
+		default:
+			break;
 	}
 
 	setStatus( status );
@@ -78,13 +89,13 @@ function renderState( data ) {
  * @returns {string} The JSON response containing the instance status and related information.
  */
 async function fetchStatus() {
-	const res = await fetch(`${CONTROL_API_BASE}/status`, {
+	const res = await fetch( `${ CONTROL_API_BASE }/status`, {
 		method: "GET",
 		headers: { Accept: "application/json" },
-	});
+	} );
 
 	if ( ! res.ok ) {
-		throw new Error( `status request failed (${res.status})` );
+		throw new Error( `status request failed (${ res.status })` );
 	}
 
 	return res.json();

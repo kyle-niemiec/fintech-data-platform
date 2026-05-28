@@ -12,8 +12,8 @@ def main() -> int:
 	line arguments for template path, output path, mode, UI origin, UI API URL,
 	release tag, KES API key, and KES identity.
 	"""
-	if len(sys.argv) != 10:
-		raise SystemExit("expected args: template output mode ui_origin ui_api_url release_tag app_env kes_api_key kes_identity")
+	if len(sys.argv) != 11:
+		raise SystemExit("expected args: template output mode ui_origin ui_api_url release_tag app_env launcher_api_url kes_api_key kes_identity")
 
 	# Parse command line arguments.
 	template_path = Path(sys.argv[1])
@@ -23,8 +23,9 @@ def main() -> int:
 	ui_api_url = sys.argv[5]
 	release_tag = sys.argv[6]
 	app_env = sys.argv[7]
-	kes_api_key = sys.argv[8]
-	kes_identity = sys.argv[9]
+	launcher_api_url = sys.argv[8]
+	kes_api_key = sys.argv[9]
+	kes_identity = sys.argv[10]
 
 	renderer = EnvTemplateRenderer(
 		template_path=template_path,
@@ -34,6 +35,7 @@ def main() -> int:
 		ui_api_url=ui_api_url,
 		release_tag=release_tag,
 		app_env=app_env,
+		launcher_api_url=launcher_api_url,
 		kes_api_key=kes_api_key,
 		kes_identity=kes_identity,
 	)

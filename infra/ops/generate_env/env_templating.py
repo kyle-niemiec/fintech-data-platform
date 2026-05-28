@@ -18,6 +18,7 @@ class EnvTemplateRenderer:
 
 	DETERMINISTIC_SEED = "meridian-ci-seed-v1"
 
+
 	def __init__(
 		self,
 		template_path: Path,
@@ -27,6 +28,7 @@ class EnvTemplateRenderer:
 		ui_api_url: str,
 		release_tag: str,
 		app_env: str,
+		launcher_api_url: str,
 		kes_api_key: str,
 		kes_identity: str,
 	) -> None:
@@ -37,8 +39,10 @@ class EnvTemplateRenderer:
 		self.ui_api_url = ui_api_url
 		self.release_tag = release_tag
 		self.app_env = app_env
+		self.launcher_api_url = launcher_api_url
 		self.kes_api_key = kes_api_key
 		self.kes_identity = kes_identity
+
 
 	def _template_find_replace(self, template: str, key: str, value: str) -> str:
 		"""
@@ -52,11 +56,13 @@ class EnvTemplateRenderer:
 
 		return f"{template.rstrip()}\n{replacement}\n"
 
+
 	def _template_find_remove(self, template: str, key: str) -> str:
 		"""
 		Find a key in a template `.env` and remove the line if it exists.
 		"""
 		return re.sub(rf"(?m)^{re.escape(key)}=.*\n?", "", template)
+
 
 	def _template_replace_prefixed_values(self, template: str) -> str:
 		"""
@@ -74,6 +80,7 @@ class EnvTemplateRenderer:
 			return f"{key}={deterministic_value(self.DETERMINISTIC_SEED, key)}"
 
 		return pattern.sub(_replacement, template)
+
 
 	def render(self) -> int:
 		"""
@@ -108,6 +115,9 @@ class EnvTemplateRenderer:
 
 		if self.app_env:
 			template = self._template_find_replace(template, "VITE_APP_ENV", self.app_env)
+
+		if self.launcher_api_url:
+			template = self._template_find_replace(template, "VITE_LAUNCHER_API_URL", self.launcher_api_url)
 
 		# Replace any keys with values starting with `replace_with_` according to the mode.
 		template = self._template_replace_prefixed_values(template)

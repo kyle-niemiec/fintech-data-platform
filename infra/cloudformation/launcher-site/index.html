@@ -3,13 +3,22 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Meridian Demo Launcher</title>
+		<title>Meridian Fintech Demo</title>
 		<link rel="stylesheet" href="./styles.css" />
 	</head>
 	<body>
 		<main class="card">
-			<h1>Meridian Demo</h1>
-			<p class="subtitle">The demo instance is currently offline.</p>
+			<h1>Meridian Fintech Demo</h1>
+			<p class="subtitle">a project by Kyle Niemiec</p>
+			<p class="intro">
+				Welcome to my personal, data engineering project! Due to the high
+				compute usage of the many containers involved, significant resources
+				have been allocated in AWS to keep the project running smoothly.
+				For that reason, the EC2 instance remains off for most of the time
+				and can be enabled with a Lambda function by clicking the button
+				below. The demo will remain active for 30 minutes, after which
+				it will stop and must be started again. Thanks for looking!
+			</p>
 			<button id="start-btn" type="button">Start Demo (30 min)</button>
 			<p id="status" class="status">Checking status...</p>
 			<p id="window" class="window"></p>

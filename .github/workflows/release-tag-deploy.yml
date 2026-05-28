@@ -167,6 +167,7 @@ jobs:
       MERIDIAN_CURRENT_TAG_PARAM: ${{ vars.MERIDIAN_CURRENT_TAG_PARAM }}
       MERIDIAN_LAST_GOOD_TAG_PARAM: ${{ vars.MERIDIAN_LAST_GOOD_TAG_PARAM }}
       MERIDIAN_REPO_URL: ${{ vars.MERIDIAN_REPO_URL }}
+      MERIDIAN_LAUNCHER_STACK_NAME: ${{ vars.MERIDIAN_LAUNCHER_STACK_NAME }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -176,6 +177,18 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Resolve launcher control API URL
+        id: launcher_url
+        run: |
+          set -euo pipefail
+          STACK_NAME="${MERIDIAN_LAUNCHER_STACK_NAME:-meridian-demo-launcher}"
+          LAUNCHER_API_URL="$(aws --region "${AWS_REGION:-us-east-2}" cloudformation describe-stacks \
+            --stack-name "${STACK_NAME}" \
+            --query "Stacks[0].Outputs[?OutputKey=='LauncherControlFunctionUrl'].OutputValue" \
+            --output text)"
+          LAUNCHER_API_URL="${LAUNCHER_API_URL%/}"
+          echo "launcher_api_url=${LAUNCHER_API_URL}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy tag to EC2 via SSM Run Command
         run: |
@@ -192,4 +205,5 @@ jobs:
           AWS_REGION="${AWS_REGION:-us-east-2}" \
           CURRENT_PARAM="${CURRENT_PARAM}" \
           LAST_GOOD_PARAM="${LAST_GOOD_PARAM}" \
+          LAUNCHER_API_URL="${{ steps.launcher_url.outputs.launcher_api_url }}" \
           bash infra/ops/ssm_release_deploy.sh

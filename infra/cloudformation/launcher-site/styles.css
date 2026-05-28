@@ -17,7 +17,7 @@ body {
 }
 
 .card {
-	width: min(460px, 92vw);
+	width: min(768px, 92vw);
 	padding: 2rem;
 	border-radius: 1rem;
 	background: rgba(255, 255, 255, 0.9);
@@ -31,8 +31,16 @@ h1 {
 }
 
 .subtitle {
-	margin: 0.75rem 0 1.75rem;
+	margin: 0.75rem 0 1.25rem;
 	color: #334155;
+}
+
+.intro {
+	margin: 0 0 1.75rem;
+	color: #1f2937;
+	font-size: 0.95rem;
+	line-height: 1.5;
+	text-align: left;
 }
 
 button {
@@ -54,6 +62,22 @@ button:disabled {
 .status {
 	margin-top: 1rem;
 	font-weight: 600;
+}
+
+.kw-offline,
+.kw-stopping {
+	color: #dc2626;
+	font-weight: 700;
+}
+
+.kw-running {
+	color: #a3e635;
+	font-weight: 700;
+}
+
+.kw-starting {
+	color: #eab308;
+	font-weight: 700;
 }
 
 .window {

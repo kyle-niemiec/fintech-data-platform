@@ -8,6 +8,7 @@
 # Usage:
 #   TEMPLATE=<path> OUTPUT=<path> MODE=<deterministic|random> \
 #   UI_ORIGIN=<url> UI_API_URL=<url> RELEASE_TAG=<tag> APP_ENV=<env> \
+#   LAUNCHER_API_URL=<url> \
 #   bash infra/ops/generate_env.sh
 
 set -euo pipefail
@@ -19,6 +20,7 @@ UI_ORIGIN="${UI_ORIGIN:-}"
 UI_API_URL="${UI_API_URL:-}"
 RELEASE_TAG="${RELEASE_TAG:-}"
 APP_ENV="${APP_ENV:-}"
+LAUNCHER_API_URL="${LAUNCHER_API_URL:-}"
 
 if [ ! -f "$TEMPLATE" ]; then
 	printf 'Template not found: %s\n' "$TEMPLATE" >&2
@@ -52,6 +54,7 @@ python3 "$(dirname "${BASH_SOURCE[0]}")/generate_env/index.py" \
 	"$UI_API_URL" \
 	"$RELEASE_TAG" \
 	"$APP_ENV" \
+	"$LAUNCHER_API_URL" \
 	"$KES_API_KEY" \
 	"$KES_IDENTITY"
 

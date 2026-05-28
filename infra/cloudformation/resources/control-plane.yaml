@@ -31,6 +31,7 @@ Resources:
         HealthCheckUrl: !Ref HealthCheckUrl
         LauncherStopFunctionRoleArn: !GetAtt RoleResources.Outputs.LauncherStopFunctionRoleArn
         LauncherControlFunctionRoleArn: !GetAtt RoleResources.Outputs.LauncherControlFunctionRoleArn
+        LauncherControlFunctionRoleName: !GetAtt RoleResources.Outputs.LauncherControlFunctionRoleName
 
 Outputs:
   LauncherControlFunctionUrl:
