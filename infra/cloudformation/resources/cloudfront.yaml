@@ -41,6 +41,9 @@ Resources:
           # Define the primary origin pointing to the EC2 app
           - Id: ec2-app-origin
             DomainName: !Ref OriginDomainName
+            # Cut failover latency when the EC2 origin is stopped/unreachable.
+            ConnectionAttempts: 1
+            ConnectionTimeout: 2
             CustomOriginConfig:
               HTTPPort: 80
               HTTPSPort: 443

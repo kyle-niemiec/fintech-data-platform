@@ -181,6 +181,10 @@ Legend:
   - [x] Dynamic app/API paths are explicitly uncached (`/ui/*`, `/api/*`) using managed `CachingDisabled`.
   - [x] Static hashed assets remain explicitly cache-optimized under `/assets/*`.
   - [x] Default behavior now favors freshness to prevent stale `200` app/API responses when origin health changes.
+- [x] Launcher reliability hardening updates are codified in IaC:
+  - [x] S3 website failover origin hostname template uses region-dot format (`s3-website.${AWS::Region}.amazonaws.com`) to avoid DNS resolution failures.
+  - [x] Primary EC2 origin connection timeout/attempts are reduced (`ConnectionTimeout: 2`, `ConnectionAttempts: 1`) for faster failover when the instance is down.
+  - [x] Launcher Function URL includes both public URL permissions (`lambda:InvokeFunctionUrl` and URL-scoped `lambda:InvokeFunction` with `InvokedViaFunctionUrl: true`) to satisfy current Lambda URL authorization requirements.
 - [ ] Live AWS launcher prerequisites are still pending manual operator
   execution (ACM cert for `meridian.codeflower.io` in `us-east-1`, initial
   launcher stack apply, and hosted-domain DNS cutover to CloudFront with

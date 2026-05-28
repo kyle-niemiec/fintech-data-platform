@@ -101,6 +101,17 @@ Resources:
       FunctionUrlAuthType: NONE
       Principal: "*"
 
+  # Required for function URLs created/managed under newer Lambda auth rules:
+  # public URL callers need invoke permission scoped to URL-based invocation.
+  LauncherControlFunctionInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LauncherControlFunction
+      FunctionUrlAuthType: NONE
+      InvokedViaFunctionUrl: true
+      Principal: "*"
+
 Outputs:
   LauncherControlFunctionUrl:
     Value: !GetAtt LauncherControlFunctionUrl.FunctionUrl
