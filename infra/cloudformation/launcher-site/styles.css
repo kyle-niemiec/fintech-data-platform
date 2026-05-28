@@ -1,7 +1,8 @@
 :root {
+	background: radial-gradient(circle at top, #eff6ff, #dbeafe 40%, #bfdbfe 100%);
 	color-scheme: light;
 	font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-	background: radial-gradient(circle at top, #eff6ff, #dbeafe 40%, #bfdbfe 100%);
+	font-size: 16px;
 }
 
 * {
@@ -9,59 +10,81 @@
 }
 
 body {
+	color: #0f172a;
+	display: grid;
 	margin: 0;
 	min-height: 100vh;
-	display: grid;
 	place-items: center;
-	color: #0f172a;
 }
 
 .card {
-	width: min(768px, 92vw);
-	padding: 2rem;
-	border-radius: 1rem;
 	background: rgba(255, 255, 255, 0.9);
+	border-radius: 1rem;
 	box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+	padding: 2rem;
 	text-align: center;
+	width: min(768px, 92vw);
 }
 
 h1 {
-	margin: 0;
 	font-size: 2rem;
+	margin: 0;
 }
 
 .subtitle {
-	margin: 0.75rem 0 1.25rem;
 	color: #334155;
+	font-size: 1.25rem;
+	margin: 0.75rem 0 1.25rem;
 }
 
 .intro {
-	margin: 0 0 1.75rem;
 	color: #1f2937;
-	font-size: 0.95rem;
 	line-height: 1.5;
+	margin: 0 0 1.75rem;
 	text-align: left;
 }
 
 button {
-	width: 100%;
+	align-items: center;
+	background: linear-gradient(90deg, #064765, #0a76a9);
 	border: 0;
 	border-radius: 0.75rem;
-	padding: 0.85rem 1rem;
-	font-weight: 700;
 	color: #ffffff;
-	background: linear-gradient(135deg, #0f766e, #0ea5e9);
 	cursor: pointer;
+	display: flex;
+	font-size: 1rem;
+	font-weight: 700;
+	gap: 0.6rem;
+	justify-content: center;
+	margin: 1.5rem auto;
+	max-width: 480px;
+	padding: 0.86rem 1rem;
+	width: 100%;
+}
+
+button::before {
+	align-items: center;
+	background: linear-gradient(45deg, #C8511C, #FF9900);
+	border-radius: 0.25rem;
+	box-shadow: 1px 1px 2px 2px rgba(0, 0, 0, 0.33);
+	color: #ffffff;
+	content: "λ";
+	display: inline-flex;
+	font-size: 1.5rem;
+	font-weight: 700;
+	height: 2rem;
+	justify-content: center;
+	width: 2rem;
 }
 
 button:disabled {
+	cursor: not-allowed;
 	opacity: 0.65;
-	cursor: progress;
 }
 
 .status {
-	margin-top: 1rem;
 	font-weight: 600;
+	margin-top: 1rem;
 }
 
 .kw-offline,
@@ -71,7 +94,7 @@ button:disabled {
 }
 
 .kw-running {
-	color: #a3e635;
+	color: #35e641;
 	font-weight: 700;
 }
 
@@ -81,7 +104,7 @@ button:disabled {
 }
 
 .window {
-	min-height: 1.25rem;
-	margin-top: 0.25rem;
 	color: #475569;
+	margin-top: 0.25rem;
+	min-height: 1.25rem;
 }

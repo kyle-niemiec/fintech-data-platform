@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import TopNav from "./components/layout/TopNav";
 import SessionTimer from "./components/layout/SessionTimer";
+import ShutdownOverlay from "./components/layout/ShutdownOverlay";
 
 /**
  * Parses the release tag from environment variables (e.g., "v1.0.0")
@@ -48,6 +49,8 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      <ShutdownOverlay />
     </div>
   );
 }

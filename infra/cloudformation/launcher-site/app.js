@@ -80,6 +80,8 @@ function renderState( data ) {
 
 	setStatus( status );
 	setWindow( data.stop_scheduled_at );
+	// Only allow starting from a fully stopped state; any other state means a start is in flight or unnecessary.
+	startButton.disabled = state !== "stopped";
 	maybeRedirect( data );
 }
 
@@ -138,9 +140,9 @@ async function startDemo() {
 	} catch ( error ) {
 		setStatus( "Start request failed. Try again." );
 		windowNode.textContent = "";
-		console.error( error );
-	} finally {
+		// Re-enable so the user can retry; on success, renderState owns the disabled state.
 		startButton.disabled = false;
+		console.error( error );
 	}
 }
 
