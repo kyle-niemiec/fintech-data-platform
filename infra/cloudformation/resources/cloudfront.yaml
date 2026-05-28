@@ -37,6 +37,7 @@ Resources:
           SslSupportMethod: sni-only
           MinimumProtocolVersion: TLSv1.2_2021
         Origins:
+
           # Define the primary origin pointing to the EC2 app
           - Id: ec2-app-origin
             DomainName: !Ref OriginDomainName
@@ -44,6 +45,7 @@ Resources:
               HTTPPort: 80
               HTTPSPort: 443
               OriginProtocolPolicy: http-only
+
           # Define the secondary origin pointing to the S3 launcher site for failover
           - Id: s3-launcher-origin
             DomainName: !Sub "${LauncherLandingBucketName}.s3-website-${AWS::Region}.amazonaws.com"
@@ -51,9 +53,12 @@ Resources:
               HTTPPort: 80
               HTTPSPort: 443
               OriginProtocolPolicy: http-only
+
         OriginGroups:
           Quantity: 1
           Items:
+
+            # Define the origin group for failover between the EC2 app and S3 launcher
             - Id: app-with-launcher-failover
               FailoverCriteria:
                 StatusCodes:
@@ -65,10 +70,10 @@ Resources:
                     - 504
               Members:
                 Quantity: 2
-                # Define the order of failover origins, first EC2 and then S3 launcher
                 Items:
                   - OriginId: ec2-app-origin
                   - OriginId: s3-launcher-origin
+
         DefaultCacheBehavior:
           TargetOriginId: app-with-launcher-failover
           ViewerProtocolPolicy: redirect-to-https
@@ -81,8 +86,65 @@ Resources:
             - GET
             - HEAD
             - OPTIONS
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
-          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad           # CachingDisabled
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac   # AllViewerExceptHostHeader
+        CacheBehaviors:
+
+          # Add a behavior for the `/assets` path to enable caching
+          - PathPattern: /assets/*
+            TargetOriginId: app-with-launcher-failover
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6         # CachingOptimized
+            OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf # CORS-S3Origin
+
+          # Add a behavior for the `/ui` path to disable caching
+          - PathPattern: /ui/*
+            TargetOriginId: app-with-launcher-failover
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+              - PUT
+              - POST
+              - PATCH
+              - DELETE
+            CachedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad         # CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # AllViewerExceptHostHeader
+
+          # Add a behavior for the `/api` path to disable caching
+          - PathPattern: /api/*
+            TargetOriginId: app-with-launcher-failover
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+              - PUT
+              - POST
+              - PATCH
+              - DELETE
+            CachedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad         # CachingDisabled 
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # AllViewerExceptHostHeader 
 
   # Create a Route53 A record alias to point the demo domain to the CloudFront distribution.
   DemoDnsAliasRecord:
