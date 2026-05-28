@@ -48,7 +48,7 @@ Resources:
 
           # Define the secondary origin pointing to the S3 launcher site for failover
           - Id: s3-launcher-origin
-            DomainName: !Sub "${LauncherLandingBucketName}.s3-website-${AWS::Region}.amazonaws.com"
+            DomainName: !Sub "${LauncherLandingBucketName}.s3-website.${AWS::Region}.amazonaws.com"
             CustomOriginConfig:
               HTTPPort: 80
               HTTPSPort: 443
