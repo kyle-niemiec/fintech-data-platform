@@ -1,5 +1,8 @@
 # Project Standards
 
+## Business Story
+- `.ai/docs/meridian-lore.md` is the primary business story for Meridian as a firm. Consult it when work needs business context — departments, business lines, regulatory posture, or how internal operations connect.
+
 ## Architecture And Scope
 - Build only what is currently required; no speculative scaffolding unless explicitly requested.
 - Keep service boundaries event-driven and aligned with planning docs.
