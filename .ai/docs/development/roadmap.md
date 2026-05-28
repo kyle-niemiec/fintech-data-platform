@@ -179,6 +179,7 @@ Legend:
   manual provisioning and environment wiring in v1.
 - [x] CloudFront cache behavior hardening applied in launcher edge template:
   - [x] Dynamic app/API paths are explicitly uncached (`/ui/*`, `/api/*`) using managed `CachingDisabled`.
+  - [x] Dynamic app/API paths route directly to the EC2 origin (not origin group) so CloudFront can allow full HTTP methods (`GET/HEAD/OPTIONS/PUT/POST/PATCH/DELETE`).
   - [x] Static hashed assets remain explicitly cache-optimized under `/assets/*`.
   - [x] Default behavior now favors freshness to prevent stale `200` app/API responses when origin health changes.
 - [x] Launcher reliability hardening updates are codified in IaC:

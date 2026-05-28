@@ -111,7 +111,7 @@ Resources:
 
           # Add a behavior for the `/ui` path to disable caching
           - PathPattern: /ui/*
-            TargetOriginId: app-with-launcher-failover
+            TargetOriginId: ec2-app-origin
             ViewerProtocolPolicy: redirect-to-https
             Compress: true
             AllowedMethods:
@@ -131,7 +131,7 @@ Resources:
 
           # Add a behavior for the `/api` path to disable caching
           - PathPattern: /api/*
-            TargetOriginId: app-with-launcher-failover
+            TargetOriginId: ec2-app-origin
             ViewerProtocolPolicy: redirect-to-https
             Compress: true
             AllowedMethods:
