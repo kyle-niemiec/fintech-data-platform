@@ -6,6 +6,7 @@ services:
       args:
         VITE_API_URL: ${UI_API_URL:-}
         VITE_RELEASE_TAG: ${VITE_RELEASE_TAG:-}
+        VITE_APP_ENV: ${VITE_APP_ENV:-}
     container_name: fintech_ui
     restart: unless-stopped
     ports:

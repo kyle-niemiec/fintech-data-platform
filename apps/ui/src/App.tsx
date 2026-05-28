@@ -14,9 +14,12 @@ const releaseTag = (() => {
   return /^v\d+\.\d+\.\d+$/.test(value) ? value : undefined;
 })();
 
+const APP_ENV =
+  (import.meta.env.VITE_APP_ENV ?? "local").trim() || "local";
+
 /**
  * Root application component that serves as the main layout wrapper for all pages.
- * 
+ *
  * @returns The application wrapper JSX
  */
 export default function App() {
@@ -27,9 +30,14 @@ export default function App() {
         <Outlet />
       </main>
       <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-6 py-4 text-xs text-navy-600">
-          Meridian Fintech Demo &middot; Demo Console
-          {releaseTag ? ` · Version ${releaseTag}` : ""}
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-4 text-xs text-navy-600">
+          <div>
+            Meridian Fintech Demo &middot; Demo Console
+            {releaseTag ? ` · Version ${releaseTag}` : ""}
+          </div>
+          <span className="rounded-full border border-navy-200 bg-slate-100 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-navy-700">
+            env · {APP_ENV}
+          </span>
         </div>
       </footer>
     </div>

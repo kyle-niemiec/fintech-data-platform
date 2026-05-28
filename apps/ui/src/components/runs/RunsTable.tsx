@@ -28,7 +28,7 @@ export default function RunsTable({ runs, sort, onSort }: Props) {
     />
   );
   return (
-    <div className="card overflow-hidden">
+    <div className="card overflow-x-auto">
       <table className="table-default">
         <thead className="bg-slate-50">
           <tr>

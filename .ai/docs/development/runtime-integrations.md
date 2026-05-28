@@ -89,3 +89,7 @@
 
 ## CDC Fraud Scoring Threshold
 - `PLATFORM_RISK_THRESHOLD` (`services/workers/fraud_worker/scorer.py`) is `0.9`. It both gates the `risk_threshold_exceeded` flag and calibrates the continuous score so a transaction at an instrument's calibrated amount scores exactly the threshold.
+
+## UI Header Runtime Integrations
+- The environment identifier in the header (`apps/ui/src/components/layout/TopNav.tsx`) reads `import.meta.env.VITE_APP_ENV` and falls back to `"local"`. Build-arg plumbing mirrors `VITE_RELEASE_TAG`: Dockerfile `ARG/ENV VITE_APP_ENV` → compose `args.VITE_APP_ENV` → `generate_env.sh APP_ENV` → `env_templating.EnvTemplateRenderer.app_env`. Release-tag deploys set `APP_ENV=prod` in `infra/ops/ec2_deploy_release.sh`; local dev compose leaves it empty so the badge renders `env · local`.
+- The header's GitHub repo block (`apps/ui/src/components/layout/GitHubRepoBlock.tsx`) fetches `https://api.github.com/repos/kyle-niemiec/fintech-data-platform` once on mount (anonymous, 60/hr/IP rate limit) to render stars and forks. The repo slug is hardcoded; failed/loading states fall back to em-dashes so header layout does not reflow.

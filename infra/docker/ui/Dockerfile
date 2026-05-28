@@ -6,6 +6,8 @@ ARG VITE_API_URL=
 ENV VITE_API_URL=${VITE_API_URL}
 ARG VITE_RELEASE_TAG=
 ENV VITE_RELEASE_TAG=${VITE_RELEASE_TAG}
+ARG VITE_APP_ENV=
+ENV VITE_APP_ENV=${VITE_APP_ENV}
 
 COPY apps/ui/package.json apps/ui/package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi

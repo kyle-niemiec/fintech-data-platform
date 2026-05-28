@@ -26,6 +26,7 @@ class EnvTemplateRenderer:
 		ui_origin: str,
 		ui_api_url: str,
 		release_tag: str,
+		app_env: str,
 		kes_api_key: str,
 		kes_identity: str,
 	) -> None:
@@ -35,6 +36,7 @@ class EnvTemplateRenderer:
 		self.ui_origin = ui_origin
 		self.ui_api_url = ui_api_url
 		self.release_tag = release_tag
+		self.app_env = app_env
 		self.kes_api_key = kes_api_key
 		self.kes_identity = kes_identity
 
@@ -103,6 +105,9 @@ class EnvTemplateRenderer:
 
 		if self.release_tag:
 			template = self._template_find_replace(template, "VITE_RELEASE_TAG", self.release_tag)
+
+		if self.app_env:
+			template = self._template_find_replace(template, "VITE_APP_ENV", self.app_env)
 
 		# Replace any keys with values starting with `replace_with_` according to the mode.
 		template = self._template_replace_prefixed_values(template)

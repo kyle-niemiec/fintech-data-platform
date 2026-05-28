@@ -99,7 +99,7 @@ export default function ConsumerLagTable({ items }: { items: ConsumerLagItem[] }
         return (
           <div
             key={group}
-            className="overflow-hidden rounded-lg border border-slate-200"
+            className="overflow-x-auto rounded-lg border border-slate-200"
           >
             <button
               type="button"

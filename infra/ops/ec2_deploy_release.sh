@@ -20,8 +20,7 @@ OUTPUT=infra/.env \
 UI_ORIGIN="https://${DOMAIN}" \
 UI_API_URL="" \
 RELEASE_TAG="$TAG" \
-
-# Generate the .env file.
+APP_ENV=prod \
 bash infra/ops/generate_env.sh
 
 # Clean and redeploy the infrastructure for the demo.
