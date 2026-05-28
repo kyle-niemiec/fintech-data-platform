@@ -108,7 +108,6 @@ Resources:
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !Ref LauncherControlFunction
-      FunctionUrlAuthType: NONE
       InvokedViaFunctionUrl: true
       Principal: "*"
 
