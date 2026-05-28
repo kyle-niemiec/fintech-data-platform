@@ -432,26 +432,26 @@ resource "minio_iam_user" "trino_read" {
 }
 
 resource "minio_iam_user_policy_attachment" "ingest" {
-  user_name   = var.minio_ingest_user
+  user_name   = minio_iam_user.ingest.name
   policy_name = minio_iam_policy.ingest.name
 }
 
 resource "minio_iam_user_policy_attachment" "transform" {
-  user_name   = var.minio_transform_user
+  user_name   = minio_iam_user.transform.name
   policy_name = minio_iam_policy.transform.name
 }
 
 resource "minio_iam_user_policy_attachment" "validation" {
-  user_name   = var.minio_validation_user
+  user_name   = minio_iam_user.validation.name
   policy_name = minio_iam_policy.validation.name
 }
 
 resource "minio_iam_user_policy_attachment" "trino_write" {
-  user_name   = var.minio_trino_write_user
+  user_name   = minio_iam_user.trino_write.name
   policy_name = minio_iam_policy.trino_write.name
 }
 
 resource "minio_iam_user_policy_attachment" "trino_read" {
-  user_name   = var.minio_trino_read_user
+  user_name   = minio_iam_user.trino_read.name
   policy_name = minio_iam_policy.trino_read.name
 }
