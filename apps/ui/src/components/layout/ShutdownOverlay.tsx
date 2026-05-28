@@ -16,19 +16,26 @@ export default function ShutdownOverlay() {
 	const now = useNow();
 
 	const hasExpired = stopAt !== null && now >= stopAt.getTime();
+	const isStopping = instanceState === "stopping";
 	const isStopped = instanceState === "stopped";
 
 	useEffect( () => {
-		if ( hasExpired && isStopped ) {
-			window.location.replace( `/?t=${ Date.now() }` );
+		// "stopped" is unambiguous: redirect regardless of whether we ever observed the
+		// original stop time (covers late page-load + the API's null window after EventBridge fires).
+		if ( isStopped ) {
+			window.location.replace( `/` );
 		}
-	}, [ hasExpired, isStopped ] );
+	}, [ isStopped ] );
 
-	// Hide until the timer has expired AND we have confirmation the instance is no longer running.
-	// Treat a null instanceState (no data yet) as still-running to avoid spurious modals from a transient fetch failure.
-	const shouldShow = hasExpired
-					&& instanceState !== null
-					&& instanceState !== "running";
+	// Show the modal once shutdown is observable: either the timer expired and we have
+	// confirmation the instance is no longer running, or the launcher is directly reporting
+	// stopping/stopped (which is the authoritative signal once stop_scheduled_at has cleared).
+	// Treat a null instanceState (no data yet) as still-running to avoid spurious modals from
+	// a transient fetch failure.
+	const shouldShow =
+		isStopping ||
+		isStopped ||
+		( hasExpired && instanceState !== null && instanceState !== "running" );
 
 	if ( ! shouldShow ) {
 		return null;

@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 // The base URL for the launcher API to get the timer information from.
@@ -48,6 +49,13 @@ export interface SessionTimerState {
 export function useSessionTimer(): SessionTimerState {
 	const enabled = Boolean( LAUNCHER_API_URL );
 
+	// EventBridge's ActionAfterCompletion="DELETE" clears stop_scheduled_at from the
+	// launcher response the instant the schedule fires, before the instance has had
+	// a chance to transition out of "running". Latch the most recent stop time so the
+	// hook keeps reporting an expired session through that null window — without it,
+	// polling drops back to 60 s and the overlay never sees hasExpired = true.
+	const latchedStopAtRef = useRef<Date | null>( null );
+
 	const { data } = useQuery( {
 		queryKey: [ "launcher", "status" ],
 		queryFn: () => fetchLauncherStatus( LAUNCHER_API_URL as string ),
@@ -69,13 +77,14 @@ export function useSessionTimer(): SessionTimerState {
 				return 3_000;
 			}
 
-			// Past the scheduled stop but state hasn't transitioned yet — fast-poll to catch the change.
-			if ( current.stop_scheduled_at ) {
-				const ts = new Date( current.stop_scheduled_at ).getTime();
+			// Past the scheduled (or latched) stop but state hasn't transitioned yet —
+			// fast-poll to catch the running -> stopping change.
+			const scheduledMs = current.stop_scheduled_at
+				? new Date( current.stop_scheduled_at ).getTime()
+				: latchedStopAtRef.current?.getTime();
 
-				if ( ! Number.isNaN( ts ) && Date.now() >= ts ) {
-					return 3_000;
-				}
+			if ( scheduledMs !== undefined && ! Number.isNaN( scheduledMs ) && Date.now() >= scheduledMs ) {
+				return 3_000;
 			}
 
 			return 60_000;
@@ -84,20 +93,25 @@ export function useSessionTimer(): SessionTimerState {
 	} );
 
 	if ( ! data ) {
-		return { stopAt: null, instanceState: null };
+		return { stopAt: latchedStopAtRef.current, instanceState: null };
 	}
 
 	const instanceState = data.instance_state ?? null;
 
-	if ( ! data.stop_scheduled_at ) {
-		return { stopAt: null, instanceState };
+	let liveStopAt: Date | null = null;
+
+	if ( data.stop_scheduled_at ) {
+		const parsed = new Date( data.stop_scheduled_at );
+
+		if ( ! Number.isNaN( parsed.getTime() ) ) {
+			liveStopAt = parsed;
+		}
 	}
 
-	const parsed = new Date( data.stop_scheduled_at );
-
-	if ( Number.isNaN( parsed.getTime() ) ) {
-		return { stopAt: null, instanceState };
+	// Latch any fresh stop time we observe so it survives the API's null window.
+	if ( liveStopAt ) {
+		latchedStopAtRef.current = liveStopAt;
 	}
 
-	return { stopAt: parsed, instanceState };
+	return { stopAt: liveStopAt ?? latchedStopAtRef.current, instanceState };
 }
