@@ -2,9 +2,11 @@
   <img src=".github/assets/meridian-banner.svg" alt="Meridian" width="600"/>
 </div>
 
-> A personal note: This is an ongoing project that I undertook following my IBM data engineering certification course. I felt that I needed a place to exercise the combination of skills and technologies that I had learned about, as well as a place to practice working within industry-standard configurations so that I could learn about prominent technologies. The inspiration came from a senior data engineer job posting that I aspired to be qualified for, involving the data management for a fintech company that had Excel sheet, internal API, and Salesforce data to consolidate. From this was born Meridian, the business story behind an ETL pipeline for 3 disparate sources of data. The project is still a learning experience and work-in-progress, but I hope that it demonstrates some of my thought process as an engineer.
+<br />
+
+> A personal note: This is an ongoing project that I undertook following my IBM data engineering certification course. I felt that I needed a place to exercise the combination of skills and technologies that I had learned about, as well as a place to practice working within industry-standard configurations. From a job posting I aspired to qualify for was born Meridian: the business story behind an ETL platform for 3 disparate sources of data. The project is still a work-in-progress, but I hope that it demonstrates some of my thought process as an engineer.
 >
-> If you would like to take a look at the application in action, just visit the deployment at [https://meridian.codeflower.io/](https://meridian.codeflower.io/). Thanks for coming to take a look!
+> If you would like to take a look at the application in action, just visit the deployment at [meridian.codeflower.io](https://meridian.codeflower.io/). Thanks for coming to take a look!
 >
 > — Kyle
 
