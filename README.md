@@ -6,7 +6,7 @@
 
 > A personal note: This is an ongoing project that I undertook following my IBM data engineering certification course. I felt that I needed a place to exercise the combination of skills and technologies that I had learned about, as well as a place to practice working within industry-standard configurations. From a job posting I aspired to qualify for was born Meridian: the business story behind an ETL platform for 3 disparate sources of data. The project is still a work-in-progress, but I hope that it demonstrates some of my thought process as an engineer.
 >
-> If you would like to take a look at the application in action, just visit the deployment at [meridian.codeflower.io](https://meridian.codeflower.io/). Thanks for coming to take a look!
+> If you would like to take a look at the application in action, just visit the deployment at <a href="https://meridian.codeflower.io/" target="_blank">meridian.codeflower.io</a>. Thanks for coming to take a look!
 >
 > — Kyle
 
@@ -22,7 +22,7 @@ For the full portrait of Meridian as a firm — departments, workflows, regulato
 
 ## Try it
 
-Open **[meridian.codeflower.io](https://meridian.codeflower.io)** and drive each pipeline from the console:
+Open **<a href="https://meridian.codeflower.io/" target="_blank">meridian.codeflower.io</a>** and drive each pipeline from the console:
 
 - **Generate a transaction** to watch the fraud model score it in real time; a high-value NVDA trade trips a high-severity alert within seconds.
 - **Upload a payroll workbook** to walk a clean file through scan, validate, and promotion to bronze; choose the invalid variant to watch the quarantine guardrail catch a missing column.
