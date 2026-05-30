@@ -3,19 +3,24 @@ const DEMO_HOST = "__DEMO_HOST__";
 
 const startButton = document.getElementById("start-btn");
 const statusNode = document.getElementById("status");
+const statusLabel = statusNode.querySelector(".status-label");
 const windowNode = document.getElementById("window");
+const menuToggle = document.getElementById("menu-toggle");
+const menuPanel = document.getElementById("menu-panel");
+const yearNode = document.getElementById("year");
 
 let pollHandle = null;
 
 /**
- * Sets the status message displayed to the user. HTML is allowed so state
- * messages can highlight the key state keyword via .kw-* spans; non-state
- * strings are plain text and render identically.
+ * Sets the status pill state and label. The pill's data-state drives its colour
+ * and the animated dot via CSS; the label is plain text.
  *
- * @param {string} message
+ * @param {string} variant One of: stopped, pending, running, stopping, error, unknown.
+ * @param {string} label
  */
-function setStatus( message ) {
-	statusNode.innerHTML = message;
+function setStatus( variant, label ) {
+	statusNode.dataset.state = variant;
+	statusLabel.textContent = label;
 }
 
 /**
@@ -42,7 +47,7 @@ function setWindow( stopAtIso ) {
 /**
  * Redirects the user to the demo host if the app is ready.
  *
- * @param {*} data 
+ * @param {*} data
  */
 function maybeRedirect( data ) {
 	if ( data.app_ready ) {
@@ -51,34 +56,39 @@ function maybeRedirect( data ) {
 }
 
 /**
- * Renders the current status of the demo instance.
+ * Renders the current status of the demo instance into the status pill.
  *
- * @param {*} data 
+ * @param {*} data
  */
 function renderState( data ) {
 	const state = data.instance_state ?? "unknown";
-	let status = `Instance state: ${ state }`;
+	let variant = "unknown";
+	let label = `Instance state: ${ state }`;
 
 	switch ( state ) {
 		case "running":
-			status = ! data.app_ready
-				? 'Demo is <span class="kw-running">running</span>. Waiting for app health...'
-				: status;
+			variant = "running";
+			label = data.app_ready
+				? "Ready - opening demo..."
+				: "Running - waiting for app...";
 			break;
 		case "pending":
-			status = '<span class="kw-starting">Starting</span> demo instance. This can take a minute...';
+			variant = "pending";
+			label = "Starting - this can take a minute...";
 			break;
 		case "stopping":
-			status = 'Demo is <span class="kw-stopping">stopping</span>. Refresh in a moment.';
+			variant = "stopping";
+			label = "Stopping - refresh in a moment.";
 			break;
 		case "stopped":
-			status = 'Demo is <span class="kw-offline">offline</span>. Click Start Demo.';
+			variant = "stopped";
+			label = "Offline - click Start Demo.";
 			break;
 		default:
 			break;
 	}
 
-	setStatus( status );
+	setStatus( variant, label );
 	setWindow( data.stop_scheduled_at );
 	// Only allow starting from a fully stopped state; any other state means a start is in flight or unnecessary.
 	startButton.disabled = state !== "stopped";
@@ -111,7 +121,7 @@ async function pollStatus() {
 		const status = await fetchStatus();
 		renderState( status );
 	} catch ( error ) {
-		setStatus( "Status check failed. Try again." );
+		setStatus( "error", "Status check failed. Try again." );
 		windowNode.textContent = "";
 		console.error( error );
 	}
@@ -122,7 +132,7 @@ async function pollStatus() {
  */
 async function startDemo() {
 	startButton.disabled = true;
-	setStatus( "Submitting start request..." );
+	setStatus( "pending", "Submitting start request..." );
 
 	// Attempt to start the instance via the control API and update the UI based on the response.
 	try {
@@ -138,13 +148,50 @@ async function startDemo() {
 		const payload = await res.json();
 		renderState( payload );
 	} catch ( error ) {
-		setStatus( "Start request failed. Try again." );
+		setStatus( "error", "Start request failed. Try again." );
 		windowNode.textContent = "";
 		// Re-enable so the user can retry; on success, renderState owns the disabled state.
 		startButton.disabled = false;
 		console.error( error );
 	}
 }
+
+/**
+ * Opens or closes the header menu and keeps the toggle's aria-expanded in sync.
+ *
+ * @param {boolean} open
+ */
+function setMenuOpen( open ) {
+	menuToggle.setAttribute( "aria-expanded", String( open ) );
+	menuPanel.hidden = ! open;
+}
+
+// Toggle the menu on click; close it on outside-click or Escape.
+menuToggle.addEventListener( "click", () => {
+	setMenuOpen( menuPanel.hidden );
+} );
+
+// Close the menu if the user clicks outside the menu panel or the toggle button.
+document.addEventListener( "click", ( event ) => {
+	if ( menuPanel.hidden ) {
+		return;
+	}
+
+	if ( ! menuPanel.contains( event.target ) && ! menuToggle.contains( event.target ) ) {
+		setMenuOpen( false );
+	}
+} );
+
+// Close the menu if the user presses Escape while it's open.
+document.addEventListener( "keydown", ( event ) => {
+	if ( event.key === "Escape" && ! menuPanel.hidden ) {
+		setMenuOpen( false );
+		menuToggle.focus();
+	}
+} );
+
+// Show the current year in the footer.
+yearNode.textContent = String( new Date().getFullYear() );
 
 // Attach event listener to the start button to initiate the demo start process when clicked.
 startButton.addEventListener( "click", startDemo );

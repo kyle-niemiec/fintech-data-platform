@@ -4,28 +4,99 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Meridian Fintech Demo</title>
+		<link rel="icon" type="image/svg+xml" href="./favicon.svg" />
 		<link rel="stylesheet" href="./styles.css" />
 	</head>
+
 	<body>
-		<main class="card">
-			<h1>Meridian Fintech Demo</h1>
-			<p class="subtitle">a project by Kyle Niemiec</p>
+		<header class="site-header">
+			<span class="brand" href="./" aria-label="Meridian Fintech Demo home">
+				<img class="brand-mark" src="./favicon.svg" alt="" width="28" height="28" />
+				<span class="brand-name">Meridian</span>
+			</span>
 
-			<p class="intro">
-				Welcome to my personal, data engineering project! Due to the high
-				compute usage of the many containers involved, significant resources
-				have been allocated in AWS to keep the project running smoothly.
-				For that reason, the EC2 instance remains off for most of the time
-				and can be enabled with a Lambda function by clicking the button
-				below. The demo will remain active for 30 minutes, after which
-				it will stop and must be started again. Thanks for looking!
-			</p>
+			<div class="menu">
+				<button
+					id="menu-toggle"
+					class="menu-toggle"
+					type="button"
+					aria-haspopup="menu"
+					aria-expanded="false"
+					aria-controls="menu-panel"
+					aria-label="Open menu"
+				>
+					<svg
+						viewBox="0 0 24 24"
+						width="22"
+						height="22"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						aria-hidden="true"
+					>
+						<line x1="4" y1="7" x2="20" y2="7" />
+						<line x1="4" y1="12" x2="20" y2="12" />
+						<line x1="4" y1="17" x2="20" y2="17" />
+					</svg>
+				</button>
 
-			<button id="start-btn" type="button" disabled>Start Demo (30 min)</button>
+				<div id="menu-panel" class="menu-panel" role="menu" hidden>
+					<a
+						class="menu-item"
+						role="menuitem"
+						href="https://github.com/kyle-niemiec/fintech-data-platform"
+						target="_blank"
+						rel="noreferrer"
+					>
+						<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+							<path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56v-1.95c-3.2.7-3.87-1.54-3.87-1.54-.52-1.33-1.27-1.68-1.27-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.25 3.34.95.1-.74.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.07 11.07 0 0 1 2.9-.39c.98 0 1.97.13 2.9.39 2.21-1.49 3.18-1.18 3.18-1.18.63 1.59.23 2.76.11 3.05.73.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.41-5.25 5.69.41.36.78 1.07.78 2.15v3.19c0 .31.21.68.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z" />
+						</svg>
+						<span>kyle-niemiec/fintech-data-platform</span>
+					</a>
+					<a
+						class="menu-item"
+						role="menuitem"
+						href="https://codeflower.io"
+						target="_blank"
+						rel="noreferrer"
+					>
+						<img src="./codeflower.svg" alt="" width="20" height="20" />
+						<span>CodeFlower</span>
+					</a>
+				</div>
+			</div>
+		</header>
 
-			<p id="status" class="status">Checking status...</p>
-			<p id="window" class="window"></p>
+		<main class="content">
+			<section class="card">
+				<h1>Meridian Fintech Demo</h1>
+				<p class="subtitle">a project by Kyle Niemiec</p>
+
+				<p class="intro">
+					Welcome to my personal, data engineering project! Due to the high
+					compute usage of the many containers involved, significant resources
+					have been allocated in AWS to keep the project running smoothly.
+					For that reason, the EC2 instance remains off for most of the time
+					and can be enabled with a Lambda function by clicking the button
+					below. The demo will remain active for 30 minutes, after which
+					it will stop and must be started again. Thanks for looking!
+				</p>
+
+				<button id="start-btn" class="start-btn" type="button" disabled>Start Demo (30 min)</button>
+
+				<div id="status" class="status-pill" data-state="unknown" role="status" aria-live="polite">
+					<span class="status-dot" aria-hidden="true"></span>
+					<span class="status-label">Checking status...</span>
+				</div>
+				<p id="window" class="window"></p>
+			</section>
 		</main>
+
+		<footer class="site-footer">
+			&copy; CodeFlower <span id="year"></span>
+		</footer>
+
 		<script src="./app.js" defer></script>
 	</body>
 </html>

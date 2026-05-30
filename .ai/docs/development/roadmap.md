@@ -187,7 +187,7 @@ Legend:
   - [x] Primary EC2 origin connection timeout/attempts are reduced (`ConnectionTimeout: 2`, `ConnectionAttempts: 1`) for faster failover when the instance is down.
   - [x] Launcher Function URL includes both public URL permissions (`lambda:InvokeFunctionUrl` and URL-scoped `lambda:InvokeFunction` with `InvokedViaFunctionUrl: true`) to satisfy current Lambda URL authorization requirements.
   - [x] LauncherControlFunction execution role has `iam:PassRole` on `SchedulerInvokeStopRole` (constrained by `iam:PassedToService: scheduler.amazonaws.com`) so `POST /start` can create the EventBridge stop schedule; without it the schedule call failed and the instance ran past TTL.
-- [x] Launcher landing page renders project-specific copy ("Meridian Fintech Demo" title, project intro paragraph) and color-highlights the state keyword in each status message (`infra/cloudformation/launcher-site/index.html`, `app.js`, `styles.css`).
+- [x] Launcher landing page presents the Meridian Navy theme: a slim header (Meridian mark + wordmark on the left; hamburger menu on the right linking the GitHub repo and the CodeFlower site), project-specific copy ("Meridian Fintech Demo" title, project intro paragraph), the demo status surfaced as a color-coded status pill with an animated state dot (replacing the inline state-keyword highlighting), and a footer crediting CodeFlower with the current year (`infra/cloudformation/launcher-site/index.html`, `app.js`, `styles.css`).
 - [ ] Live AWS launcher prerequisites are still pending manual operator
   execution (ACM cert for `meridian.codeflower.io` in `us-east-1`, initial
   launcher stack apply, and hosted-domain DNS cutover to CloudFront with
