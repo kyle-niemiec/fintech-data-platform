@@ -99,12 +99,15 @@ multi-host split requires explicit endpoint abstraction before cutover.
 ## Init and Runtime Lifecycle Contract
 
 One-shot initialization jobs are required deployment behavior:
-- `vault_bootstrap`
 - `kes_bootstrap`
 - `airflow_init`
 - `trino_curated_init`
 - Terraform `bootstrap` apply
 - Terraform `identity` apply
+
+Vault AppRole/transit reconciliation is now startup-managed by the `vault`
+service (persistent storage + init/unseal/reconcile wrapper) and does not rely
+on a separate one-shot bootstrap service.
 
 Hosted startup sequencing contract:
 1. Start foundational runtime dependencies.

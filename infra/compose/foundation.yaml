@@ -50,14 +50,20 @@ services:
     image: hashicorp/vault:1.16
     container_name: fintech_vault
     restart: unless-stopped
+    entrypoint: ["/bin/sh", "/vault-start.sh"]
     command:
       - server
-      - -dev
-      - -dev-root-token-id=${VAULT_DEV_ROOT_TOKEN_ID}
-      - -dev-listen-address=0.0.0.0:8200
+      - -config=/vault/config/vault.hcl
     environment:
-      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
       VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_STATE_FILE: /vault/data/vault-init.env
+      VAULT_BOOTSTRAP_SCRIPT: /bootstrap-vault.sh
+    volumes:
+      - ./kms/vault-start.sh:/vault-start.sh:ro
+      - ./kms/vault.hcl:/vault/config/vault.hcl:ro
+      - ./kms/bootstrap-vault.sh:/bootstrap-vault.sh:ro
+      - vault_data:/vault/data
+      - kms_shared:/kms
     cap_add:
       - IPC_LOCK
     healthcheck:
@@ -65,29 +71,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
-    networks:
-      - platform_internal
-
-  vault_bootstrap:
-    image: hashicorp/vault:1.16
-    container_name: fintech_vault_bootstrap
-    restart: "no"
-    entrypoint: ["/bin/sh", "/bootstrap-vault.sh"]
-    environment:
-      VAULT_ADDR: http://vault:8200
-      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
-      VAULT_KV_ENGINE: ${VAULT_KV_ENGINE}
-      VAULT_TRANSIT_ENGINE: ${VAULT_TRANSIT_ENGINE}
-      VAULT_TRANSIT_KEY_NAME: ${VAULT_TRANSIT_KEY_NAME}
-      KES_VAULT_APPROLE: ${KES_VAULT_APPROLE}
-      KES_VAULT_POLICY: ${KES_VAULT_POLICY}
-      KES_VAULT_CREDS_FILE: /kms/vault-kes-approle.env
-    volumes:
-      - ./kms/bootstrap-vault.sh:/bootstrap-vault.sh:ro
-      - kms_shared:/kms
-    depends_on:
-      vault:
-        condition: service_healthy
     networks:
       - platform_internal
 
@@ -111,8 +94,8 @@ services:
       - ./kms/bootstrap-kes.sh:/bootstrap-kes.sh:ro
       - kms_shared:/kms
     depends_on:
-      vault_bootstrap:
-        condition: service_completed_successfully
+      vault:
+        condition: service_healthy
     networks:
       - platform_internal
 

@@ -54,4 +54,6 @@
 - `api`, `keycloak`, and `airflow_api_server` are not host-published in production mode.
 - API runtime defaults are production-oriented (`uvicorn ... --host 0.0.0.0 --port 8000` without `--reload` or bind-mounted source).
 - Dev-only ergonomics live in `infra/compose/dev/demo-ui-access.yaml` (localhost ports + API bind-mount + `--reload`).
-- Production bring-up uses the staged `infra-up` sequence, so required one-shot init services (`vault_bootstrap`, `kes_bootstrap`, `airflow_init`, `trino_curated_init`) remain hard gates for successful deployment.
+- Production bring-up uses the staged `infra-up` sequence; required one-shot init services are `kes_bootstrap`, `airflow_init`, and `trino_curated_init`.
+- Vault bootstrap/reconcile is startup-managed in the long-running `vault` container (`infra/kms/vault-start.sh`) with persistent storage (`vault_data`).
+- `vault-start.sh` now captures expected non-zero readiness codes from `vault status` and `vault operator init -status` under `set -e`; this prevents false restart loops during first-boot initialization/unseal.

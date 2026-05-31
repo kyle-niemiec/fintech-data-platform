@@ -12,16 +12,26 @@ set -eu
 : "${KES_CONFIG_FILE:=/kms/config/kes-server-config.yaml}"
 : "${KES_CERT_DIR:=/kms/certs}"
 
-if [ ! -f "${KES_VAULT_CREDS_FILE}" ]; then
-  echo "Missing Vault AppRole credentials file: ${KES_VAULT_CREDS_FILE}" >&2
-  exit 1
-fi
+attempts=0
+
+# Wait up to 120 seconds for the Vault AppRole credentials file to be created by vault-start.sh
+while [ ! -f "${KES_VAULT_CREDS_FILE}" ]; do
+  attempts=$((attempts + 1))
+
+  if [ "${attempts}" -ge 120 ]; then
+    echo "Missing Vault AppRole credentials file after wait: ${KES_VAULT_CREDS_FILE}" >&2
+    exit 1
+  fi
+
+  sleep 1
+done
 
 # shellcheck disable=SC1090
 . "${KES_VAULT_CREDS_FILE}"
 
 mkdir -p "${KES_CERT_DIR}" "$(dirname "${KES_CONFIG_FILE}")"
 
+# Generate a new CA certificate for KES.
 if [ ! -f "${KES_CERT_DIR}/ca.crt" ] || [ ! -f "${KES_CERT_DIR}/ca.key" ]; then
   openssl req -x509 -newkey rsa:4096 -sha256 -nodes \
     -keyout "${KES_CERT_DIR}/ca.key" \
@@ -30,7 +40,9 @@ if [ ! -f "${KES_CERT_DIR}/ca.crt" ] || [ ! -f "${KES_CERT_DIR}/ca.key" ]; then
     -subj "/CN=fintech-kes-ca" >/dev/null 2>&1
 fi
 
+# Generate a new server certificate for KES.
 if [ ! -f "${KES_CERT_DIR}/server.crt" ] || [ ! -f "${KES_CERT_DIR}/server.key" ]; then
+  # Create an OpenSSL config file for generating the server certificate with appropriate SANs.
   cat > /tmp/kes-server.cnf <<'EOF'
 [req]
 default_bits=4096
@@ -51,11 +63,13 @@ DNS.2=localhost
 IP.1=127.0.0.1
 EOF
 
+  # Generate a temporary CSR using the config file.
   openssl req -new -newkey rsa:4096 -nodes \
     -keyout "${KES_CERT_DIR}/server.key" \
     -out /tmp/kes-server.csr \
     -config /tmp/kes-server.cnf >/dev/null 2>&1
 
+  # Sign the server CSR with the CA certificate to create the server certificate.
   openssl x509 -req \
     -in /tmp/kes-server.csr \
     -CA "${KES_CERT_DIR}/ca.crt" \
@@ -67,9 +81,11 @@ EOF
     -extensions req_ext \
     -extfile /tmp/kes-server.cnf >/dev/null 2>&1
 
+  # Clean up temporary files.
   rm -f /tmp/kes-server.cnf /tmp/kes-server.csr
 fi
 
+# Write out the KES server configuration file and Vault connection details.
 cat > "${KES_CONFIG_FILE}" <<EOF
 version: v1
 address: 0.0.0.0:7373

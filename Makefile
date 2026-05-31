@@ -318,7 +318,7 @@ infra-watch-dev:
 infra-clean:
 	@$(COMPOSE_DEV) down --volumes --remove-orphans
 	@set -e; \
-	for suffix in postgres_data event_store_data minio_data redpanda_data kms_shared airflow_postgres_data oltp_data debezium_offsets; do \
+	for suffix in postgres_data event_store_data minio_data redpanda_data kms_shared vault_data airflow_postgres_data oltp_data debezium_offsets; do \
 		volumes=$$(docker volume ls --format '{{.Name}}' | grep -E "(^|_)$${suffix}$$" || true); \
 		if [ -n "$$volumes" ]; then \
 			docker volume rm $$volumes >/dev/null; \

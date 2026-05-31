@@ -106,7 +106,7 @@ docker compose $COMPOSE_FILES --env-file infra/.env logs kes --tail=50
 1. Verify Vault transit key exists:
 
 ```bash
-docker compose $COMPOSE_FILES --env-file infra/.env exec -T vault sh -ec 'export VAULT_ADDR=http://127.0.0.1:8200; export VAULT_TOKEN="$VAULT_DEV_ROOT_TOKEN_ID"; vault read transit/keys/fintech-minio-kms-root'
+docker compose $COMPOSE_FILES --env-file infra/.env exec -T vault sh -ec 'export VAULT_ADDR=http://127.0.0.1:8200; . /vault/data/vault-init.env; export VAULT_TOKEN="$VAULT_ROOT_TOKEN"; vault read transit/keys/fintech-minio-kms-root'
 ```
 
 2. Verify KES started against Vault:
@@ -121,7 +121,17 @@ docker compose $COMPOSE_FILES --env-file infra/.env logs kes --tail=50
 docker compose $COMPOSE_FILES --env-file infra/.env logs minio --tail=50
 ```
 
-4. Vault is intentionally running in dev mode for local demonstration. Restarting the `vault` container resets its in-memory state and can make previously written ciphertext undecryptable. Treat Vault restarts as a local re-bootstrap event.
+4. Vault runs with persistent file storage (`vault_data`) and startup reconciliation (`infra/kms/vault-start.sh`). A plain `docker compose ... restart vault` should auto-unseal and re-assert AppRole/transit state.
+
+5. If operators intentionally wipe partial Vault/KMS state, force reconciliation by restarting `vault` so startup reconcile reruns:
+
+```bash
+docker compose $COMPOSE_FILES --env-file infra/.env restart vault
+```
+
+If `vault_data/storage` exists but `/vault/data/vault-init.env` is missing, the
+instance cannot auto-unseal (unseal key/root token were wiped). In that case,
+run `make infra-clean` (or remove only the Vault volume) and bootstrap fresh.
 
 ## Event-Store Hardening Migration Note
 
@@ -420,7 +430,7 @@ mc cp --enc-kms "transform/fintech-lakehouse/bronze/=fintech-lakehouse-kms-key" 
 ### Vault Transit Key Rotation
 
 ```bash
-docker compose $COMPOSE_FILES --env-file infra/.env exec -T vault sh -ec 'export VAULT_ADDR=http://127.0.0.1:8200; export VAULT_TOKEN="$VAULT_DEV_ROOT_TOKEN_ID"; vault write -f transit/keys/fintech-minio-kms-root/rotate; vault read -field=latest_version transit/keys/fintech-minio-kms-root'
+docker compose $COMPOSE_FILES --env-file infra/.env exec -T vault sh -ec 'export VAULT_ADDR=http://127.0.0.1:8200; . /vault/data/vault-init.env; export VAULT_TOKEN="$VAULT_ROOT_TOKEN"; vault write -f transit/keys/fintech-minio-kms-root/rotate; vault read -field=latest_version transit/keys/fintech-minio-kms-root'
 ```
 
 After rotation, validate one new SSE-KMS write and read back both pre- and post-rotation objects.
@@ -580,13 +590,23 @@ with CloudFront-edge HTTPS and EC2-origin UI exposure on `:80`. Required order:
 3. Keycloak up.
 4. Terraform `identity` apply succeeds.
 5. One-shot init jobs complete:
-   - `vault_bootstrap`
    - `kes_bootstrap`
    - `trino_curated_init`
    - `airflow_init`
+   (`vault` reconcile runs automatically during `vault` container startup).
 6. Long-running orchestration + worker services up.
 7. API + UI up.
 8. Hosted health-gate checks pass before marking deploy complete.
+
+### Hosted EC2 Stop/Start Recovery (Phase 1)
+
+Expected behavior after `POST /start` (launcher control API):
+
+1. EC2 starts, then Docker `restart: unless-stopped` restores long-running services.
+2. `vault` startup reconciliation (`infra/kms/vault-start.sh`) waits for API, initializes only on first boot, unseals, and idempotently reasserts AppRole/transit/KES credentials.
+3. `kes_bootstrap` waits for Vault health plus `/kms/vault-kes-approle.env`, then rewrites KES config idempotently.
+4. `kes` and `minio` return healthy without manual Vault bootstrap jobs.
+5. `GET /status` reports `app_ready=true`, and origin app health (`GET /ui/runs?limit=1`) returns success.
 
 ### Hosted Ingress Contract
 

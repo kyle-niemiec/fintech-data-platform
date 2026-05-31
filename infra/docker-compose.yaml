@@ -1,6 +1,7 @@
 volumes:
   postgres_data:
   event_store_data:
+  vault_data:
   minio_data:
   redpanda_data:
   kms_shared:
