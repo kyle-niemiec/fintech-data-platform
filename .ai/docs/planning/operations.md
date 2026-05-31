@@ -563,6 +563,14 @@ Required GitHub configuration for release deploy lane:
 `infra/ops/ssm_release_deploy.sh` sends a single SSM Run Command that executes
 `infra/ops/ec2_deploy_release.sh` on the host for the target tag.
 
+Before sending the Run Command, it:
+
+1. Starts the target EC2 instance if needed.
+2. Waits for instance `running` state.
+3. Waits for SSM managed-node `PingStatus=Online`.
+4. Registers an exit trap so the instance is stopped after deploy flow
+   completion (success or failure/rollback).
+
 `infra/ops/ec2_deploy_release.sh` performs:
 
 1. Checkout target tag.
@@ -775,13 +783,14 @@ Launcher behavior in step 3:
 - Detect whether launcher/IaC assets changed and whether the stack exists.
 - Publish `should_apply` signal in logs for operator visibility.
 
-EC2 application deploy behavior in step 4 remains unchanged:
+EC2 application deploy behavior in step 4:
 
 - `make infra-clean`
 - regenerate random `infra/.env`
 - `make infra-up`
 - hosted health checks
-- rollback to `/meridian/demo/last_good_tag` on failure.
+- rollback to `/meridian/demo/last_good_tag` on failure
+- always issue EC2 stop after deploy flow completion.
 
 ### Manual Launcher Deploy Command
 

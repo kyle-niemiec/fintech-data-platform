@@ -170,6 +170,9 @@ Legend:
   - [x] detects launcher-related changes against previous semver tag.
   - [x] computes/logs `should_apply` without mutating launcher resources.
   - [x] keeps launcher stack apply/sync manual by design in this lane.
+- [x] SSM release deploy wrapper (`infra/ops/ssm_release_deploy.sh`) enforces
+  instance lifecycle during tag deploys: start/wait before SSM Run Command, and
+  always stop after deploy flow completion (success or rollback/failure).
 - [x] Deterministic helper script
   `infra/ops/deploy_demo_launcher_stack.sh` packages/deploys the stack and syncs
   launcher static assets.

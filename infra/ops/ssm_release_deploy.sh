@@ -25,6 +25,120 @@ aws_cmd() {
 	aws --region "$AWS_REGION" "$@"
 }
 
+get_instance_state() {
+	aws_cmd ec2 describe-instances \
+		--instance-ids "$INSTANCE_ID" \
+		--query 'Reservations[0].Instances[0].State.Name' \
+		--output text
+}
+
+wait_for_ssm_online() {
+	local attempts=0
+	local max_attempts=120
+	local ping_status=""
+
+	while true; do
+		ping_status="$(
+			aws_cmd ssm describe-instance-information \
+				--filters "Key=InstanceIds,Values=${INSTANCE_ID}" \
+				--query 'InstanceInformationList[0].PingStatus' \
+				--output text 2>/dev/null || true
+		)"
+
+		if [ "$ping_status" = "Online" ]; then
+			return 0
+		fi
+
+		attempts=$((attempts + 1))
+		if [ "$attempts" -ge "$max_attempts" ]; then
+			echo "Timed out waiting for SSM agent to become Online for ${INSTANCE_ID} (last_status=${ping_status})." >&2
+			return 1
+		fi
+
+		sleep 5
+	done
+}
+
+start_instance_for_deploy() {
+	local state=""
+
+	state="$(get_instance_state)"
+
+	case "$state" in
+		running)
+			echo "EC2 instance ${INSTANCE_ID} already running."
+			;;
+		pending)
+			echo "EC2 instance ${INSTANCE_ID} is pending; waiting for running state..."
+			aws_cmd ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+			;;
+		stopping)
+			echo "EC2 instance ${INSTANCE_ID} is stopping; waiting for stopped state..."
+			aws_cmd ec2 wait instance-stopped --instance-ids "$INSTANCE_ID"
+			echo "Starting EC2 instance ${INSTANCE_ID}..."
+			aws_cmd ec2 start-instances --instance-ids "$INSTANCE_ID" >/dev/null
+			aws_cmd ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+			;;
+		stopped)
+			echo "Starting EC2 instance ${INSTANCE_ID}..."
+			aws_cmd ec2 start-instances --instance-ids "$INSTANCE_ID" >/dev/null
+			aws_cmd ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+			;;
+		*)
+			echo "Unsupported instance state for deploy start: ${state}" >&2
+			return 1
+			;;
+	esac
+
+	echo "Waiting for SSM agent connectivity on ${INSTANCE_ID}..."
+	wait_for_ssm_online
+}
+
+stop_instance_after_deploy() {
+	local state=""
+
+	state="$(get_instance_state)"
+
+	case "$state" in
+		stopped)
+			echo "EC2 instance ${INSTANCE_ID} already stopped."
+			return 0
+			;;
+		stopping)
+			echo "EC2 instance ${INSTANCE_ID} already stopping; waiting for stopped state..."
+			aws_cmd ec2 wait instance-stopped --instance-ids "$INSTANCE_ID"
+			return 0
+			;;
+		terminated|shutting-down)
+			echo "EC2 instance ${INSTANCE_ID} is ${state}; skipping stop request."
+			return 0
+			;;
+		pending|running)
+			echo "Stopping EC2 instance ${INSTANCE_ID}..."
+			aws_cmd ec2 stop-instances --instance-ids "$INSTANCE_ID" >/dev/null
+			aws_cmd ec2 wait instance-stopped --instance-ids "$INSTANCE_ID"
+			return 0
+			;;
+		*)
+			echo "Unsupported instance state for deploy stop: ${state}" >&2
+			return 1
+			;;
+	esac
+}
+
+cleanup_on_exit() {
+	local deploy_status="$?"
+	local final_status="$deploy_status"
+
+	if ! stop_instance_after_deploy; then
+		echo "Auto-stop after deploy failed for ${INSTANCE_ID}." >&2
+		final_status=1
+	fi
+
+	trap - EXIT
+	exit "$final_status"
+}
+
 get_parameter_if_present() {
 	local name="$1"
 	aws_cmd ssm get-parameter --name "$name" --query 'Parameter.Value' --output text 2>/dev/null || true
@@ -99,6 +213,9 @@ send_deploy_command() {
 # previous tag even if the current deployment fails before it can update the
 # last good tag.
 previous_tag="$(get_parameter_if_present "$LAST_GOOD_PARAM")"
+
+trap cleanup_on_exit EXIT
+start_instance_for_deploy
 
 # Add the new release tag to SSM so it's available for the deploy command
 aws_cmd ssm put-parameter \

@@ -49,13 +49,18 @@ failure stops:
 3. Run full integration validation gate for the tagged commit.
 4. Authenticate to AWS via GitHub OIDC role assumption.
 5. Execute SSM-only deploy script against the target EC2 host.
-6. On-host deploy runs:
+6. Deploy script first ensures runtime availability:
+   - start target EC2 instance when needed
+   - wait for `running` + SSM `PingStatus=Online`
+7. On-host deploy runs:
    - `make infra-clean`
    - regenerate random `infra/.env` (deploy-only rotation)
    - `make infra-up` (includes Terraform `bootstrap` and `identity`)
    - hosted health checks through UI `:443` and native API paths.
-7. On failure, attempt automatic rollback to prior
+8. On failure, attempt automatic rollback to prior
    `/meridian/demo/last_good_tag`.
+9. Always stop the EC2 instance after deploy flow completion (success or
+   failure/rollback).
 
 If any step fails, later steps do not run.
 
