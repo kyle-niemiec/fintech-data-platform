@@ -36,7 +36,7 @@ export default function App() {
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-4 text-xs text-navy-600">
           <div>
-            Meridian Fintech Demo &middot; Demo Console
+            Meridian Fintech Demo
             {releaseTag ? ` · Version ${releaseTag}` : ""}
           </div>
 
