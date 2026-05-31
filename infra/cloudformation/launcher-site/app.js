@@ -198,7 +198,7 @@ startButton.addEventListener( "click", startDemo );
 
 // Grab the initial status of the instance immediately and then start polling at regular intervals.
 pollStatus();
-// pollHandle = window.setInterval( pollStatus, 5000 );
+pollHandle = window.setInterval( pollStatus, 5000 );
 
 window.addEventListener( "beforeunload", () => {
 	if ( pollHandle !== null ) {
